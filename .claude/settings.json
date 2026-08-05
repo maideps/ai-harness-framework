@@ -1,0 +1,37 @@
+{
+  "token_usage_warning_threshold": 0.8,
+  "auto_approve": {
+    "read_file": true,
+    "search_files": true,
+    "list_files": true,
+    "list_code_definition_names": true,
+    "execute_command": "ask",
+    "write_to_file": "ask",
+    "replace_in_file": "ask",
+    "generate_explanation": false,
+    "use_mcp_tool": "ask",
+    "access_mcp_resource": "ask",
+    "ask_followup_question": false,
+    "attempt_completion": false,
+    "load_mcp_documentation": false
+  },
+  "allowed_tools": [
+    "execute_command",
+    "read_file",
+    "search_files",
+    "list_files",
+    "list_code_definition_names",
+    "write_to_file",
+    "replace_in_file",
+    "generate_explanation",
+    "use_mcp_tool",
+    "access_mcp_resource",
+    "ask_followup_question",
+    "attempt_completion",
+    "load_mcp_documentation"
+  ],
+  "context_management": {
+    "max_file_size_lines": 2000,
+    "aggregate_on_open": true
+  }
+}

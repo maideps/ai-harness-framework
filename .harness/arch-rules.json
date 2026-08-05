@@ -1,0 +1,31 @@
+{
+  "rules": [
+    {
+      "id": "arch-001",
+      "description": "No circular dependencies between layers",
+      "check": "echo 'manual'",
+      "expect": "manual",
+      "what": "Circular dependency detected between layers. Each layer must only depend on layers below it.",
+      "why": "Circular dependencies make the codebase untestable, fragile, and hard to reason about. Clean layered architecture requires acyclic dependency graphs.",
+      "fix": "Break the cycle by introducing an interface/abstraction in the lower layer, or extract shared types to a common module that both layers can depend on."
+    },
+    {
+      "id": "arch-002",
+      "description": "Domain layer has no external dependencies",
+      "check": "echo 'manual'",
+      "expect": "manual",
+      "what": "Domain layer imports from infrastructure, presentation, or application layer. Domain must be pure and dependency-free.",
+      "why": "The domain layer contains core business logic. External dependencies on frameworks, databases, or UI layers make it non-portable and hard to test.",
+      "fix": "Move infrastructure-specific code to the infrastructure layer. Use dependency inversion: define interfaces in domain, implement them in infrastructure."
+    },
+    {
+      "id": "arch-003",
+      "description": "Presentation never directly accesses infrastructure",
+      "check": "echo 'manual'",
+      "expect": "manual",
+      "what": "Presentation layer directly imports from infrastructure layer. Use the application layer as intermediary.",
+      "why": "Direct infrastructure access from the UI creates tight coupling. The application layer should orchestrate infrastructure access, keeping the presentation layer thin.",
+      "fix": "Create an application-layer service/facade that wraps the infrastructure call, and have the presentation layer use that instead."
+    }
+  ]
+}
