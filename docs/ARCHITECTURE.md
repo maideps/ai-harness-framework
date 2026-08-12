@@ -2,7 +2,12 @@
 
 ## Layer Model
 
-The project follows a layered architecture to ensure clear separation of concerns and enforceable dependency boundaries.
+The framework has two architecture concerns:
+
+1. **Harness architecture** in this repository — the instruction, state, verification, and observability surfaces that make the framework reusable.
+2. **Application architecture** in adopting repositories — the layered product code structure that the harness will later enforce.
+
+During bootstrap (`feat-001`), the repository primarily validates harness architecture. Once an adopting project adds source code, teams should extend `.harness/arch-rules.json` with product-layer checks.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -20,7 +25,18 @@ The project follows a layered architecture to ensure clear separation of concern
 └─────────────────────────────────────────────┘
 ```
 
-## Dependency Rules
+## Harness Boundaries
+
+- Root operating manual and state files live at the repository root so every session can discover them immediately.
+- Verification entrypoints live in `init.sh`, `Makefile`, and `scripts/`.
+- Policy and enforcement rules live under `.harness/`.
+- Durable user-facing guidance lives in `README.md` and `docs/`.
+
+These boundaries are enforced today by `make check` and `make check-arch`.
+
+## Application Dependency Rules
+
+Adopting projects should enforce the following layered rules once product code exists:
 
 - Layers may only depend on layers below them
 - Domain layer has zero external dependencies
@@ -44,9 +60,17 @@ Each rule in `arch-rules.json` must include:
 - `why` — why this rule exists
 - `fix` — actionable fix instructions
 
+Bootstrap-time rules currently verify:
+
+- required harness surfaces exist
+- the feature tracker preserves WIP=1 and dependency order
+- framework docs do not drift back to template placeholders
+
+Adopting projects should add language- and framework-specific checks as the codebase grows.
+
 ## Module Documentation
 
-Co-locate architecture decisions with code. Each module directory should contain a brief architecture note explaining its design rationale, not just the root-level docs.
+Co-locate architecture decisions with the code or harness surface they affect. Product modules should contain brief architecture notes once they exist; until then, keep framework-wide decisions in the root docs.
 
 ## References
 
