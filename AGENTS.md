@@ -18,7 +18,7 @@ If baseline verification is failing, repair that first before adding new scope.
 ## Working Rules
 
 - **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json`
-- **WIP=1**: Only one feature may have `status: "active"` at any time. Complete and move to `passing` before activating the next.
+- **WIP=1**: Only one feature may have `state: "active"` at any time. Complete and move to `passing` before activating the next.
 - **Verification required**: Don't claim done without running verification commands
 - **Update artifacts**: Before ending session, update `progress.md` and `feature_list.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
@@ -107,7 +107,7 @@ Before ending a session:
 
 1. Run `make clean-check` — confirms build passes, no debug artifacts, progress updated
 2. Update `progress.md` with current state, decisions, blockers, and next steps
-3. Update `feature_list.json` with new feature status
+3. Update `feature_list.json` with the new feature state
 4. Update `docs/quality-document.md` for modules touched (A/B/C/D per dimension)
 5. Record any unresolved risks or blockers
 6. Commit with descriptive message explaining WHY, not just what
