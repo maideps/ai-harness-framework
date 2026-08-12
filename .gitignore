@@ -1,1 +1,2 @@
 base/
+.harness/traces/*.json
