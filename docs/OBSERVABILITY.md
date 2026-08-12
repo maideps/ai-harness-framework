@@ -22,9 +22,9 @@ make session-end      # Record session end time, state, and outcomes
 Traces are stored in `.harness/traces/` as timestamped JSON records with:
 - Session start/end times
 - Active feature ID
-- Verification results (each layer)
+- Verification metadata (active feature layers and recorded evidence)
 - Files modified
-- Decisions recorded
+- Decision summary (count and latest decision title)
 
 ## Evaluator Rubric
 
