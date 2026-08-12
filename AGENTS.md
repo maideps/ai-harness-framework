@@ -18,7 +18,7 @@ If baseline verification is failing, repair that first before adding new scope.
 ## Working Rules
 
 - **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json`
-- **WIP=1**: Only one feature may have `state: "active"` at any time. Complete and move to `passing` before activating the next.
+- **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"`). Complete and move to `passing` before activating the next.
 - **Verification required**: Don't claim done without running verification commands
 - **Update artifacts**: Before ending session, update `progress.md` and `feature_list.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
@@ -51,7 +51,8 @@ Agents must read and update these files — they are the source of truth, not ch
 | File | Purpose | When to Read | When to Update |
 |---|---|---|---|
 | `feature_list.json` | Feature state tracker | Session start | After every feature state change |
-| `progress.md` | Session continuity log | Session start | Session end |
+| `progress.md` | Session continuity log (canonical) | Session start | Session end |
+| `claude-progress.md` | Compatibility alias for progress tracking | Session start (if used) | Session end (if used) |
 | `DECISIONS.md` | Architectural decisions log | Before major decisions | After any architectural decision |
 | `session-handoff.md` | Multi-session handoff notes | Session start (if present) | Session end (for large sessions) |
 
