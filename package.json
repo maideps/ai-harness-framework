@@ -4,10 +4,10 @@
   "private": true,
   "description": "A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows",
   "scripts": {
-    "lint": "echo 'No lint configured yet — add linter in feat-002' && exit 0",
-    "typecheck": "echo 'No typecheck configured yet — add type checking in feat-002' && exit 0",
-    "test": "echo 'No tests configured yet — add tests in feat-002' && exit 0",
-    "build": "echo 'No build step configured yet — add build in feat-002' && exit 0",
+    "lint": "node scripts/framework-check.mjs lint",
+    "typecheck": "node scripts/framework-check.mjs typecheck",
+    "test": "node scripts/framework-check.mjs test",
+    "build": "node scripts/framework-check.mjs build",
     "e2e": "echo 'No e2e tests configured yet — add e2e in feat-002' && exit 0",
     "dev": "echo 'No dev server configured yet — add dev server in feat-002' && exit 0"
   },

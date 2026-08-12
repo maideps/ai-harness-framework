@@ -7,7 +7,7 @@ ifeq ($(OS),Windows_NT)
 endif
 
 ## Full verification — all layers in order
-check: lint test build
+check: lint typecheck test build
 	@echo "=== make check: ALL LAYERS PASS ==="
 
 ## Layer 1: Static analysis

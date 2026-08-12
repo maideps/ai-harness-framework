@@ -14,18 +14,25 @@ fi
 echo "=== Architecture Constraint Check ==="
 echo ""
 
-# Check if jq is available
-HAS_JQ=false
-command -v jq >/dev/null 2>&1 && HAS_JQ=true
-
-if [ "$HAS_JQ" = false ]; then
-  echo "[WARN] jq not available — architecture rules will not be evaluated"
-  echo "Install jq to enable automated architecture enforcement"
-  exit 1
+if command -v jq >/dev/null 2>&1; then
+  RULE_COUNT=$(jq '[.rules[]] | length' "$ARCH_RULES")
+  get_rule_field() {
+    jq -r --arg idx "$1" --arg field "$2" '.rules[$idx | tonumber][$field]' "$ARCH_RULES"
+  }
+else
+  RULE_COUNT=$(node -e "
+const data = require('./$ARCH_RULES');
+console.log(Array.isArray(data.rules) ? data.rules.length : 0);
+")
+  get_rule_field() {
+    node -e "
+const data = require('./$ARCH_RULES');
+const rule = data.rules[Number(process.argv[1])] || {};
+const value = rule[process.argv[2]];
+if (value !== undefined && value !== null) console.log(value);
+" "$1" "$2"
+  }
 fi
-
-# Count rules
-RULE_COUNT=$(jq '[.rules[]] | length' "$ARCH_RULES")
 
 if [ "$RULE_COUNT" -eq 0 ]; then
   echo "[PASS] No architecture rules defined (acceptable for bootstrap)"
@@ -38,13 +45,13 @@ echo ""
 PASSING=true
 
 for i in $(seq 0 $((RULE_COUNT - 1))); do
-  RULE_ID=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].id' "$ARCH_RULES")
-  RULE_DESC=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].description' "$ARCH_RULES")
-  RULE_CHECK=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].check' "$ARCH_RULES")
-  RULE_EXPECT=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].expect' "$ARCH_RULES")
-  RULE_WHAT=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].what' "$ARCH_RULES")
-  RULE_WHY=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].why' "$ARCH_RULES")
-  RULE_FIX=$(jq -r --arg idx "$i" '.rules[$idx | tonumber].fix' "$ARCH_RULES")
+  RULE_ID=$(get_rule_field "$i" "id")
+  RULE_DESC=$(get_rule_field "$i" "description")
+  RULE_CHECK=$(get_rule_field "$i" "check")
+  RULE_EXPECT=$(get_rule_field "$i" "expect")
+  RULE_WHAT=$(get_rule_field "$i" "what")
+  RULE_WHY=$(get_rule_field "$i" "why")
+  RULE_FIX=$(get_rule_field "$i" "fix")
 
   echo "Rule: $RULE_ID — $RULE_DESC"
 

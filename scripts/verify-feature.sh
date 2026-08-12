@@ -109,14 +109,9 @@ done
 echo ""
 if [ "$PASSING" = true ]; then
   echo "=== Feature $FEATURE_ID: ALL LAYERS PASS ==="
-  # Update evidence if jq available
-  if [ "$HAS_JQ" = true ]; then
-    EVIDENCE="All verification layers passed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    jq --arg id "$FEATURE_ID" --arg evidence "$EVIDENCE" \
-      '(.features[] | select(.id == $id)).evidence = $evidence' feature_list.json > feature_list.json.tmp && \
-      mv feature_list.json.tmp feature_list.json
-    echo "Evidence recorded in feature_list.json"
-  fi
+  EVIDENCE="All verification layers passed via scripts/verify-feature.sh at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  node scripts/framework-check.mjs record-feature-pass "$FEATURE_ID" "$EVIDENCE"
+  echo "Evidence recorded in feature_list.json"
   exit 0
 else
   echo "=== Feature $FEATURE_ID: VERIFICATION FAILED ==="

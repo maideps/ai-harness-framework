@@ -2,30 +2,30 @@
   "rules": [
     {
       "id": "arch-001",
-      "description": "No circular dependencies between layers",
-      "check": "echo 'manual'",
-      "expect": "manual",
-      "what": "Circular dependency detected between layers. Each layer must only depend on layers below it.",
-      "why": "Circular dependencies make the codebase untestable, fragile, and hard to reason about. Clean layered architecture requires acyclic dependency graphs.",
-      "fix": "Break the cycle by introducing an interface/abstraction in the lower layer, or extract shared types to a common module that both layers can depend on."
+      "description": "Framework surfaces exist at the repository root",
+      "check": "node scripts/framework-check.mjs arch:required-surfaces",
+      "expect": "PASS",
+      "what": "A required harness surface is missing from the repository root.",
+      "why": "The framework only works as a reusable bootstrap when its root instructions, state files, scripts, and docs are discoverable in consistent locations.",
+      "fix": "Restore the missing root file or directory, or update the documented framework contract before changing the repository layout."
     },
     {
       "id": "arch-002",
-      "description": "Domain layer has no external dependencies",
-      "check": "echo 'manual'",
-      "expect": "manual",
-      "what": "Domain layer imports from infrastructure, presentation, or application layer. Domain must be pure and dependency-free.",
-      "why": "The domain layer contains core business logic. External dependencies on frameworks, databases, or UI layers make it non-portable and hard to test.",
-      "fix": "Move infrastructure-specific code to the infrastructure layer. Use dependency inversion: define interfaces in domain, implement them in infrastructure."
+      "description": "Feature tracker preserves WIP=1 and dependency order",
+      "check": "node scripts/framework-check.mjs arch:wip-contract",
+      "expect": "PASS",
+      "what": "feature_list.json allows multiple active features or an active feature with unmet dependencies.",
+      "why": "The harness depends on a single active feature and explicit dependency ordering to keep sessions scoped, resumable, and verifiable.",
+      "fix": "Set at most one feature to active and ensure its dependencies are already passing before resuming implementation."
     },
     {
       "id": "arch-003",
-      "description": "Presentation never directly accesses infrastructure",
-      "check": "echo 'manual'",
-      "expect": "manual",
-      "what": "Presentation layer directly imports from infrastructure layer. Use the application layer as intermediary.",
-      "why": "Direct infrastructure access from the UI creates tight coupling. The application layer should orchestrate infrastructure access, keeping the presentation layer thin.",
-      "fix": "Create an application-layer service/facade that wraps the infrastructure call, and have the presentation layer use that instead."
+      "description": "Framework docs are project-specific, not template placeholders",
+      "check": "node scripts/framework-check.mjs arch:no-placeholders",
+      "expect": "PASS",
+      "what": "Core framework docs still contain placeholder template text.",
+      "why": "Reusable harness instructions must describe the actual framework contract; placeholder docs create false confidence and mislead downstream adopters.",
+      "fix": "Replace template copy in README, docs/PRODUCT.md, and docs/quality-document.md with framework-specific guidance and current state."
     }
   ]
 }
