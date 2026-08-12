@@ -2,157 +2,167 @@
   "features": [
     {
       "id": "feat-001",
-      "name": "Harness Bootstrap",
-      "behavior": "Set up the repository with all harness infrastructure: state files, verification scripts, documentation templates, and startup path",
-      "verification": "Run `make check` — all layers must pass. Confirm init.sh exits 0 on clean checkout. Confirm feature_list.json and progress.md are valid.",
+      "name": "Core Scaffold",
+      "behavior": "Set up the initial project scaffold and baseline directory structure for this repository.",
+      "verification": "Run the project verification command and confirm baseline startup commands succeed.",
       "dependencies": [],
-      "state": "active",
+      "state": "planned",
       "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",
           "cmd": "make lint",
-          "repair": "Fix any lint errors reported. Run `make lint` to see error details."
+          "repair": "Fix static-analysis errors and rerun the layer command."
         },
         {
-          "label": "Layer 2: Runtime verification",
+          "label": "Layer 2: Runtime tests",
           "cmd": "make test",
-          "repair": "Ensure all test suites pass. Run `make test` for details."
+          "repair": "Fix failing tests and rerun the layer command."
         },
         {
-          "label": "Layer 3: System confirmation",
-          "cmd": "make check",
-          "repair": "Run `make check` — all verification layers must pass. Check individual layer outputs for failures."
+          "label": "Layer 3: Build/system confirmation",
+          "cmd": "make build",
+          "repair": "Fix build/runtime integration issues and rerun the layer command."
         }
       ]
     },
     {
       "id": "feat-002",
-      "name": "Project Scaffold",
-      "behavior": "Initialize the core project structure with source directories, build configuration, and dependency management",
-      "verification": "Run `make check` — all layers must pass. Confirm `make build` produces a working artifact. Confirm package.json has real scripts.",
-      "dependencies": ["feat-001"],
+      "name": "Primary Capability",
+      "behavior": "Implement the first end-user or API-facing capability for this project.",
+      "verification": "Run layer checks and confirm the capability works through its primary use path.",
+      "dependencies": [
+        "feat-001"
+      ],
       "state": "planned",
       "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",
           "cmd": "make lint",
-          "repair": "Fix lint errors. Ensure build config is valid."
+          "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
-          "label": "Layer 2: Runtime verification",
+          "label": "Layer 2: Runtime tests",
           "cmd": "make test",
-          "repair": "Ensure scaffold compiles and basic smoke tests pass."
+          "repair": "Add or fix tests for the feature and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make build",
-          "repair": "Confirm `make build` produces a working artifact."
+          "cmd": "make e2e",
+          "repair": "Fix end-to-end behavior and rerun the layer command."
         }
       ]
     },
     {
       "id": "feat-003",
-      "name": "First User-Facing Feature",
-      "behavior": "Implement the first concrete behavior. Replace with actual feature description when project scope is defined",
-      "verification": "Run `make check` — all layers must pass. Manual e2e: confirm the feature works end-to-end.",
-      "dependencies": ["feat-002"],
+      "name": "Reliability and Guardrails",
+      "behavior": "Add tests, validation, and failure handling for critical flows implemented so far.",
+      "verification": "Run verification layers and confirm failure scenarios are covered by tests.",
+      "dependencies": [
+        "feat-002"
+      ],
       "state": "planned",
       "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",
           "cmd": "make lint",
-          "repair": "Fix type errors and lint violations."
+          "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
-          "label": "Layer 2: Runtime verification",
+          "label": "Layer 2: Runtime tests",
           "cmd": "make test",
-          "repair": "Unit and integration tests must pass for the new feature."
+          "repair": "Add or fix unit/integration tests and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make e2e",
-          "repair": "End-to-end tests must pass. Manual verification: confirm the feature works end-to-end."
+          "cmd": "make check",
+          "repair": "Fix remaining cross-layer issues and rerun full verification."
         }
       ]
     },
     {
       "id": "feat-004",
-      "name": "Verification Coverage",
-      "behavior": "Add or confirm tests, type checks, linting, and verification coverage for the active feature set",
-      "verification": "Run `make check` — all layers must pass. Coverage report shows acceptable levels.",
-      "dependencies": ["feat-003"],
+      "name": "Documentation Alignment",
+      "behavior": "Update user and developer documentation to match implemented behavior and interfaces.",
+      "verification": "Run doc-related checks (if configured) and manually validate critical instructions end-to-end.",
+      "dependencies": [
+        "feat-003"
+      ],
       "state": "planned",
       "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",
           "cmd": "make lint",
-          "repair": "All lint and type checks pass."
+          "repair": "Fix documentation lint/style issues and rerun the layer command."
         },
         {
-          "label": "Layer 2: Runtime verification",
+          "label": "Layer 2: Runtime tests",
           "cmd": "make test",
-          "repair": "Test coverage meets threshold. Add missing tests for critical paths."
+          "repair": "Fix documentation examples/tests and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
           "cmd": "make check",
-          "repair": "Full check passes. Coverage report shows acceptable levels."
+          "repair": "Resolve remaining drift between docs and system behavior, then rerun full verification."
         }
       ]
     },
     {
       "id": "feat-005",
-      "name": "Documentation Update",
-      "behavior": "Update README, architecture docs, product docs, and quality-document for modules touched during implementation",
-      "verification": "Run `make check` — all layers must pass. Docs match current code state.",
-      "dependencies": ["feat-004"],
+      "name": "Release Readiness",
+      "behavior": "Prepare the project for release or handoff with final verification evidence and cleanup.",
+      "verification": "Run clean-state checks and ensure all required handoff artifacts are complete.",
+      "dependencies": [
+        "feat-004"
+      ],
       "state": "planned",
       "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",
           "cmd": "make lint",
-          "repair": "No documentation lint issues."
+          "repair": "Fix remaining static-analysis issues and rerun the layer command."
         },
         {
-          "label": "Layer 2: Runtime verification",
+          "label": "Layer 2: Runtime tests",
           "cmd": "make test",
-          "repair": "Doc links validated, examples tested."
+          "repair": "Fix remaining test failures and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make check",
-          "repair": "Full verification passes. Docs match current code state."
+          "cmd": "make clean-check",
+          "repair": "Resolve cleanup/handoff issues and rerun clean-state checks."
         }
       ]
     },
     {
       "id": "feat-006",
-      "name": "Cleanup and Handoff",
-      "behavior": "Record verification evidence, update progress.md, run clean-check, and leave a clear next-session path",
-      "verification": "Run `make clean-check` — clean state check passes: build clean, no debug artifacts, startup path works, feature list updated.",
-      "dependencies": ["feat-005"],
+      "name": "Optional Enhancements",
+      "behavior": "Track additional improvements that are valuable but not required for baseline release.",
+      "verification": "Define project-specific verification criteria before moving this feature to active.",
+      "dependencies": [
+        "feat-005"
+      ],
       "state": "planned",
       "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",
           "cmd": "make lint",
-          "repair": "All lint passes."
+          "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
-          "label": "Layer 2: Runtime verification",
+          "label": "Layer 2: Runtime tests",
           "cmd": "make test",
-          "repair": "All tests pass."
+          "repair": "Fix test failures and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make clean-check",
-          "repair": "Clean state check passes: build clean, no debug artifacts, startup path works, feature list updated."
+          "cmd": "make check",
+          "repair": "Resolve integration issues and rerun full verification."
         }
       ]
     }

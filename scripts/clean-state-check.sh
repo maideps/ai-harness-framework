@@ -48,11 +48,38 @@ fi
 echo ""
 echo "--- Debug Artifacts ---"
 FOUND=false
-# Check for common debug artifacts
-grep -rn --include='*.ts' --include='*.js' --include='*.tsx' --include='*.jsx' \
-  -E 'console\.(log|debug|dir)\(|debugger' src/ 2>/dev/null && FOUND=true || true
-grep -rn --include='*.py' -E 'print\(|pdb\.set_trace' src/ 2>/dev/null && FOUND=true || true
-grep -rn --include='*.go' -E 'fmt\.Println\(|log\.Print' src/ 2>/dev/null && FOUND=true || true
+# Check for common debug artifacts in configured paths.
+# Set DEBUG_SCAN_PATHS (space-separated) to customize paths, e.g.:
+# DEBUG_SCAN_PATHS="src packages apps"
+# Set DEBUG_SCAN_EXCLUDE_DIRS (space-separated) to override excludes.
+if [ -n "${DEBUG_SCAN_PATHS:-}" ]; then
+  SCAN_PATHS="$DEBUG_SCAN_PATHS"
+else
+  CANDIDATES="src app apps lib packages services backend frontend"
+  SCAN_PATHS=""
+  for p in $CANDIDATES; do
+    if [ -d "$p" ]; then
+      SCAN_PATHS="$SCAN_PATHS $p"
+    fi
+  done
+  if [ -z "$SCAN_PATHS" ]; then
+    SCAN_PATHS="."
+  fi
+fi
+
+EXCLUDE_DIRS=${DEBUG_SCAN_EXCLUDE_DIRS:-".git node_modules dist build .harness base"}
+EXCLUDE_ARGS=""
+for d in $EXCLUDE_DIRS; do
+  EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude-dir=$d"
+done
+
+grep -rn $EXCLUDE_ARGS \
+  --include='*.ts' --include='*.js' --include='*.tsx' --include='*.jsx' \
+  -E 'console\.(log|debug|dir)\(|debugger' $SCAN_PATHS 2>/dev/null && FOUND=true || true
+grep -rn $EXCLUDE_ARGS \
+  --include='*.py' -E 'print\(|pdb\.set_trace' $SCAN_PATHS 2>/dev/null && FOUND=true || true
+grep -rn $EXCLUDE_ARGS \
+  --include='*.go' -E 'fmt\.Println\(|log\.Print' $SCAN_PATHS 2>/dev/null && FOUND=true || true
 
 if [ "$FOUND" = true ]; then
   echo "  [WARN] Potential debug statements found (review before committing)"
@@ -64,7 +91,7 @@ fi
 echo ""
 echo "--- Feature State ---"
 if command -v jq >/dev/null 2>&1 && [ -f feature_list.json ]; then
-  ACTIVE_COUNT=$(jq '[.features[] | select(.status == "active")] | length' feature_list.json)
+  ACTIVE_COUNT=$(jq '[.features[] | select(.state == "active")] | length' feature_list.json)
   if [ "$ACTIVE_COUNT" -le 1 ]; then
     echo "  [PASS] WIP=$ACTIVE_COUNT (at most 1 active feature)"
   else
@@ -74,7 +101,7 @@ if command -v jq >/dev/null 2>&1 && [ -f feature_list.json ]; then
 elif command -v node >/dev/null 2>&1 && [ -f feature_list.json ]; then
   ACTIVE_COUNT=$(node -e "
 const data = require('./feature_list.json');
-console.log(data.features.filter(f => f.status === 'active').length);
+console.log(data.features.filter(f => f.state === 'active').length);
 ")
   if [ "$ACTIVE_COUNT" -le 1 ]; then
     echo "  [PASS] WIP=$ACTIVE_COUNT (at most 1 active feature)"

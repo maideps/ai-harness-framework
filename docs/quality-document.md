@@ -6,18 +6,21 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 | Module | Test Coverage | Type Safety | Documentation | Arch Compliance | Performance |
 |---|---|---|---|---|---|
-| [module-name] | [rating] | [rating] | [rating] | [rating] | [rating] |
+| [module or surface name] | [A-F] | [A-F] | [A-F] | [A-F] | [A-F] |
+| [module or surface name] | [A-F] | [A-F] | [A-F] | [A-F] | [A-F] |
+| [module or surface name] | [A-F] | [A-F] | [A-F] | [A-F] | [A-F] |
 
 ## Summary
 
 - **Overall Quality Grade:** [A-F]
-- **Blockers:** None | [list]
-- **Areas requiring attention:** None | [list]
+- **Blockers:** [none or short list]
+- **Areas requiring attention:** [short list]
 
 ## Notes
 
-[Add any quality-related notes, decisions, or action items here.]
+- [Optional note]
+- [Optional note]
 
 ---
 
-_Updated automatically during session close. Read by agents at session start to understand quality posture._
+_Update this document at session close for modules touched in the session._

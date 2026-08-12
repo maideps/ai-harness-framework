@@ -12,6 +12,8 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Durable cross-session continuity**: State files (`progress.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
 - **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch`
 
+The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack.
+
 ## Quick Start
 
 ```bash
@@ -78,9 +80,11 @@ These files are the source of truth—not chat history:
 | File | Purpose |
 |------|---------|
 | `feature_list.json` | Feature state tracker with dependencies and verification criteria |
-| `progress.md` | Session continuity log — current state, blockers, next steps |
+| `progress.md` | Session continuity starter artifact — current state, blockers, next steps |
 | `DECISIONS.md` | Architectural decisions log — why the codebase is structured this way |
-| `session-handoff.md` | Multi-session handoff notes |
+| `session-handoff.md` | Multi-session handoff starter artifact |
+
+`feature_list.json` uses a framework-native schema with `state` values of `planned`, `active`, `blocked`, and `passing`.
 
 ### Makefile Targets
 
@@ -118,12 +122,12 @@ A feature is complete only when ALL of the following are true:
 
 See `feature_list.json` for the detailed, dependency-ordered feature plan. Current features:
 
-1. **feat-001** — Harness Bootstrap (active)
-2. **feat-002** — Project Scaffold
-3. **feat-003** — First User-Facing Feature
-4. **feat-004** — Verification Coverage
-5. **feat-005** — Documentation Update
-6. **feat-006** — Cleanup and Handoff
+1. **feat-001** — Core Scaffold
+2. **feat-002** — Primary Capability
+3. **feat-003** — Reliability and Guardrails
+4. **feat-004** — Documentation Alignment
+5. **feat-005** — Release Readiness
+6. **feat-006** — Optional Enhancements
 
 ## Documentation
 
@@ -137,4 +141,4 @@ See `feature_list.json` for the detailed, dependency-ordered feature plan. Curre
 
 ## License
 
-[Add license information]
+This repository is licensed under the MIT License. See `LICENSE` for details.
