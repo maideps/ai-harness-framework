@@ -103,10 +103,22 @@ check_dir() {
   fi
 }
 
+check_progress_file() {
+  if [ -f "progress.md" ]; then
+    echo "  [PASS] progress.md exists"
+  elif [ -f "claude-progress.md" ]; then
+    echo "  [PASS] claude-progress.md exists"
+  else
+    echo "  [FAIL] progress.md or claude-progress.md is missing"
+    HARNESS_OK=false
+  fi
+}
+
 echo "Checking harness state files..."
 check_file "AGENTS.md"
+check_file "CLAUDE.md"
 check_file "feature_list.json"
-check_file "progress.md"
+check_progress_file
 check_file "DECISIONS.md"
 check_file "session-handoff.md"
 check_file "Makefile"
@@ -121,6 +133,7 @@ if [ "$HARNESS_OK" = true ]; then
 else
   echo ""
   echo "=== Some harness files are missing — see above ==="
+  exit 1
 fi
 
 echo ""

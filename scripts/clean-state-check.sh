@@ -11,7 +11,7 @@ PASSING=true
 
 # 1. Check required harness files exist
 echo "--- Harness Files ---"
-for f in AGENTS.md feature_list.json progress.md DECISIONS.md session-handoff.md Makefile; do
+for f in AGENTS.md CLAUDE.md feature_list.json DECISIONS.md session-handoff.md Makefile; do
   if [ -f "$f" ]; then
     echo "  [PASS] $f"
   else
@@ -19,6 +19,15 @@ for f in AGENTS.md feature_list.json progress.md DECISIONS.md session-handoff.md
     PASSING=false
   fi
 done
+
+if [ -f "progress.md" ]; then
+  echo "  [PASS] progress.md"
+elif [ -f "claude-progress.md" ]; then
+  echo "  [PASS] claude-progress.md"
+else
+  echo "  [FAIL] progress.md or claude-progress.md is missing"
+  PASSING=false
+fi
 
 for d in docs templates scripts .harness; do
   if [ -d "$d" ]; then
@@ -91,7 +100,7 @@ fi
 echo ""
 echo "--- Feature State ---"
 if command -v jq >/dev/null 2>&1 && [ -f feature_list.json ]; then
-  ACTIVE_COUNT=$(jq '[.features[] | select(.state == "active")] | length' feature_list.json)
+  ACTIVE_COUNT=$(jq '[.features[] | select((.state == "active") or (.status == "in_progress"))] | length' feature_list.json)
   if [ "$ACTIVE_COUNT" -le 1 ]; then
     echo "  [PASS] WIP=$ACTIVE_COUNT (at most 1 active feature)"
   else
@@ -101,7 +110,7 @@ if command -v jq >/dev/null 2>&1 && [ -f feature_list.json ]; then
 elif command -v node >/dev/null 2>&1 && [ -f feature_list.json ]; then
   ACTIVE_COUNT=$(node -e "
 const data = require('./feature_list.json');
-console.log(data.features.filter(f => f.state === 'active').length);
+console.log(data.features.filter(f => f.state === 'active' || f.status === 'in_progress').length);
 ")
   if [ "$ACTIVE_COUNT" -le 1 ]; then
     echo "  [PASS] WIP=$ACTIVE_COUNT (at most 1 active feature)"

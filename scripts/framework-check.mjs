@@ -8,8 +8,8 @@ const args = process.argv.slice(3);
 
 const requiredFiles = [
   "AGENTS.md",
+  "CLAUDE.md",
   "feature_list.json",
-  "progress.md",
   "DECISIONS.md",
   "session-handoff.md",
   "Makefile",
@@ -40,6 +40,7 @@ const requiredMakeTargets = [
   "help",
 ];
 const allowedStates = new Set(["planned", "active", "blocked", "passing"]);
+const allowedStatusValues = new Set(["not_started", "in_progress", "blocked", "passing"]);
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -64,6 +65,28 @@ function ensureExists(path) {
   }
 }
 
+function ensureProgressArtifact() {
+  if (!existsSync("progress.md") && !existsSync("claude-progress.md")) {
+    fail("missing progress artifact: require progress.md or claude-progress.md");
+  }
+}
+
+function getFeatureState(feature) {
+  if (typeof feature.state === "string") {
+    return feature.state;
+  }
+  if (typeof feature.status === "string") {
+    if (feature.status === "not_started") return "planned";
+    if (feature.status === "in_progress") return "active";
+    return feature.status;
+  }
+  return undefined;
+}
+
+function getFeatureDependencies(feature) {
+  return Array.isArray(feature.dependencies) ? feature.dependencies : [];
+}
+
 function ensureNoPlaceholders() {
   for (const check of placeholderChecks) {
     if (readText(check.file).includes(check.text)) {
@@ -83,25 +106,35 @@ function loadFeatures() {
 function ensureFeatureShape() {
   const { features } = loadFeatures();
   for (const feature of features) {
-    const requiredKeys = [
-      "id",
-      "name",
-      "behavior",
-      "verification",
-      "dependencies",
-      "state",
-      "evidence",
-      "layers",
-    ];
-    for (const key of requiredKeys) {
-      if (!(key in feature)) {
-        fail(`feature ${feature.id ?? "<unknown>"} is missing required key ${key}`);
-      }
+    if (!("id" in feature)) {
+      fail("feature <unknown> is missing required key id");
     }
-    if (!allowedStates.has(feature.state)) {
+    if (!("name" in feature) && !("title" in feature)) {
+      fail(`feature ${feature.id} must define name or title`);
+    }
+    if (!("behavior" in feature) && !("user_visible_behavior" in feature)) {
+      fail(`feature ${feature.id} must define behavior or user_visible_behavior`);
+    }
+    if (!("verification" in feature)) {
+      fail(`feature ${feature.id} is missing required key verification`);
+    }
+    if (!("evidence" in feature)) {
+      fail(`feature ${feature.id} is missing required key evidence`);
+    }
+
+    const lifecycle = getFeatureState(feature);
+    if (!lifecycle) {
+      fail(`feature ${feature.id} must define state or status`);
+    }
+
+    if (typeof feature.state === "string" && !allowedStates.has(feature.state)) {
       fail(`feature ${feature.id} has invalid state ${feature.state}`);
     }
-    if (!Array.isArray(feature.dependencies)) {
+    if (typeof feature.status === "string" && !allowedStatusValues.has(feature.status)) {
+      fail(`feature ${feature.id} has invalid status ${feature.status}`);
+    }
+
+    if ("dependencies" in feature && !Array.isArray(feature.dependencies)) {
       fail(`feature ${feature.id} dependencies must be an array`);
     }
     if (!Array.isArray(feature.layers) || feature.layers.length === 0) {
@@ -128,13 +161,13 @@ function ensureFeatureGraph() {
     ids.add(feature.id);
   }
 
-  const active = features.filter((feature) => feature.state === "active");
+  const active = features.filter((feature) => getFeatureState(feature) === "active");
   if (active.length > 1) {
     fail(`WIP=1 violated: found ${active.length} active features`);
   }
 
   for (const feature of features) {
-    for (const dependency of feature.dependencies) {
+    for (const dependency of getFeatureDependencies(feature)) {
       if (!ids.has(dependency)) {
         fail(`feature ${feature.id} depends on missing feature ${dependency}`);
       }
@@ -142,9 +175,9 @@ function ensureFeatureGraph() {
   }
 
   if (active.length === 1) {
-    const notPassingDeps = active[0].dependencies.filter((dependency) => {
+    const notPassingDeps = getFeatureDependencies(active[0]).filter((dependency) => {
       const match = features.find((feature) => feature.id === dependency);
-      return match && match.state !== "passing";
+      return match && getFeatureState(match) !== "passing";
     });
     if (notPassingDeps.length > 0) {
       fail(
@@ -188,7 +221,12 @@ function recordFeaturePass(featureId, evidence) {
     fail(`feature ${featureId} not found`);
   }
 
-  feature.state = "passing";
+  if ("state" in feature || !("status" in feature)) {
+    feature.state = "passing";
+  }
+  if ("status" in feature) {
+    feature.status = "passing";
+  }
   feature.evidence = evidence;
   writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
   pass(`Recorded passing evidence for ${featureId}`);
@@ -199,6 +237,7 @@ switch (mode) {
     for (const path of requiredFiles) {
       ensureExists(path);
     }
+    ensureProgressArtifact();
     for (const path of requiredDirs) {
       ensureExists(path);
       if (!statSync(path).isDirectory()) {
@@ -234,6 +273,7 @@ switch (mode) {
     for (const path of requiredFiles) {
       ensureExists(path);
     }
+    ensureProgressArtifact();
     for (const path of requiredDirs) {
       ensureExists(path);
     }
