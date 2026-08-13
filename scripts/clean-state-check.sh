@@ -20,12 +20,14 @@ for f in AGENTS.md CLAUDE.md feature_list.json DECISIONS.md session-handoff.md M
   fi
 done
 
-if [ -f "progress.md" ]; then
-  echo "  [PASS] progress.md"
+if [ -f "PROGRESS.md" ]; then
+  echo "  [PASS] PROGRESS.md"
+elif [ -f "progress.md" ]; then
+  echo "  [PASS] progress.md (legacy naming)"
 elif [ -f "claude-progress.md" ]; then
   echo "  [PASS] claude-progress.md"
 else
-  echo "  [FAIL] progress.md or claude-progress.md is missing"
+  echo "  [FAIL] PROGRESS.md (or legacy progress.md) or claude-progress.md is missing"
   PASSING=false
 fi
 

@@ -66,8 +66,14 @@ function ensureExists(path) {
 }
 
 function ensureProgressArtifact() {
-  if (!existsSync("progress.md") && !existsSync("claude-progress.md")) {
-    fail("missing progress artifact: require progress.md or claude-progress.md");
+  if (
+    !existsSync("PROGRESS.md") &&
+    !existsSync("progress.md") &&
+    !existsSync("claude-progress.md")
+  ) {
+    fail(
+      "missing progress artifact: require PROGRESS.md (or legacy progress.md) or claude-progress.md",
+    );
   }
 }
 

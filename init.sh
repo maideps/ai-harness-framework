@@ -104,12 +104,14 @@ check_dir() {
 }
 
 check_progress_file() {
-  if [ -f "progress.md" ]; then
-    echo "  [PASS] progress.md exists"
+  if [ -f "PROGRESS.md" ]; then
+    echo "  [PASS] PROGRESS.md exists"
+  elif [ -f "progress.md" ]; then
+    echo "  [PASS] progress.md exists (legacy naming)"
   elif [ -f "claude-progress.md" ]; then
     echo "  [PASS] claude-progress.md exists"
   else
-    echo "  [FAIL] progress.md or claude-progress.md is missing"
+    echo "  [FAIL] PROGRESS.md (or legacy progress.md) or claude-progress.md is missing"
     HARNESS_OK=false
   fi
 }
