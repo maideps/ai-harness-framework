@@ -20,7 +20,7 @@ If baseline verification is failing, repair that first before adding new scope.
 - **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json`
 - **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"`). Complete and move to `passing` before activating the next.
 - **Verification required**: Don't claim done without running verification commands
-- **Update artifacts**: Before ending session, update `progress.md` and `feature_list.json`
+- **Update artifacts**: Before ending session, update `PROGRESS.md` and `feature_list.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
 - **Leave clean state**: Next session must be able to run `./init.sh` immediately
 - **One logical operation per commit**: The repo must be in a consistent state after every commit
@@ -35,7 +35,7 @@ If baseline verification is failing, repair that first before adding new scope.
   <!-- source: harness-engineering-template L03 — repo must have a verifiable consistent-state predicate -->
 - **MUST NOT** mark a feature as `passing` manually — use `make verify-feature F=<id>` or the documented verification path
   <!-- source: harness-engineering-template L08 — state transitions must go through the harness gate -->
-- **MUST** update `progress.md` at session end with current state, blockers, and next steps
+- **MUST** update `PROGRESS.md` at session end with current state, blockers, and next steps
   <!-- source: harness-engineering-template L05 — durable cross-session continuity requires written handoff -->
 - **MUST NOT** skip verification layers (Layer 1 → Layer 2 → Layer 3 in order)
   <!-- source: harness-engineering-template L09 — each layer gates the next; skipping produces false confidence -->
@@ -51,7 +51,7 @@ Agents must read and update these files — they are the source of truth, not ch
 | File | Purpose | When to Read | When to Update |
 |---|---|---|---|
 | `feature_list.json` | Feature state tracker | Session start | After every feature state change |
-| `progress.md` | Session continuity log (canonical) | Session start | Session end |
+| `PROGRESS.md` | Session continuity log (canonical) | Session start | Session end |
 | `claude-progress.md` | Compatibility alias for progress tracking | Session start (if used) | Session end (if used) |
 | `DECISIONS.md` | Architectural decisions log | Before major decisions | After any architectural decision |
 | `session-handoff.md` | Multi-session handoff notes | Session start (if present) | Session end (for large sessions) |
@@ -65,7 +65,7 @@ A feature is done only when ALL of the following are true:
 - [ ] Layer 1 (syntax/static checks) passes
 - [ ] Layer 2 (runtime behavior/tests) passes
 - [ ] Layer 3 (system confirmation/e2e) passes when crossing component boundaries
-- [ ] Evidence recorded in `feature_list.json` and `progress.md`
+- [ ] Evidence recorded in `feature_list.json` and `PROGRESS.md`
 - [ ] Repository remains restartable from `./init.sh`
 
 ## Verification Commands
@@ -107,19 +107,19 @@ Required checks:
 Before ending a session:
 
 1. Run `make clean-check` — confirms build passes, no debug artifacts, progress updated
-2. Update `progress.md` with current state, decisions, blockers, and next steps
+2. Update `PROGRESS.md` with current state, decisions, blockers, and next steps
 3. Update `feature_list.json` with the new feature state
 4. Update `docs/quality-document.md` for modules touched (A/B/C/D per dimension)
 5. Record any unresolved risks or blockers
 6. Commit with descriptive message explaining WHY, not just what
 7. Leave repo clean enough for next session to run `./init.sh` immediately
 
-**If running low on context**: Do NOT rush to finish — stop, update `progress.md`, and commit a clean checkpoint.
+**If running low on context**: Do NOT rush to finish — stop, update `PROGRESS.md`, and commit a clean checkpoint.
 
 ## Escalation
 
 If you encounter:
 - **Architecture decisions**: Consult `docs/ARCHITECTURE.md` and `DECISIONS.md` first, then `docs/decisions/`
 - **Unclear requirements**: Check `docs/PRODUCT.md` if present, otherwise ask user
-- **Repeated test failures**: Update `progress.md`, flag for human review
+- **Repeated test failures**: Update `PROGRESS.md`, flag for human review
 - **Scope ambiguity**: Re-read `feature_list.json` for definition of done

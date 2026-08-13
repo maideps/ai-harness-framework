@@ -44,7 +44,7 @@ Score each completed sprint against these dimensions. Every dimension must reach
 
 | Grade | Criteria |
 |---|---|
-| A | Progress.md, feature_list.json, and DECISIONS.md are fully updated. Handoff is clear. `./init.sh` runs clean. |
+| A | PROGRESS.md, feature_list.json, and DECISIONS.md are fully updated. Handoff is clear. `./init.sh` runs clean. |
 | B | State files are updated. One minor gap in documentation. |
 | C | State files exist but are incomplete or outdated. |
 | D | State files are stale. Next session would be confused. |

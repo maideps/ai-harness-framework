@@ -11,13 +11,13 @@ The canonical workflow contract remains in AGENTS.md.
 
 1. Read AGENTS.md.
 2. Read feature_list.json.
-3. Read progress.md (or claude-progress.md compatibility alias).
+3. Read PROGRESS.md (or claude-progress.md compatibility alias).
 4. Run ./init.sh.
 
 ## State Files
 
 - feature_list.json
-- progress.md (canonical)
+- PROGRESS.md (canonical)
 - claude-progress.md (compatibility alias)
 - DECISIONS.md
 - session-handoff.md

@@ -15,7 +15,7 @@ Run through this checklist at session end to confirm the repository is in a clea
 
 ## State Files
 
-- [ ] `progress.md` updated with current state, decisions, blockers, next steps
+- [ ] `PROGRESS.md` updated with current state, decisions, blockers, next steps
 - [ ] `feature_list.json` updated with the new feature state
 - [ ] `DECISIONS.md` updated with any new architectural decisions
 - [ ] `session-handoff.md` filled out (for large sessions)

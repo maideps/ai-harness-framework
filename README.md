@@ -9,7 +9,7 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Layered verification**: Three verification gates (static checks → runtime tests → system confirmation) that must pass in order before any feature is considered done
 - **Feature-driven development**: All work is tracked as discrete features in `feature_list.json` with explicit dependencies and verification criteria
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
-- **Durable cross-session continuity**: State files (`progress.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
+- **Durable cross-session continuity**: State files (`PROGRESS.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
 - **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch`
 
 The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack.
@@ -80,7 +80,7 @@ These files are the source of truth—not chat history:
 | File | Purpose |
 |------|---------|
 | `feature_list.json` | Feature state tracker with dependencies and verification criteria |
-| `progress.md` | Session continuity starter artifact — current state, blockers, next steps |
+| `PROGRESS.md` | Session continuity starter artifact — current state, blockers, next steps |
 | `DECISIONS.md` | Architectural decisions log — why the codebase is structured this way |
 | `session-handoff.md` | Multi-session handoff starter artifact |
 
@@ -115,7 +115,7 @@ A feature is complete only when ALL of the following are true:
 - [ ] Layer 1 (syntax/static checks) passes
 - [ ] Layer 2 (runtime behavior/tests) passes
 - [ ] Layer 3 (system confirmation/e2e) passes when crossing component boundaries
-- [ ] Evidence recorded in `feature_list.json` and `progress.md`
+- [ ] Evidence recorded in `feature_list.json` and `PROGRESS.md`
 - [ ] Repository remains restartable from `./init.sh`
 
 ## Feature Roadmap

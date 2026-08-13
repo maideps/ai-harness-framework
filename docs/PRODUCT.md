@@ -30,7 +30,7 @@ The product is the harness itself: instructions, state files, verification entry
    - Implement changes, run verification, and record evidence before declaring completion.
 
 3. **Resume work in a later session**
-   - Start from `progress.md`, `feature_list.json`, `DECISIONS.md`, and `session-handoff.md`.
+   - Start from `PROGRESS.md`, `feature_list.json`, `DECISIONS.md`, and `session-handoff.md`.
    - Recover the current objective without relying on chat history.
    - Continue from a clean, restartable repository state.
 

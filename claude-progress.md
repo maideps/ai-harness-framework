@@ -2,7 +2,7 @@
 
 Compatibility alias for systems expecting claude-progress.md.
 
-Canonical source of truth is progress.md.
+Canonical source of truth is PROGRESS.md.
 Keep this file synchronized if your workflow depends on the claude-progress naming convention.
 
 ## Current Verified State
