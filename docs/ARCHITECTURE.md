@@ -32,7 +32,7 @@ During bootstrap (`feat-001`), the repository primarily validates harness archit
 - Policy and enforcement rules live under `.harness/`.
 - Durable user-facing guidance lives in `README.md` and `docs/`.
 
-These boundaries are enforced today by `make check` and `make check-arch`.
+These boundaries are enforced today by `make check` and `make check-arch`. Verification layers report PASS, SKIP (not configured), or FAIL (stops the chain); only PASS counts as verified.
 
 ## Application Dependency Rules
 

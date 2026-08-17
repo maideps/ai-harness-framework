@@ -71,7 +71,9 @@ Every feature passes through three verification gates:
 | 3 | Build Verification | `make build` | Production build succeeds |
 | 3b | End-to-End | `make e2e` | Full system integration |
 
-Run all layers with `make check`.
+Run all layers with `make check` (lint → typecheck → test → build → e2e).
+
+Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 
 ### State Files
 
@@ -92,7 +94,7 @@ These files are the source of truth—not chat history:
 |--------|-------------|
 | `make setup` | Install all dependencies from scratch |
 | `make dev` | Start local development server |
-| `make check` | Full verification: lint → test → build |
+| `make check` | Full verification: lint → typecheck → test → build → e2e |
 | `make lint` | Layer 1: static analysis |
 | `make typecheck` | Layer 1b: type checking |
 | `make test` | Layer 2: runtime tests |
@@ -100,7 +102,7 @@ These files are the source of truth—not chat history:
 | `make e2e` | Layer 3b: end-to-end tests |
 | `make check-arch` | Architecture constraint enforcement |
 | `make verify-feature F=<id>` | Run all verification layers for a specific feature |
-| `make vcr` | Verify + check-arch + record |
+| `make vcr` | Verify + check-arch + record trail in `.harness/trails/` |
 | `make session-start` | Record session start |
 | `make session-end` | Record session end |
 | `make clean-check` | Pre-commit clean state verification |

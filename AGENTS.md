@@ -82,6 +82,8 @@ Required checks:
 - `make build` — Production build verification
 - `make e2e` — End-to-end tests (required for cross-component changes)
 
+`make check` runs all layers in order (lint → typecheck → test → build → e2e). A layer that is not configured reports SKIP and does not count as verified; a failing layer stops the chain. `npm run check` is the equivalent make-free entrypoint.
+
 ## Architecture Boundaries
 
 - Document architectural constraints in `.harness/arch-rules.json`
