@@ -75,7 +75,7 @@ elif ls *.csproj *.sln >/dev/null 2>&1; then
 else
   echo "=== No application runtime detected (harness-only bootstrap) ==="
   echo "This is expected during initial harness setup."
-  echo "Application verification will be available after feat-002 (Project Scaffold)."
+  echo "Application verification will be available after feat-002 (Primary Capability)."
 fi
 
 echo ""

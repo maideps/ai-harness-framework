@@ -4,12 +4,13 @@
   "private": true,
   "description": "A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows",
   "scripts": {
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e",
     "lint": "node scripts/framework-check.mjs lint",
     "typecheck": "node scripts/framework-check.mjs typecheck",
     "test": "node scripts/framework-check.mjs test",
     "build": "node scripts/framework-check.mjs build",
-    "e2e": "echo 'No e2e tests configured yet — add e2e in feat-002' && exit 0",
-    "dev": "echo 'No dev server configured yet — add dev server in feat-002' && exit 0"
+    "e2e": "node scripts/framework-check.mjs e2e",
+    "dev": "node scripts/framework-check.mjs dev"
   },
   "engines": {
     "node": ">=18"

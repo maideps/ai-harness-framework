@@ -1,31 +1,31 @@
 .PHONY: check lint typecheck test build e2e check-arch vcr verify-feature session-start session-end clean-check setup dev help
 
-# Detect make variant on Windows
-MAKE:=$(MAKE)
-ifeq ($(OS),Windows_NT)
-  MAKE:=mingw32-make
-endif
-
-## Full verification — all layers in order
-check: lint typecheck test build
-	@echo "=== make check: ALL LAYERS PASS ==="
+## Full verification — all layers in order.
+## Layers that are not configured report SKIP and do not count as verified.
+check: lint typecheck test build e2e
+	@echo "=== make check: complete ==="
+	@echo "  Any layer that reported SKIP was not configured and does not count as verified."
 
 ## Layer 1: Static analysis
 lint:
 	@echo "=== Layer 1: Static Analysis ==="
-	@# Check harness files are well-formed
 	@if [ -f package.json ]; then \
 		if node -e "const s=require('./package.json').scripts||{}; process.exit(s.lint?0:1)"; then \
-			npm run lint; \
+			npm run lint && echo "  [PASS] Layer 1 complete (npm run lint)"; \
+		else \
+			echo "  [SKIP] package.json has no lint script"; \
 		fi; \
 	elif [ -f pyproject.toml ]; then \
-		command -v ruff >/dev/null 2>&1 && ruff check . || true; \
+		if command -v ruff >/dev/null 2>&1; then \
+			ruff check . && echo "  [PASS] Layer 1 complete (ruff)"; \
+		else \
+			echo "  [SKIP] ruff is not installed"; \
+		fi; \
 	elif [ -f go.mod ]; then \
-		go vet ./...; \
+		go vet ./... && echo "  [PASS] Layer 1 complete (go vet)"; \
 	else \
-		echo "  [INFO] No lint configuration found — skipping"; \
+		echo "  [SKIP] No lint configuration found"; \
 	fi
-	@echo "  [PASS] Layer 1 complete"
 
 ## Layer 1b: Type checking
 typecheck:
@@ -33,63 +33,71 @@ typecheck:
 	@if [ -f package.json ]; then \
 		if node -e "const s=require('./package.json').scripts||{}; process.exit(s.typecheck||s['type-check']?0:1)"; then \
 			if node -e "const s=require('./package.json').scripts||{}; process.exit(s.typecheck?0:1)"; then \
-				npm run typecheck; \
+				npm run typecheck && echo "  [PASS] Layer 1b complete (npm run typecheck)"; \
 			else \
-				npm run type-check; \
+				npm run type-check && echo "  [PASS] Layer 1b complete (npm run type-check)"; \
 			fi; \
+		else \
+			echo "  [SKIP] package.json has no typecheck script"; \
 		fi; \
 	elif [ -f pyproject.toml ]; then \
-		command -v mypy >/dev/null 2>&1 && mypy src/ || true; \
+		if command -v mypy >/dev/null 2>&1; then \
+			mypy src/ && echo "  [PASS] Layer 1b complete (mypy)"; \
+		else \
+			echo "  [SKIP] mypy is not installed"; \
+		fi; \
 	else \
-		echo "  [INFO] No type checking configured — skipping"; \
+		echo "  [SKIP] No type checking configured"; \
 	fi
-	@echo "  [PASS] Type check complete"
 
 ## Layer 2: Runtime tests
 test:
 	@echo "=== Layer 2: Runtime Tests ==="
 	@if [ -f package.json ]; then \
 		if node -e "const s=require('./package.json').scripts||{}; process.exit(s.test?0:1)"; then \
-			npm test; \
+			npm test && echo "  [PASS] Layer 2 complete (npm test)"; \
+		else \
+			echo "  [SKIP] package.json has no test script"; \
 		fi; \
 	elif [ -f pyproject.toml ] || [ -f requirements.txt ]; then \
-		$$(command -v python3 || command -v python) -m pytest -q || [ $$? -eq 5 ]; \
+		$$(command -v python3 || command -v python) -m pytest -q || [ $$? -eq 5 ] && echo "  [PASS] Layer 2 complete (pytest)"; \
 	elif [ -f go.mod ]; then \
-		go test ./...; \
+		go test ./... && echo "  [PASS] Layer 2 complete (go test)"; \
 	elif [ -f Cargo.toml ]; then \
-		cargo test; \
+		cargo test && echo "  [PASS] Layer 2 complete (cargo test)"; \
 	else \
-		echo "  [INFO] No tests configured — skipping"; \
+		echo "  [SKIP] No tests configured"; \
 	fi
-	@echo "  [PASS] Layer 2 complete"
 
 ## Layer 3a: Build verification
 build:
 	@echo "=== Layer 3: Build ==="
 	@if [ -f package.json ]; then \
 		if node -e "const s=require('./package.json').scripts||{}; process.exit(s.build?0:1)"; then \
-			npm run build; \
+			npm run build && echo "  [PASS] Layer 3 complete (npm run build)"; \
+		else \
+			echo "  [SKIP] package.json has no build script"; \
 		fi; \
 	elif [ -f go.mod ]; then \
-		go build ./...; \
+		go build ./... && echo "  [PASS] Layer 3 complete (go build)"; \
 	elif [ -f Cargo.toml ]; then \
-		cargo build; \
+		cargo build && echo "  [PASS] Layer 3 complete (cargo build)"; \
 	else \
-		echo "  [INFO] No build step configured — skipping"; \
+		echo "  [SKIP] No build step configured"; \
 	fi
-	@echo "  [PASS] Layer 3 complete"
 
 ## Layer 3b: End-to-end tests
 e2e:
 	@echo "=== Layer 3b: E2E Tests ==="
 	@if [ -f package.json ]; then \
-		if node -e "const s=require('./package.json').scripts||{}; process.exit(s.e2e||s['test:e2e']?0:1)"; then \
+		if node -e "const s=require('./package.json').scripts||{}; process.exit(s.e2e?0:1)"; then \
 			npm run e2e; \
+		else \
+			echo "  [SKIP] package.json has no e2e script"; \
 		fi; \
 	else \
-		echo "  [INFO] No E2E tests configured — skipping"; \
+		echo "  [SKIP] No E2E tests configured"; \
 	fi
-	@echo "  [PASS] E2E complete"
 
 ## Architecture constraint check
 check-arch:
@@ -100,8 +108,9 @@ check-arch:
 verify-feature:
 	@bash scripts/verify-feature.sh $(F)
 
-## Verify + check-arch + record
+## Verify + check-arch + record (writes a verification trail to .harness/trails/)
 vcr: check check-arch
+	@node scripts/framework-check.mjs record-trail vcr
 	@echo "=== VCR: Verify, Check-arch, Record — COMPLETE ==="
 
 ## Session lifecycle
@@ -152,7 +161,7 @@ help:
 	@echo ""
 	@echo "  setup         Install all dependencies from scratch"
 	@echo "  dev           Start local development server"
-	@echo "  check         Full verification: lint → test → build"
+	@echo "  check         Full verification: lint → typecheck → test → build → e2e"
 	@echo "  lint          Layer 1: static analysis"
 	@echo "  typecheck     Layer 1b: type checking"
 	@echo "  test          Layer 2: runtime tests"
@@ -160,7 +169,7 @@ help:
 	@echo "  e2e           Layer 3b: end-to-end tests"
 	@echo "  check-arch    Architecture constraint enforcement"
 	@echo "  verify-feature F=<id>  Run all verification layers for a feature"
-	@echo "  vcr           verify + check-arch + record"
+	@echo "  vcr           verify + check-arch + record trail"
 	@echo "  session-start Record session start"
 	@echo "  session-end   Record session end"
 	@echo "  clean-check   Pre-commit clean state verification"

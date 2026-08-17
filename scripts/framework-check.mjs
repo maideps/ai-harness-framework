@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { EOL } from "node:os";
 
 const mode = process.argv[2];
@@ -21,6 +22,7 @@ const placeholderChecks = [
   { file: "docs/PRODUCT.md", text: "[Describe what this system does and who it serves.]" },
   { file: "docs/PRODUCT.md", text: "[Primary user flow 1]" },
   { file: "docs/quality-document.md", text: "[module-name]" },
+  { file: "docs/quality-document.md", text: "[module or surface name]" },
   { file: "README.md", text: "[Add license information]" },
 ];
 const requiredMakeTargets = [
@@ -220,6 +222,59 @@ function ensureShellScripts() {
   }
 }
 
+function recordTrail(kind) {
+  const trailsDir = ".harness/trails";
+  mkdirSync(trailsDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  let commit = "unknown";
+  try {
+    commit = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    commit = "not-a-git-repo";
+  }
+  const record = {
+    kind,
+    recorded_at: new Date().toISOString(),
+    git_commit: commit,
+    active_feature: getActiveFeatureId(),
+  };
+  const path = trailsDir + "/" + stamp + "-" + kind + ".json";
+  writeFileSync(path, JSON.stringify(record, null, 2) + EOL, "utf8");
+  pass("Verification trail recorded: " + path);
+}
+
+function getActiveFeatureId() {
+  if (!existsSync("feature_list.json")) {
+    return "";
+  }
+  const { features } = readJson("feature_list.json");
+  const active = features.find((feature) => getFeatureState(feature) === "active");
+  return active ? active.id : "";
+}
+
+function isDirectorySafe(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function reportE2eStatus() {
+  const markers = ["playwright.config.ts", "playwright.config.js", "cypress.config.ts", "cypress.config.js", "tests/e2e", "test/e2e", "e2e"];
+  const configured = markers.some((marker) => existsSync(marker) || isDirectorySafe(marker));
+  if (configured) {
+    console.log("[FAIL] E2E markers detected but no runner is wired into the e2e mode");
+    process.exit(1);
+  }
+  console.log("[SKIP] No e2e tests configured - this layer does not count as verified");
+  process.exit(0);
+}
+
+function reportDevStatus() {
+  console.log("[SKIP] No dev server configured - wire a real dev flow before claiming this layer");
+  process.exit(0);
+}
 function recordFeaturePass(featureId, evidence) {
   const data = loadFeatures();
   const feature = data.features.find((item) => item.id === featureId);
@@ -302,6 +357,18 @@ switch (mode) {
       fail("usage: node scripts/framework-check.mjs record-feature-pass <feature-id> <evidence>");
     }
     recordFeaturePass(featureId, evidenceParts.join(" "));
+    break;
+  }
+  case "e2e": {
+    reportE2eStatus();
+    break;
+  }
+  case "dev": {
+    reportDevStatus();
+    break;
+  }
+  case "record-trail": {
+    recordTrail(args[0] || "check");
     break;
   }
   default:

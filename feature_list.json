@@ -6,22 +6,22 @@
       "behavior": "Set up the initial project scaffold and baseline directory structure for this repository.",
       "verification": "Run the project verification command and confirm baseline startup commands succeed.",
       "dependencies": [],
-      "state": "planned",
-      "evidence": "",
+      "state": "passing",
+      "evidence": "All verification layers passed via scripts/verify-feature.sh at 2026-08-17T21:01:35Z",
       "layers": [
         {
           "label": "Layer 1: Static checks",
-          "cmd": "make lint",
+          "cmd": "npm run lint",
           "repair": "Fix static-analysis errors and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
-          "cmd": "make test",
+          "cmd": "npm run test",
           "repair": "Fix failing tests and rerun the layer command."
         },
         {
           "label": "Layer 3: Build/system confirmation",
-          "cmd": "make build",
+          "cmd": "npm run build",
           "repair": "Fix build/runtime integration issues and rerun the layer command."
         }
       ]
@@ -39,17 +39,17 @@
       "layers": [
         {
           "label": "Layer 1: Static checks",
-          "cmd": "make lint",
+          "cmd": "npm run lint",
           "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
-          "cmd": "make test",
+          "cmd": "npm run test",
           "repair": "Add or fix tests for the feature and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make e2e",
+          "cmd": "npm run e2e",
           "repair": "Fix end-to-end behavior and rerun the layer command."
         }
       ]
@@ -67,17 +67,17 @@
       "layers": [
         {
           "label": "Layer 1: Static checks",
-          "cmd": "make lint",
+          "cmd": "npm run lint",
           "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
-          "cmd": "make test",
+          "cmd": "npm run test",
           "repair": "Add or fix unit/integration tests and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make check",
+          "cmd": "npm run check",
           "repair": "Fix remaining cross-layer issues and rerun full verification."
         }
       ]
@@ -95,17 +95,17 @@
       "layers": [
         {
           "label": "Layer 1: Static checks",
-          "cmd": "make lint",
+          "cmd": "npm run lint",
           "repair": "Fix documentation lint/style issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
-          "cmd": "make test",
+          "cmd": "npm run test",
           "repair": "Fix documentation examples/tests and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make check",
+          "cmd": "npm run check",
           "repair": "Resolve remaining drift between docs and system behavior, then rerun full verification."
         }
       ]
@@ -123,17 +123,17 @@
       "layers": [
         {
           "label": "Layer 1: Static checks",
-          "cmd": "make lint",
+          "cmd": "npm run lint",
           "repair": "Fix remaining static-analysis issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
-          "cmd": "make test",
+          "cmd": "npm run test",
           "repair": "Fix remaining test failures and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make clean-check",
+          "cmd": "bash scripts/clean-state-check.sh",
           "repair": "Resolve cleanup/handoff issues and rerun clean-state checks."
         }
       ]
@@ -151,17 +151,17 @@
       "layers": [
         {
           "label": "Layer 1: Static checks",
-          "cmd": "make lint",
+          "cmd": "npm run lint",
           "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
-          "cmd": "make test",
+          "cmd": "npm run test",
           "repair": "Fix test failures and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "make check",
+          "cmd": "npm run check",
           "repair": "Resolve integration issues and rerun full verification."
         }
       ]
