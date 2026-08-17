@@ -1,6 +1,9 @@
 base/
 .harness/traces/*.json
 
+# Local agent runtime state
+.codewhale/
+
 # Windows reserved device names (shell redirect artifacts)
 nul
 NUL
