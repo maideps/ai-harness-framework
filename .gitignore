@@ -1,2 +1,6 @@
 base/
 .harness/traces/*.json
+
+# Windows reserved device names (shell redirect artifacts)
+nul
+NUL

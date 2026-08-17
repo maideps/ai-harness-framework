@@ -1,28 +1,11 @@
-# Claude Progress Template
+# Claude Progress
 
-Compatibility alias for systems expecting claude-progress.md.
+Compatibility alias for systems expecting `claude-progress.md`.
 
-Canonical source of truth is PROGRESS.md.
-Keep this file synchronized if your workflow depends on the claude-progress naming convention.
+The canonical source of truth is [PROGRESS.md](PROGRESS.md). Read and update that file; keep this one in sync only if your workflow depends on the `claude-progress.md` naming convention.
 
-## Current Verified State
+Current state (mirror of PROGRESS.md):
 
-- Project root:
-- Primary startup command:
-- Primary verification command:
-- Current active feature (or none):
-- Current blocker (or none):
-
-## Session Log
-
-### Session 001
-
-- Date:
-- Goal:
-- Completed:
-- Verification run:
-- Evidence captured:
-- Commits:
-- Files or artifacts updated:
-- Known risk or unresolved issue:
-- Next best step:
+- Active feature: feat-001 (Core Scaffold) — passing
+- Primary verification: `make check` (make-free: `npm run check`)
+- Blocker: none
