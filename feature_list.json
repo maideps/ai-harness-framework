@@ -3,11 +3,11 @@
     {
       "id": "feat-001",
       "name": "Core Scaffold",
-      "behavior": "Set up the initial project scaffold and baseline directory structure for this repository.",
+      "behavior": "Set up the initial project scaffold, baseline directory structure, and honest verification gates for this repository.",
       "verification": "Run the project verification command and confirm baseline startup commands succeed.",
       "dependencies": [],
       "state": "passing",
-      "evidence": "All verification layers passed via scripts/verify-feature.sh at 2026-08-17T21:01:35Z",
+      "evidence": "All verification layers passed via scripts/verify-feature.sh at 2026-08-17T21:01:34Z",
       "layers": [
         {
           "label": "Layer 1: Static checks",
@@ -28,9 +28,9 @@
     },
     {
       "id": "feat-002",
-      "name": "Primary Capability",
-      "behavior": "Implement the first end-user or API-facing capability for this project.",
-      "verification": "Run layer checks and confirm the capability works through its primary use path.",
+      "name": "Seams and Manifest",
+      "behavior": "Introduce .harness/manifest.json that declares the reusable core, adopter templates, instance state, customization points, and optional components; split adopter skeleton templates from this repo's instance state; document the seam contract in docs/ARCHITECTURE.md; enforce the manifest with a new architecture rule.",
+      "verification": "make check and make check-arch pass with the new manifest rule; the manifest accurately describes the repository surfaces.",
       "dependencies": [
         "feat-001"
       ],
@@ -45,20 +45,20 @@
         {
           "label": "Layer 2: Runtime tests",
           "cmd": "npm run test",
-          "repair": "Add or fix tests for the feature and rerun the layer command."
+          "repair": "Fix the manifest validation failures and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "npm run e2e",
-          "repair": "Fix end-to-end behavior and rerun the layer command."
+          "cmd": "npm run check",
+          "repair": "Resolve remaining cross-layer issues and rerun full verification."
         }
       ]
     },
     {
       "id": "feat-003",
-      "name": "Reliability and Guardrails",
-      "behavior": "Add tests, validation, and failure handling for critical flows implemented so far.",
-      "verification": "Run verification layers and confirm failure scenarios are covered by tests.",
+      "name": "Node Runner Consolidation",
+      "behavior": "Port verify-feature, session-trace, clean-state-check, and check-arch logic into the Node runner with bash shims for compatibility; share one stack-detection module between init.sh and the Makefile; mirror every make target as an npm script.",
+      "verification": "npm run check passes on Windows and Linux; a simulated session trace round-trip works via the Node runner.",
       "dependencies": [
         "feat-002"
       ],
@@ -73,20 +73,20 @@
         {
           "label": "Layer 2: Runtime tests",
           "cmd": "npm run test",
-          "repair": "Add or fix unit/integration tests and rerun the layer command."
+          "repair": "Fix runner behavior and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
           "cmd": "npm run check",
-          "repair": "Fix remaining cross-layer issues and rerun full verification."
+          "repair": "Resolve cross-platform issues and rerun full verification."
         }
       ]
     },
     {
       "id": "feat-004",
-      "name": "Documentation Alignment",
-      "behavior": "Update user and developer documentation to match implemented behavior and interfaces.",
-      "verification": "Run doc-related checks (if configured) and manually validate critical instructions end-to-end.",
+      "name": "Assurance Suite",
+      "behavior": "Add an adoption e2e matrix (generate throwaway repos for node/python/go/rust/no-runtime x single/multi-repo, run init + check + a feature cycle, assert passing) and a customization-survival upgrade test. This makes the e2e verification layer real.",
+      "verification": "The adoption matrix and upgrade test pass on Windows and Linux; the e2e layer reports PASS instead of SKIP.",
       "dependencies": [
         "feat-003"
       ],
@@ -96,25 +96,25 @@
         {
           "label": "Layer 1: Static checks",
           "cmd": "npm run lint",
-          "repair": "Fix documentation lint/style issues and rerun the layer command."
+          "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
           "cmd": "npm run test",
-          "repair": "Fix documentation examples/tests and rerun the layer command."
+          "repair": "Fix failing tests and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "npm run check",
-          "repair": "Resolve remaining drift between docs and system behavior, then rerun full verification."
+          "cmd": "npm run e2e",
+          "repair": "Fix the adoption matrix or upgrade test and rerun the layer command."
         }
       ]
     },
     {
       "id": "feat-005",
-      "name": "Release Readiness",
-      "behavior": "Prepare the project for release or handoff with final verification evidence and cleanup.",
-      "verification": "Run clean-state checks and ensure all required handoff artifacts are complete.",
+      "name": "Multi-repo Extension",
+      "behavior": "Add the optional multi-repo component gated by the manifest: contracts/, tasks/, repositories/*/scripts/verify, and a root scripts/verify-all, with checks that degrade gracefully when the component is absent.",
+      "verification": "Single-repo adopters pass check without the component; a simulated multi-repo layout passes verify-all end-to-end.",
       "dependencies": [
         "feat-004"
       ],
@@ -124,25 +124,25 @@
         {
           "label": "Layer 1: Static checks",
           "cmd": "npm run lint",
-          "repair": "Fix remaining static-analysis issues and rerun the layer command."
+          "repair": "Fix static-analysis issues and rerun the layer command."
         },
         {
           "label": "Layer 2: Runtime tests",
           "cmd": "npm run test",
-          "repair": "Fix remaining test failures and rerun the layer command."
+          "repair": "Fix multi-repo checks and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "bash scripts/clean-state-check.sh",
-          "repair": "Resolve cleanup/handoff issues and rerun clean-state checks."
+          "cmd": "npm run check",
+          "repair": "Resolve integration issues and rerun full verification."
         }
       ]
     },
     {
       "id": "feat-006",
-      "name": "Optional Enhancements",
-      "behavior": "Track additional improvements that are valuable but not required for baseline release.",
-      "verification": "Define project-specific verification criteria before moving this feature to active.",
+      "name": "Distribution",
+      "behavior": "Ship create-harness, upgrade, and audit tools that read the manifest; support both copy-to-adopt and npx generator modes from the single manifest source.",
+      "verification": "A generated throwaway project bootstraps, passes check, and survives a simulated harness upgrade with customizations intact.",
       "dependencies": [
         "feat-005"
       ],
@@ -157,7 +157,35 @@
         {
           "label": "Layer 2: Runtime tests",
           "cmd": "npm run test",
-          "repair": "Fix test failures and rerun the layer command."
+          "repair": "Fix tool behavior and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run build",
+          "repair": "Fix packaging issues and rerun the layer command."
+        }
+      ]
+    },
+    {
+      "id": "feat-007",
+      "name": "Sweep and Report",
+      "behavior": "Upgrade session traces to merged start/end records with evidence digests; add a weekly report aggregation and a periodic sweep (archive traces, prune orphaned topic files, diff structural drift against the manifest).",
+      "verification": "Report generates from recorded traces; sweep archives old traces and reports drift without touching instance state.",
+      "dependencies": [
+        "feat-006"
+      ],
+      "state": "planned",
+      "evidence": "",
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix report/sweep behavior and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",
