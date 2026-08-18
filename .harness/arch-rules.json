@@ -35,6 +35,15 @@
       "what": "The manifest is missing, malformed, or declares surfaces that do not exist in the repository.",
       "why": "The reusability contract depends on a machine-readable classification of CORE, INSTANCE, and optional components; a manifest that drifts from the repo makes upgrades and adoption unpredictable.",
       "fix": "Repair .harness/manifest.json so every declared surface exists and matches the repository layout."
+    },
+    {
+      "id": "arch-005",
+      "description": "Every tracked file is classified by the seam manifest (or exempted as product-owned)",
+      "check": "node scripts/framework-check.mjs manifest",
+      "expect": "PASS",
+      "what": "A tracked file is not declared as CORE, INSTANCE, TEMPLATE, or product-owned (productRoots) in the manifest, or is declared twice.",
+      "why": "Reusability requires that distribution can answer, for every file, whether it ships as-is, ships as a skeleton, never ships, or belongs to the adopting project. Unclassified files get silently dropped or silently leaked — both break the seam contract.",
+      "fix": "Classify the file in .harness/manifest.json (core / instance / templates), or add its parent directory to productRoots if it is product-owned."
     }
   ]
 }

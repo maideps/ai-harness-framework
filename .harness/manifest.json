@@ -1,10 +1,11 @@
 {
   "harness": "ai-harness-framework",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "schemaVersions": {
     "featureList": 1,
     "archRules": 1,
-    "trace": 1
+    "trace": 1,
+    "manifest": 2
   },
   "core": [
     "AGENTS.md",
@@ -14,8 +15,26 @@
     "init.sh",
     "scripts/",
     "templates/",
+    "LICENSE",
+    ".nvmrc",
     ".harness/manifest.json",
     ".harness/arch-rules.json"
+  ],
+  "templates": [
+    "templates/README.md",
+    "templates/gitignore",
+    "templates/progress.md",
+    "templates/feature-list.json",
+    "templates/session-handoff.md",
+    "templates/quality-document.md",
+    "templates/sprint-contract.md",
+    "templates/evaluator-rubric.md",
+    "templates/clean-state-checklist.md",
+    "templates/docs/PRODUCT.md",
+    "templates/docs/ARCHITECTURE.md",
+    "templates/docs/OBSERVABILITY.md",
+    "templates/docs/TOOLS.md",
+    "templates/docs/decisions/index.md"
   ],
   "instance": [
     "feature_list.json",
@@ -23,8 +42,20 @@
     "claude-progress.md",
     "DECISIONS.md",
     "session-handoff.md",
-    "docs/quality-document.md"
+    "README.md",
+    ".gitignore",
+    "package-lock.json",
+    ".claude/settings.json",
+    "docs/PRODUCT.md",
+    "docs/ARCHITECTURE.md",
+    "docs/OBSERVABILITY.md",
+    "docs/TOOLS.md",
+    "docs/quality-document.md",
+    "docs/decisions/",
+    ".harness/trails/",
+    ".harness/traces/.gitkeep"
   ],
+  "productRoots": [],
   "optionalComponents": [
     {
       "name": "multi-repo",
@@ -41,11 +72,12 @@
     "mayEdit": [
       "Makefile (extra targets only)",
       "package.json (project scripts)",
-      "init.sh (stack-specific verification)"
+      "init.sh (stack-specific verification)",
+      ".harness/manifest.json (productRoots only)"
     ],
     "mustNotEdit": [
       "scripts/framework-check.mjs",
-      ".harness/manifest.json",
+      "the manifest classification (core, instance, templates, optionalComponents)",
       "the PASS/SKIP/FAIL semantics of verification layers",
       "the feature state machine and WIP=1 contract"
     ]

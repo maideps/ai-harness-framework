@@ -1,0 +1,12 @@
+# Generic ignores for harness-enabled projects.
+# Add project-specific ignores below — this file is project-owned (INSTANCE).
+
+# Harness runtime traces (session records are local state, not evidence)
+.harness/traces/*.json
+
+# Node projects
+node_modules/
+
+# Windows reserved device names (shell redirect artifacts)
+nul
+NUL

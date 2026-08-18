@@ -9,7 +9,6 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
 - Current active feature: none (feat-001, feat-002, feat-003 passing)
 - Current blocker: none
-
 ## Session Log
 
 ### Session 001 — 2026-08-17 — Harness integrity fixes (P0)
@@ -67,4 +66,22 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Commits: this session's work lands as one logical commit (runner consolidation + docs in the same change)
 - Files or artifacts updated: scripts/stack-detect.mjs (new), scripts/framework-check.mjs, scripts/*.sh (4 shims), Makefile, package.json, init.sh, README.md, docs/ARCHITECTURE.md, docs/quality-document.md, DECISIONS.md, AGENTS.md, feature_list.json
 - Known risk or unresolved issue: `make` still not installed here — Makefile delegation verified via the identical npm/runner paths; a real `make check` on Linux is unverified this session. `run-layer` executes package.json script values directly (no npm pre/post hooks) — documented in D-006.
+- Next best step: feat-004 (Assurance Suite) — adoption e2e matrix + customization-survival upgrade test.
+
+---
+
+### Session 004 — 2026-08-18 — Seam completeness + runner bug fixes
+
+- Goal: Audit-driven hardening: complete the manifest classification so no tracked file is undeclared, strip instance-specific content from reusable surfaces, add missing adopter skeletons, and fix the two runner bugs found in audit.
+- Completed:
+  - Manifest classifies every tracked file: `templates` array (7 new skeletons: project README, .gitignore, docs/PRODUCT, ARCHITECTURE, OBSERVABILITY, TOOLS, decisions/index), `instance` now includes README.md, docs/, .gitignore, .claude/settings.json, package-lock.json, trails, trace placeholder; `core` now includes LICENSE and .nvmrc; new `productRoots` key exempts adopter product code
+  - arch-005 rule: no unclassified tracked file (coverage via git ls-files, precedence instance > templates > core, INSTANCE+TEMPLATE ambiguity is an error)
+  - Instance content removed from reusable surfaces: README Feature Roadmap (now points to feature_list.json), ARCHITECTURE feat-001 bootstrap line, OBSERVABILITY false trail claim corrected
+  - B1 fixed: python verify chain runs via argv (no shell) and the compileall exclusion regex matches both separators — verified empirically on Windows (venv/node_modules/dist excluded, exit 0)
+  - B2 fixed: verify-feature refuses to mark a feature passing with unmet dependencies — verified (feat-007 refused, exit 1)
+  - D-007 recorded; manifest schema v2, version 0.3.0
+- Verification run: `npm run check` (PASS, e2e SKIP) + `npm run check-arch` (5 rules PASS) + `npm run verify-feature -- feat-002` and `feat-003` (ALL LAYERS PASS, evidence re-recorded) + `npm run vcr`
+- Evidence captured: feat-002/feat-003 `evidence` fields; vcr trail `.harness/trails/2026-08-18T18-07-26-858Z-vcr.json`
+- Files or artifacts updated: .harness/manifest.json, .harness/arch-rules.json, scripts/framework-check.mjs, scripts/stack-detect.mjs, README.md, docs/ARCHITECTURE.md, docs/OBSERVABILITY.md, DECISIONS.md, templates/* (7 new skeletons), feature_list.json (evidence)
+- Known risk or unresolved issue: none new. Adopters must list product dirs in `productRoots` (documented in ARCHITECTURE.md); the adopter experience will be exercised by feat-004's matrix.
 - Next best step: feat-004 (Assurance Suite) — adoption e2e matrix + customization-survival upgrade test.

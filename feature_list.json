@@ -35,7 +35,7 @@
         "feat-001"
       ],
       "state": "passing",
-      "evidence": "All verification layers passed via scripts/verify-feature.sh at 2026-08-18T15:50:22Z",
+      "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-08-18T18:06:48.907Z",
       "layers": [
         {
           "label": "Layer 1: Static checks",
@@ -63,7 +63,7 @@
         "feat-002"
       ],
       "state": "passing",
-      "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-08-18T17:01:07.655Z",
+      "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-08-18T18:07:08.705Z",
       "layers": [
         {
           "label": "Layer 1: Static checks",

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { EOL } from "node:os";
 import path from "node:path";
 
@@ -231,7 +231,11 @@ function ensureShellScripts() {
   }
 }
 
-const MANIFEST_KEYS = ["harness", "version", "schemaVersions", "core", "instance", "optionalComponents", "customizationPoints"];
+const MANIFEST_KEYS = ["harness", "version", "schemaVersions", "core", "instance", "templates", "productRoots", "optionalComponents", "customizationPoints"];
+
+function matchesEntry(file, entry) {
+  return entry.endsWith("/") ? file.startsWith(entry) : file === entry;
+}
 
 function ensureManifest() {
   if (!existsSync(".harness/manifest.json")) {
@@ -243,11 +247,14 @@ function ensureManifest() {
       fail("manifest is missing required key " + key);
     }
   }
-  if (!Array.isArray(manifest.core) || !Array.isArray(manifest.instance)) {
-    fail("manifest core and instance must be arrays");
+  for (const key of ["core", "instance", "templates", "productRoots"]) {
+    if (!Array.isArray(manifest[key])) {
+      fail("manifest " + key + " must be an array");
+    }
   }
+  // Every declared surface must exist in the repository.
   for (const surface of manifest.core) {
-    if (!existsSync(surface) && !isDirectorySafe(surface)) {
+    if (!existsSync(surface)) {
       fail("manifest core surface is missing: " + surface);
     }
   }
@@ -256,7 +263,52 @@ function ensureManifest() {
       fail("manifest instance surface is missing: " + surface);
     }
   }
-  pass("Harness manifest is valid and matches the repository layout");
+  for (const surface of manifest.templates) {
+    if (!existsSync(surface)) {
+      fail("manifest template skeleton is missing: " + surface);
+    }
+  }
+  // Classification coverage: every tracked file must be CORE, INSTANCE,
+  // TEMPLATE, optional-component, or product-owned. Precedence when a file
+  // matches several categories: instance > templates > core (a specific
+  // claim overrides a directory-level CORE claim). Ambiguity between
+  // INSTANCE and TEMPLATES is an error.
+  let tracked = [];
+  try {
+    tracked = execSync("git ls-files", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+      .split(/\r?\n/)
+      .filter(Boolean);
+  } catch {
+    // not a git repository — coverage cannot be checked
+  }
+  if (tracked.length > 0) {
+    const category = (file) => {
+      const inInstance = manifest.instance.some((entry) => matchesEntry(file, entry));
+      const inTemplates = manifest.templates.some((entry) => matchesEntry(file, entry));
+      const inCore = manifest.core.some((entry) => matchesEntry(file, entry));
+      const inOptional = (manifest.optionalComponents ?? []).some((component) =>
+        (component.markers ?? []).some((marker) => matchesEntry(file, marker)),
+      );
+      const inProduct = manifest.productRoots.some((entry) => matchesEntry(file, entry));
+      if (inInstance && inTemplates) return "ambiguous";
+      if (inInstance) return "instance";
+      if (inTemplates) return "template";
+      if (inCore) return "core";
+      if (inOptional) return "optional";
+      if (inProduct) return "product";
+      return "unclassified";
+    };
+    for (const file of tracked) {
+      const result = category(file);
+      if (result === "unclassified") {
+        fail("manifest does not classify tracked file: " + file);
+      }
+      if (result === "ambiguous") {
+        fail("manifest classifies " + file + " as both instance and template");
+      }
+    }
+  }
+  pass("Harness manifest is valid and classifies every tracked file");
 }
 function recordTrail(kind) {
   const trailsDir = ".harness/trails";
@@ -460,6 +512,18 @@ function verifyFeature(featureId) {
 
   console.log(`Feature: ${feature.name}`);
   console.log("");
+
+  const unmet = (feature.dependencies ?? []).filter((dependencyId) => {
+    const dependency = features.find((item) => item.id === dependencyId);
+    return !dependency || getFeatureState(dependency) !== "passing";
+  });
+  if (unmet.length > 0) {
+    console.log(`[FAIL] Feature ${featureId} has unmet dependencies: ${unmet.join(", ")}`);
+    console.log("Complete and verify the dependency features first.");
+    console.log("");
+    console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
+    process.exit(1);
+  }
 
   for (const layer of feature.layers) {
     console.log(`--- ${layer.label} ---`);
@@ -777,13 +841,25 @@ function runVerifyChain() {
     return;
   }
   for (const step of chain) {
-    console.log(`--- Running: ${step.cmd} ---`);
-    try {
-      execSync(step.cmd, { stdio: "inherit", shell: true });
-    } catch (err) {
-      const allowed = step.allowedExitCodes ?? [0];
-      if (!allowed.includes(err.status ?? 1)) {
+    const display = step.args ? `${step.cmd} ${step.args.join(" ")}` : step.cmd;
+    console.log(`--- Running: ${display} ---`);
+    const allowed = step.allowedExitCodes ?? [0];
+    if (Array.isArray(step.args)) {
+      // Run without a shell so argument characters (|, quotes, $) are never
+      // reinterpreted — cmd.exe treats single quotes as literal and `|` as a
+      // pipe, which broke python's compileall regex on Windows.
+      const result = spawnSync(step.cmd, step.args, { stdio: "inherit" });
+      const code = result.error ? 1 : (result.status ?? 1);
+      if (!allowed.includes(code)) {
         process.exit(1);
+      }
+    } else {
+      try {
+        execSync(step.cmd, { stdio: "inherit", shell: true });
+      } catch (err) {
+        if (!allowed.includes(err.status ?? 1)) {
+          process.exit(1);
+        }
       }
     }
   }

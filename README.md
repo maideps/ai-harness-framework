@@ -90,7 +90,7 @@ These files are the source of truth—not chat history:
 
 ### Reusability Contract
 
-The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), adopter skeletons live in `templates/`, and **INSTANCE** files (`feature_list.json`, `PROGRESS.md`, `DECISIONS.md`, …) are this repo's own state and never ship to adopters. The manifest is enforced by `make check-arch` (rule arch-004); any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
+The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `PROGRESS.md`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
 
 ### Command Targets
 
@@ -107,7 +107,7 @@ Every make target is mirrored 1:1 by an npm script; both delegate to the Node ru
 | Layer 3: build verification | `make build` | `npm run build` |
 | Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
 | Architecture enforcement | `make check-arch` | `npm run check-arch` |
-| Feature verification | `make verify-feature F=feat-003` | `npm run verify-feature -- feat-003` |
+| Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Record session start | `make session-start` | `npm run session-start` |
 | Record session end | `make session-end` | `npm run session-end` |
@@ -128,14 +128,7 @@ A feature is complete only when ALL of the following are true:
 
 ## Feature Roadmap
 
-See `feature_list.json` for the detailed, dependency-ordered feature plan. Current features:
-
-1. **feat-001** — Core Scaffold
-2. **feat-002** — Primary Capability
-3. **feat-003** — Reliability and Guardrails
-4. **feat-004** — Documentation Alignment
-5. **feat-005** — Release Readiness
-6. **feat-006** — Optional Enhancements
+The dependency-ordered roadmap lives in `feature_list.json` — the machine-readable source of truth. Each feature there declares its behavior, dependencies, verification layers, and current state; this document intentionally does not duplicate it.
 
 ## Documentation
 

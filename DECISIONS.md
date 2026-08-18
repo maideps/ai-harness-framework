@@ -101,3 +101,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: one implementation per operation; `make check` ≡ `npm run check` by construction; stack detection works for node/python/go/rust/jvm/dotnet hosts from one module; session traces, feature verification, and clean-state checks are portable to Windows.
 - Negative: make targets now require Node (already a hard dependency of the harness); `run-layer` executes package.json script values directly, so pre/post npm hooks do not run (documented in ARCHITECTURE.md).
+
+### D-007: The seam manifest classifies every tracked file
+
+**Date:** 2026-08-18
+**Status:** accepted
+**Context:** The manifest classified CORE and INSTANCE but was silent about README.md, docs/, LICENSE, .gitignore, .nvmrc, .claude/settings.json, and package-lock.json. README.md carried this repo's feature roadmap (project-specific content) in a surface distribution would touch, and adopters had no skeletons for the project docs every repository needs. Distribution could not answer "does this file ship?" for half the repo.
+**Decision:** The manifest now classifies every tracked file: `core` (ships as-is, now including LICENSE and .nvmrc), `templates` (skeletons, now including project README, .gitignore, and docs/PRODUCT, ARCHITECTURE, OBSERVABILITY, TOOLS, decisions/index), and `instance` (this repo's state, now including README.md, docs/, .gitignore, .claude/settings.json, package-lock.json, trails, trace placeholder). A new arch-005 rule fails on any tracked file that is not classified or is claimed twice. Adopters exempt their product code with a `productRoots` key (the only manifest field they may edit). Precedence: a specific INSTANCE or TEMPLATE claim overrides a directory-level CORE claim; INSTANCE+TEMPLATE ambiguity is an error. Instance-specific content (this repo's roadmap, feat-001 history) was removed from reusable docs.
+**Alternatives considered:**
+- Shipping README/docs as CORE — rejected: project docs are project-specific by nature; shipping this repo's filled versions leaks one project's roadmap into every adopter.
+- Coverage check over the whole repo without exemptions — rejected: adopters' product code would fail the harness's own arch check; `productRoots` makes the exemption explicit and machine-readable.
+**Consequences:**
+- Positive: distribution (feat-006) has one machine-readable answer for every file; adopters receive project-shaped doc skeletons instead of nothing or leaked instance content; arch-005 prevents silent drift.
+- Negative: every new tracked file in this repo must be classified (accepted cost, enforced by arch-005); adopters with product code must list their roots in `productRoots`.

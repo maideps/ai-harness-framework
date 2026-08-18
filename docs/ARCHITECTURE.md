@@ -7,7 +7,7 @@ The framework has two architecture concerns:
 1. **Harness architecture** in this repository — the instruction, state, verification, and observability surfaces that make the framework reusable.
 2. **Application architecture** in adopting repositories — the layered product code structure that the harness will later enforce.
 
-During bootstrap (`feat-001`), the repository primarily validates harness architecture. Once an adopting project adds source code, teams should extend `.harness/arch-rules.json` with product-layer checks.
+During bootstrap, a newly adopted repository primarily validates harness architecture. Once the adopting project adds source code, teams should extend `.harness/arch-rules.json` with product-layer checks.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -59,16 +59,18 @@ Adopting projects should enforce the following layered rules once product code e
 
 ## Reusability Contract (Seams)
 
-The framework is reusable because its surfaces are classified. `.harness/manifest.json` is the machine-readable declaration of that classification; this section is its prose form. The classification rule of thumb: a file is **CORE** if it ships as-is and must not be edited; **TEMPLATE** if it ships as a skeleton adopters replace; **INSTANCE** if it never ships at all (project-owned state).
+The framework is reusable because its surfaces are classified. `.harness/manifest.json` is the machine-readable declaration of that classification; this section is its prose form. The classification rule of thumb: a file is **CORE** if it ships as-is and must not be edited; **TEMPLATE** if it ships as a skeleton adopters replace; **INSTANCE** if it never ships at all (project-owned state). Every tracked file is classified — the manifest's `templates` array lists the skeletons, `instance` lists this repo's own state, and arch-005 fails on any tracked file that is not classified (or exempted as product-owned via `productRoots`). Classification precedence: a specific INSTANCE or TEMPLATE claim overrides a directory-level CORE claim; a file claimed as both INSTANCE and TEMPLATE is an error.
 
-- **CORE** — the reusable spine: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `.harness/manifest.json`, `.harness/arch-rules.json`. Same everywhere; changes here flow to every adopter through upgrades.
-- **INSTANCE** — this repo's own state: `feature_list.json`, `PROGRESS.md`, `claude-progress.md`, `DECISIONS.md`, `session-handoff.md`, `docs/quality-document.md`. Adopters receive empty skeletons from `templates/`, never this content.
+- **CORE** — the reusable spine: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `LICENSE`, `.nvmrc`, `.harness/manifest.json`, `.harness/arch-rules.json`. Same everywhere; changes here flow to every adopter through upgrades.
+- **TEMPLATES** — adopter skeletons in `templates/`: project `README.md`, `.gitignore`, progress, feature list, session handoff, quality document, sprint contract, evaluator rubric, clean-state checklist, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/decisions/index.md`). Adopters receive these and fill them in; this repo's filled versions live in `docs/` as INSTANCE state.
+- **INSTANCE** — this repo's own state: `feature_list.json`, `PROGRESS.md`, `claude-progress.md`, `DECISIONS.md`, `session-handoff.md`, `README.md`, `.gitignore`, `package-lock.json`, `.claude/settings.json`, `docs/`, `.harness/trails/`, `.harness/traces/.gitkeep`. Adopters receive empty skeletons from `templates/`, never this content.
+- **PRODUCT-OWNED** — directories adopters list in `productRoots` (e.g. `src/`, `packages/`); files under them are outside the harness contract and exempt from classification.
 - **OPTIONAL COMPONENTS** — the multi-repo extension (`contracts/`, `tasks/`, `repositories/`, `scripts/verify-all`). Checks that reference it must degrade gracefully when its markers are absent.
 
 Customization points (from the manifest):
 - MUST edit: feature content, project docs, project arch rules.
-- MAY edit: extra Makefile targets, package.json project scripts, init.sh stack verification.
-- MUST NOT edit: `scripts/framework-check.mjs`, the manifest, PASS/SKIP/FAIL semantics, the feature state machine and WIP=1 contract.
+- MAY edit: extra Makefile targets, package.json project scripts, init.sh stack verification, manifest `productRoots`.
+- MUST NOT edit: `scripts/framework-check.mjs`, the manifest classification itself, PASS/SKIP/FAIL semantics, the feature state machine and WIP=1 contract.
 
 Every reuse guarantee (upgrade survival, adoption tests, copy vs npx distribution) derives from this classification. Any future change to the repository layout must update the manifest and this section in the same commit.
 
@@ -94,6 +96,7 @@ Bootstrap-time rules currently verify:
 - required harness surfaces exist
 - the feature tracker preserves WIP=1 and dependency order
 - framework docs do not drift back to template placeholders
+- the manifest classifies every tracked file (reusability seam)
 
 Adopting projects should add language- and framework-specific checks as the codebase grows.
 

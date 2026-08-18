@@ -27,6 +27,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - State files were converted from templates to real records on 2026-08-17 (dogfooding).
 - Tri-state verification semantics (PASS/SKIP/FAIL) are now the documented contract (D-001).
 - 2026-08-18: bash suite consolidated into the Node runner; the four `scripts/*.sh` files are now thin shims (D-006). Stack detection centralized in `scripts/stack-detect.mjs`; Makefile and npm scripts are 1:1 mirrors. Session-trace round-trip (start → merge end) verified on Windows.
+- 2026-08-18 (session 004): manifest classifies every tracked file (schema v2, arch-005); 7 adopter doc skeletons added under templates/; instance content stripped from reusable docs (D-007). Python verify chain is argv-based and the compileall exclusion matches both path separators — verified empirically on Windows. verify-feature now enforces the dependency gate.
 
 ---
 

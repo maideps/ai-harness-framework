@@ -17,6 +17,9 @@ Every session is traceable through the harness infrastructure:
 ```bash
 make session-start    # Record session start time and context
 make session-end      # Record session end time, state, and outcomes
+# npm mirrors:
+npm run session-start
+npm run session-end
 ```
 
 Traces are stored in `.harness/traces/` as timestamped JSON records with:
@@ -50,7 +53,7 @@ After touching any module, update `docs/quality-document.md` with ratings (A/B/C
 
 ## Verification Trail
 
-Every `make check` run produces a verification trail. This is the proof that each layer was actually exercised:
+`make vcr` / `npm run vcr` records a verification trail to `.harness/trails/` after check and check-arch pass. `make check` itself does not write trails — only a successful VCR run does. This is the proof that each layer was actually exercised:
 - Layer 1: Lint/type-check output
 - Layer 2: Test run summary
 - Layer 3: Build artifact or e2e result

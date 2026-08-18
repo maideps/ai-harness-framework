@@ -154,9 +154,13 @@ export function getInstallCommand() {
   }
 }
 
+// Regex that excludes dependency/venv/build dirs from compileall. Must match
+// both separators: / on POSIX and \ on Windows paths.
+export const PY_COMPILE_EXCLUDE = "(^|[/\\\\])(\\.?venv|env|node_modules|build|dist|__pycache__)([/\\\\]|$)";
+
 // The stack's verification chain for init.sh: an ordered list of steps, each
 // with its own allowed exit codes (python's pytest exits 5 when no tests exist,
-// which is not a failure).
+// which is not a failure). Steps with an args array run without a shell.
 export function getVerifyChain() {
   const runtime = detectRuntime();
   switch (runtime) {
@@ -178,12 +182,13 @@ export function getVerifyChain() {
       return chain;
     }
     case "python": {
-      const py = pythonInterpreter();
+      const py = pythonInterpreter(); // e.g. "python3", "python", or "py -3"
       if (!py) return [];
-      const compileRegex = "(^|/)(\\.?venv|env|node_modules|build|dist|__pycache__)(/|$)";
+      const [interpreter, ...flags] = py.split(/\s+/).filter(Boolean);
+      // argv steps run without a shell so the regex pipes survive Windows cmd.
       return [
-        { cmd: `${py} -m pytest -q`, allowedExitCodes: [0, 5] },
-        { cmd: `${py} -m compileall -q -x '${compileRegex}' .`, allowedExitCodes: [0] },
+        { cmd: interpreter, args: [...flags, "-m", "pytest", "-q"], allowedExitCodes: [0, 5] },
+        { cmd: interpreter, args: [...flags, "-m", "compileall", "-q", "-x", PY_COMPILE_EXCLUDE, "."], allowedExitCodes: [0] },
       ];
     }
     case "go": return [{ cmd: "go test ./...", allowedExitCodes: [0] }];
