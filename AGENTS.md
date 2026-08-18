@@ -116,6 +116,9 @@ Skills are reusable capability packs in `skills/` — one folder per skill, each
 - `session-handoff` — ending a session durably
 - `adopt` — bootstrapping the harness in a new project
 - `release` — the final pass before reporting work done
+- `commit` — focused commits, one logical operation, message explains WHY
+- `review` — an independent verification pass before the feature gate
+- `update-docs` — the docs-drift pass (same-commit rule)
 - `write-skill` — authoring new skills (project skills may be added under `skills/`)
 
 Skill structure is validated by the lint layer; see the `write-skill` skill for the format.

@@ -221,6 +221,34 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-009",
+      "name": "Portability Extensions",
+      "behavior": "Adopt the remaining useful patterns from the lidr-specboot reference harness: multi-copilot shims (codex.md, GEMINI.md) pointing at AGENTS.md, a project coding-standards skeleton (docs/STANDARDS.md), and three new skills (commit, review, update-docs) covering commit discipline, pre-gate independent review, and docs-drift cleanup.",
+      "verification": "npm run check validates 9 skills; the manifest classifies every new surface; the new skeletons and shims are generic (no instance content).",
+      "dependencies": [
+        "feat-008"
+      ],
+      "state": "passing",
+      "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-08-18T20:11:43.684Z",
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix skill format or static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix feature graph or validation issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

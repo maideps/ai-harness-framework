@@ -2,37 +2,37 @@
 
 ## Current Objective
 
-- Goal: Make the harness reusable by design — seam contract complete (arch-005), Node runner consolidation, skills packs shipped. On the roadmap: assurance suite (feat-004) and distribution (feat-006).
-- Current status: feat-001, feat-002, feat-003, feat-008 passing. Next up: feat-004 (Assurance Suite).
-- Branch / commit: master (feat-008 skills packs commit)
+- Goal: Make the harness reusable by design — seam contract complete (arch-005), Node runner consolidation, skills packs (9 shipped), multi-copilot shims, and project standards home. On the roadmap: assurance suite (feat-004) and distribution (feat-006).
+- Current status: feat-001, feat-002, feat-003, feat-008, feat-009 passing. Next up: feat-004 (Assurance Suite).
+- Branch / commit: master (feat-009 portability extensions commit)
 
 ## Completed This Session
 
-- [x] `skills/` CORE surface with six framework-native skills (feature-cycle, verification, session-handoff, adopt, release, write-skill)
-- [x] Runner validates skill structure in the lint layer (frontmatter name/description, When to Use); negative test confirmed the gate catches violations
-- [x] Manifest registers skills/; adopters may add project skills (mayEdit)
-- [x] Docs wired: AGENTS.md Skills section, USAGE.md ×2, TOOLS.md ×2; D-008 recorded
-- [x] feat-008 verified through its own layers with recorded evidence
+- [x] `codex.md` and `GEMINI.md` thin shims pointing at AGENTS.md — CORE surfaces, portable on Windows (no symlinks)
+- [x] `templates/docs/STANDARDS.md` skeleton → `docs/STANDARDS.md`; instance copy filled and dogfooding the format
+- [x] Three new skills: `commit`, `review`, `update-docs` — 9 skills total, validated by lint
+- [x] feat-009 verified through its own layers with recorded evidence; D-009 recorded
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Full check | `npm run check` | PASS (e2e SKIP) | skills validated (6 skills) |
+| Full check | `npm run check` | PASS (e2e SKIP) | skills validated (9 skills) |
 | Architecture | `npm run check-arch` | PASS | 5 rules (arch-001..005) |
-| Feature gate | `npm run verify-feature -- feat-008` | PASS | evidence recorded |
-| VCR trail | `npm run vcr` | recorded | .harness/trails/2026-08-18T19-49-39-468Z-vcr.json |
-| Skills gate | broken skill (wrong name) | FAIL, exit 1 | validation is honest |
+| Feature gate | `npm run verify-feature -- feat-009` | PASS | evidence recorded |
+| VCR trail | `npm run vcr` | recorded | .harness/trails/2026-08-18T20-12-02-573Z-vcr.json |
+| Content scan | CORE surfaces grep | clean | no instance content in new shims/skills/standards |
 
 ## Files Changed
 
-- skills/{feature-cycle,verification,session-handoff,adopt,release,write-skill}/SKILL.md (new)
+- codex.md, GEMINI.md (new); docs/STANDARDS.md, templates/docs/STANDARDS.md (new)
+- skills/{commit,review,update-docs}/SKILL.md (new)
 - .harness/manifest.json, scripts/framework-check.mjs, feature_list.json
-- AGENTS.md, DECISIONS.md (D-008), docs/USAGE.md, templates/docs/USAGE.md, docs/TOOLS.md, templates/docs/TOOLS.md
+- AGENTS.md, DECISIONS.md (D-009), docs/USAGE.md, templates/docs/USAGE.md
 
 ## Decisions Made
 
-- D-008: skills are capability packs validated by the runner; format adopted from the lidr-specboot reference harness (frontmatter, When to Use, workflow, quick reference).
+- D-009: multi-copilot shims and project standards complete the portability surface; commit/review/update-docs disciplines shipped as skills.
 
 ## Blockers / Risks
 

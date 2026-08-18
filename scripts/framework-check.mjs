@@ -19,6 +19,8 @@ const args = process.argv.slice(3);
 const requiredFiles = [
   "AGENTS.md",
   "CLAUDE.md",
+  "codex.md",
+  "GEMINI.md",
   "feature_list.json",
   "DECISIONS.md",
   "session-handoff.md",
@@ -807,7 +809,7 @@ function cleanStateCheck() {
   };
 
   console.log("--- Harness Files ---");
-  for (const file of ["AGENTS.md", "CLAUDE.md", "feature_list.json", "DECISIONS.md", "session-handoff.md", "Makefile"]) {
+  for (const file of ["AGENTS.md", "CLAUDE.md", "codex.md", "GEMINI.md", "feature_list.json", "DECISIONS.md", "session-handoff.md", "Makefile"]) {
     check(existsSync(file), file, `${file} is missing`);
   }
   if (existsSync("PROGRESS.md")) {

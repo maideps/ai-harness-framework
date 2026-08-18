@@ -148,3 +148,19 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: skills/* (6 new), .harness/manifest.json, scripts/framework-check.mjs, feature_list.json, AGENTS.md, DECISIONS.md, docs/USAGE.md, templates/docs/USAGE.md, docs/TOOLS.md, templates/docs/TOOLS.md
 - Known risk or unresolved issue: none.
 - Next best step: feat-004 (Assurance Suite).
+
+---
+
+### Session 009 — 2026-08-18 — feat-009 Portability Extensions
+
+- Goal: Adopt the remaining useful lidr-specboot patterns: multi-copilot entry points, a home for coding standards, and the commit/review/docs disciplines as skills.
+- Completed:
+  - `codex.md` and `GEMINI.md` thin shims pointing at AGENTS.md (CORE, no symlinks — portable on Windows); added to required surfaces (lint + clean-state-check)
+  - `templates/docs/STANDARDS.md` skeleton registered with destination `docs/STANDARDS.md`; this repo's filled instance copy dogfoods it
+  - Three new skills: `commit` (focused commits), `review` (pre-gate independent pass), `update-docs` (same-commit docs-drift rule) — 9 skills total, all validated by lint
+  - Docs wired: AGENTS.md skills list, USAGE.md ×2, D-009 recorded
+- Verification run: `npm run check` (PASS, e2e SKIP) + `npm run check-arch` (5/5 PASS) + `npm run verify-feature -- feat-009` (ALL LAYERS PASS) + `npm run vcr` + instance-content scan of new CORE surfaces (clean)
+- Evidence captured: feat-009 `evidence` field; vcr trail `.harness/trails/2026-08-18T20-12-02-573Z-vcr.json`
+- Files or artifacts updated: codex.md, GEMINI.md, docs/STANDARDS.md, templates/docs/STANDARDS.md (new), skills/{commit,review,update-docs} (new), .harness/manifest.json, scripts/framework-check.mjs, feature_list.json, AGENTS.md, DECISIONS.md, docs/USAGE.md, templates/docs/USAGE.md
+- Known risk or unresolved issue: none.
+- Next best step: feat-004 (Assurance Suite).

@@ -127,3 +127,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: capability packs are discoverable, loadable, and machine-validated; adopters get a documented extension point; AGENTS.md stays process law while skills carry how-to.
 - Negative: skills are a new surface to keep accurate; skill authors must follow the format (enforced by lint).
+
+### D-009: Multi-copilot shims and project standards complete the portability surface
+
+**Date:** 2026-08-18
+**Status:** accepted
+**Context:** The harness's canonical contract lived in AGENTS.md with a CLAUDE.md shim only; Copilot and Gemini conventions had no entry point, and adopters had no place for project coding standards (the lidr-specboot reference harness carries base-standards.md plus backend/frontend/docs standards). Commit discipline, pre-gate review, and docs-drift rules were scattered across prose instead of being loadable skills.
+**Decision:** Add `codex.md` and `GEMINI.md` thin shims pointing at AGENTS.md (CORE, no symlinks — portable on Windows), a `docs/STANDARDS.md` adopter skeleton (`{from: templates/docs/STANDARDS.md, to: docs/STANDARDS.md}`) plus this repo's filled instance copy, and three new skills: `commit` (focused commits), `review` (independent pre-gate pass), `update-docs` (same-commit docs-drift rule). The shims join the required surfaces (lint, clean-state-check).
+**Alternatives considered:**
+- Symlinking per-copilot files like lidr-specboot — rejected: symlinks fail without privileges on Windows; plain shim files are simpler and portable.
+- A single multi-copilot file — rejected: each tool looks for its own conventional filename.
+**Consequences:**
+- Positive: the harness exposes itself to Copilot, Gemini, and Claude conventions with zero duplication of the contract; coding standards have a home; commit/review/docs discipline is loadable and validated.
+- Negative: two more root files to keep as thin shims (enforced as required surfaces).

@@ -6,6 +6,6 @@ The canonical source of truth is [PROGRESS.md](PROGRESS.md). Read and update tha
 
 Current state (mirror of PROGRESS.md):
 
-- Active feature: none — feat-001 (Core Scaffold), feat-002 (Seams and Manifest), feat-003 (Node Runner Consolidation), and feat-008 (Skills Packs) passing
+- Active feature: none — feat-001, feat-002, feat-003, feat-008, and feat-009 passing
 - Primary verification: `make check` (make-free: `npm run check`) — both delegate to the Node runner
 - Blocker: none
