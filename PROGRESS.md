@@ -118,3 +118,17 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: templates/docs/USAGE.md (new), docs/USAGE.md (new), .harness/manifest.json, README.md, templates/README.md
 - Known risk or unresolved issue: none.
 - Next best step: feat-004 (Assurance Suite).
+
+---
+
+### Session 007 — 2026-08-18 — Template placement is machine-readable
+
+- Goal: Future adopters (and feat-006's generator) must be able to tell where every template goes without reading prose.
+- Completed:
+  - Manifest `templates` entries restructured from bare paths to `{ from, to }` objects (copy-and-fill) or `{ keep: true }` (reference material that stays under templates/) — manifest schema v3, version 0.4.0
+  - Runner validates destinations: `to` must be declared INSTANCE and must not collide with CORE; legacy string entries still accepted as keep-in-place
+  - Mapping documented in USAGE.md (both copies, full table) and ARCHITECTURE.md seam section
+- Verification run: `npm run check` (PASS, e2e SKIP) + `npm run check-arch` (5/5 PASS) + manifest mode with the new validations
+- Files or artifacts updated: .harness/manifest.json, scripts/framework-check.mjs, docs/USAGE.md, templates/docs/USAGE.md, docs/ARCHITECTURE.md
+- Known risk or unresolved issue: none.
+- Next best step: feat-004 (Assurance Suite).

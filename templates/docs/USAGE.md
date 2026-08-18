@@ -71,7 +71,26 @@ The seam contract in `.harness/manifest.json` states exactly what ships and what
 Adoption steps:
 
 1. Copy CORE files and `templates/` into your repository.
-2. Fill the skeletons: rename them into place (`templates/README.md` → `README.md`, `templates/docs/PRODUCT.md` → `docs/PRODUCT.md`, …) and replace the placeholder content.
+2. Copy each template to its declared destination and fill it in. The manifest's `templates` entries carry the mapping machine-readably: `{ "from": "templates/progress.md", "to": "PROGRESS.md" }` means copy that skeleton to `PROGRESS.md` and replace the placeholder content; entries with `"keep": true` stay under `templates/` as reference material.
+
+   | Template (from) | Destination (to) |
+   |---|---|
+   | templates/README.md | README.md |
+   | templates/gitignore | .gitignore |
+   | templates/progress.md | PROGRESS.md |
+   | templates/DECISIONS.md | DECISIONS.md |
+   | templates/feature-list.json | feature_list.json |
+   | templates/session-handoff.md | session-handoff.md |
+   | templates/quality-document.md | docs/quality-document.md |
+   | templates/docs/PRODUCT.md | docs/PRODUCT.md |
+   | templates/docs/ARCHITECTURE.md | docs/ARCHITECTURE.md |
+   | templates/docs/OBSERVABILITY.md | docs/OBSERVABILITY.md |
+   | templates/docs/TOOLS.md | docs/TOOLS.md |
+   | templates/docs/USAGE.md | docs/USAGE.md |
+   | templates/docs/decisions/index.md | docs/decisions/index.md |
+   | templates/sprint-contract.md | (keep — reference) |
+   | templates/evaluator-rubric.md | (keep — reference) |
+   | templates/clean-state-checklist.md | (keep — reference) |
 3. Add your product directories to `productRoots` in `.harness/manifest.json`.
 4. Add project-specific architecture rules to `.harness/arch-rules.json` as your codebase grows.
 5. Run `./init.sh`, then `npm run check` — you are now on the harness.

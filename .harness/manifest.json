@@ -1,11 +1,11 @@
 {
   "harness": "ai-harness-framework",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "schemaVersions": {
     "featureList": 1,
     "archRules": 1,
     "trace": 1,
-    "manifest": 2
+    "manifest": 3
   },
   "core": [
     "AGENTS.md",
@@ -21,22 +21,22 @@
     ".harness/arch-rules.json"
   ],
   "templates": [
-    "templates/README.md",
-    "templates/gitignore",
-    "templates/progress.md",
-    "templates/DECISIONS.md",
-    "templates/feature-list.json",
-    "templates/session-handoff.md",
-    "templates/quality-document.md",
-    "templates/sprint-contract.md",
-    "templates/evaluator-rubric.md",
-    "templates/clean-state-checklist.md",
-    "templates/docs/PRODUCT.md",
-    "templates/docs/ARCHITECTURE.md",
-    "templates/docs/OBSERVABILITY.md",
-    "templates/docs/TOOLS.md",
-    "templates/docs/USAGE.md",
-    "templates/docs/decisions/index.md"
+    { "from": "templates/README.md", "to": "README.md" },
+    { "from": "templates/gitignore", "to": ".gitignore" },
+    { "from": "templates/progress.md", "to": "PROGRESS.md" },
+    { "from": "templates/DECISIONS.md", "to": "DECISIONS.md" },
+    { "from": "templates/feature-list.json", "to": "feature_list.json" },
+    { "from": "templates/session-handoff.md", "to": "session-handoff.md" },
+    { "from": "templates/quality-document.md", "to": "docs/quality-document.md" },
+    { "from": "templates/docs/PRODUCT.md", "to": "docs/PRODUCT.md" },
+    { "from": "templates/docs/ARCHITECTURE.md", "to": "docs/ARCHITECTURE.md" },
+    { "from": "templates/docs/OBSERVABILITY.md", "to": "docs/OBSERVABILITY.md" },
+    { "from": "templates/docs/TOOLS.md", "to": "docs/TOOLS.md" },
+    { "from": "templates/docs/USAGE.md", "to": "docs/USAGE.md" },
+    { "from": "templates/docs/decisions/index.md", "to": "docs/decisions/index.md" },
+    { "from": "templates/sprint-contract.md", "keep": true },
+    { "from": "templates/evaluator-rubric.md", "keep": true },
+    { "from": "templates/clean-state-checklist.md", "keep": true }
   ],
   "instance": [
     "feature_list.json",

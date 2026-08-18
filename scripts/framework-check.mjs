@@ -240,6 +240,19 @@ function matchesEntry(file, entry) {
   return entry.endsWith("/") ? file.startsWith(entry) : file === entry;
 }
 
+function templateEntries(templates) {
+  return templates.map((entry) => {
+    if (typeof entry === "string") {
+      // legacy form: a bare path means a skeleton that stays under templates/
+      return { from: entry, keep: true };
+    }
+    if (entry && typeof entry.from === "string") {
+      return entry;
+    }
+    return null;
+  });
+}
+
 function ensureManifest() {
   if (!existsSync(".harness/manifest.json")) {
     fail(".harness/manifest.json is missing");
@@ -255,6 +268,10 @@ function ensureManifest() {
       fail("manifest " + key + " must be an array");
     }
   }
+  const templates = templateEntries(manifest.templates);
+  if (templates.some((entry) => entry === null)) {
+    fail("manifest template entries must be paths or { from, to | keep } objects");
+  }
   // Every declared surface must exist in the repository.
   for (const surface of manifest.core) {
     if (!existsSync(surface)) {
@@ -266,9 +283,21 @@ function ensureManifest() {
       fail("manifest instance surface is missing: " + surface);
     }
   }
-  for (const surface of manifest.templates) {
-    if (!existsSync(surface)) {
-      fail("manifest template skeleton is missing: " + surface);
+  for (const entry of templates) {
+    if (!existsSync(entry.from)) {
+      fail("manifest template skeleton is missing: " + entry.from);
+    }
+    if (entry.keep) continue;
+    if (typeof entry.to !== "string" || !entry.to) {
+      fail("manifest template " + entry.from + " must declare a destination to");
+    }
+    const coreCollision = manifest.core.some((surface) => matchesEntry(entry.to, surface));
+    if (coreCollision) {
+      fail("manifest template destination collides with a CORE surface: " + entry.to);
+    }
+    const instanceCovered = manifest.instance.some((surface) => matchesEntry(entry.to, surface));
+    if (!instanceCovered) {
+      fail("manifest template destination is not declared as INSTANCE: " + entry.to);
     }
   }
   // Classification coverage: every tracked file must be CORE, INSTANCE,
@@ -287,7 +316,7 @@ function ensureManifest() {
   if (tracked.length > 0) {
     const category = (file) => {
       const inInstance = manifest.instance.some((entry) => matchesEntry(file, entry));
-      const inTemplates = manifest.templates.some((entry) => matchesEntry(file, entry));
+      const inTemplates = templates.some((entry) => matchesEntry(file, entry.from));
       const inCore = manifest.core.some((entry) => matchesEntry(file, entry));
       const inOptional = (manifest.optionalComponents ?? []).some((component) =>
         (component.markers ?? []).some((marker) => matchesEntry(file, marker)),
