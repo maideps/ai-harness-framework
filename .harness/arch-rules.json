@@ -26,6 +26,15 @@
       "what": "Core framework docs still contain placeholder template text.",
       "why": "Reusable harness instructions must describe the actual framework contract; placeholder docs create false confidence and mislead downstream adopters.",
       "fix": "Replace template copy in README, docs/PRODUCT.md, and docs/quality-document.md with framework-specific guidance and current state."
+    },
+    {
+      "id": "arch-004",
+      "description": "Harness manifest accurately declares reusable and instance surfaces",
+      "check": "node scripts/framework-check.mjs manifest",
+      "expect": "PASS",
+      "what": "The manifest is missing, malformed, or declares surfaces that do not exist in the repository.",
+      "why": "The reusability contract depends on a machine-readable classification of CORE, INSTANCE, and optional components; a manifest that drifts from the repo makes upgrades and adoption unpredictable.",
+      "fix": "Repair .harness/manifest.json so every declared surface exists and matches the repository layout."
     }
   ]
 }

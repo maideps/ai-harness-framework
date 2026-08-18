@@ -1,0 +1,53 @@
+{
+  "harness": "ai-harness-framework",
+  "version": "0.2.0",
+  "schemaVersions": {
+    "featureList": 1,
+    "archRules": 1,
+    "trace": 1
+  },
+  "core": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "Makefile",
+    "package.json",
+    "init.sh",
+    "scripts/",
+    "templates/",
+    ".harness/manifest.json",
+    ".harness/arch-rules.json"
+  ],
+  "instance": [
+    "feature_list.json",
+    "PROGRESS.md",
+    "claude-progress.md",
+    "DECISIONS.md",
+    "session-handoff.md",
+    "docs/quality-document.md"
+  ],
+  "optionalComponents": [
+    {
+      "name": "multi-repo",
+      "description": "Root control plane + subrepo execution domains: contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all. Adopters activate it only when the project spans multiple repositories.",
+      "markers": ["contracts/", "tasks/", "repositories/", "scripts/verify-all"]
+    }
+  ],
+  "customizationPoints": {
+    "mustEdit": [
+      "feature_list.json (feature content)",
+      "docs/ (project-specific guidance)",
+      ".harness/arch-rules.json (project rules)"
+    ],
+    "mayEdit": [
+      "Makefile (extra targets only)",
+      "package.json (project scripts)",
+      "init.sh (stack-specific verification)"
+    ],
+    "mustNotEdit": [
+      "scripts/framework-check.mjs",
+      ".harness/manifest.json",
+      "the PASS/SKIP/FAIL semantics of verification layers",
+      "the feature state machine and WIP=1 contract"
+    ]
+  }
+}

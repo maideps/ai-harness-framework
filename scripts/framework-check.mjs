@@ -222,6 +222,33 @@ function ensureShellScripts() {
   }
 }
 
+const MANIFEST_KEYS = ["harness", "version", "schemaVersions", "core", "instance", "optionalComponents", "customizationPoints"];
+
+function ensureManifest() {
+  if (!existsSync(".harness/manifest.json")) {
+    fail(".harness/manifest.json is missing");
+  }
+  const manifest = readJson(".harness/manifest.json");
+  for (const key of MANIFEST_KEYS) {
+    if (!(key in manifest)) {
+      fail("manifest is missing required key " + key);
+    }
+  }
+  if (!Array.isArray(manifest.core) || !Array.isArray(manifest.instance)) {
+    fail("manifest core and instance must be arrays");
+  }
+  for (const surface of manifest.core) {
+    if (!existsSync(surface) && !isDirectorySafe(surface)) {
+      fail("manifest core surface is missing: " + surface);
+    }
+  }
+  for (const surface of manifest.instance) {
+    if (!existsSync(surface)) {
+      fail("manifest instance surface is missing: " + surface);
+    }
+  }
+  pass("Harness manifest is valid and matches the repository layout");
+}
 function recordTrail(kind) {
   const trailsDir = ".harness/trails";
   mkdirSync(trailsDir, { recursive: true });
@@ -369,6 +396,10 @@ switch (mode) {
   }
   case "record-trail": {
     recordTrail(args[0] || "check");
+    break;
+  }
+  case "manifest": {
+    ensureManifest();
     break;
   }
   default:
