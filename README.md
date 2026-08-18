@@ -136,6 +136,7 @@ The dependency-ordered roadmap lives in `feature_list.json` — the machine-read
 - [Architecture](docs/ARCHITECTURE.md) — Layer model, dependency rules, and enforcement
 - [Observability](docs/OBSERVABILITY.md) — Session traces, sprint contracts, and evaluation rubrics
 - [Tools & MCP](docs/TOOLS.md) — Tool access scoping and MCP integrations
+- [Usage Guide](docs/USAGE.md) — How to run, verify, and adopt the framework
 - [Quality Document](docs/quality-document.md) — Module quality ratings
 - [Decisions](DECISIONS.md) — Recorded architectural decisions
 - [Detailed Decision Records](docs/decisions/) — Expanded decision write-ups

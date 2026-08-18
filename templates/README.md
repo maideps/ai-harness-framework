@@ -45,6 +45,7 @@ Layers that are not configured report **SKIP** and do not count as verified.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Observability](docs/OBSERVABILITY.md)
 - [Tools & MCP](docs/TOOLS.md)
+- [Usage Guide](docs/USAGE.md)
 - [Quality Document](docs/quality-document.md)
 
 ## License

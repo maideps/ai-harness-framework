@@ -35,6 +35,7 @@
     "templates/docs/ARCHITECTURE.md",
     "templates/docs/OBSERVABILITY.md",
     "templates/docs/TOOLS.md",
+    "templates/docs/USAGE.md",
     "templates/docs/decisions/index.md"
   ],
   "instance": [
@@ -51,6 +52,7 @@
     "docs/ARCHITECTURE.md",
     "docs/OBSERVABILITY.md",
     "docs/TOOLS.md",
+    "docs/USAGE.md",
     "docs/quality-document.md",
     "docs/decisions/",
     ".harness/trails/",

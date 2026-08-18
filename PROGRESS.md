@@ -103,3 +103,18 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/framework-check.mjs, Makefile, .harness/manifest.json, templates/DECISIONS.md (new), templates/sprint-contract.md
 - Known risk or unresolved issue: none new. `.nvmrc` pins node 24 while `engines` says >=18 — noted for feat-006 packaging.
 - Next best step: feat-004 (Assurance Suite).
+
+---
+
+### Session 006 — 2026-08-18 — Usage guide shipped with the framework
+
+- Goal: Provide a durable, shippable usage guide covering running, verifying, and adopting the harness.
+- Completed:
+  - `templates/docs/USAGE.md` added (ships to adopters as a skeleton) with this repo's instance copy at `docs/USAGE.md` (dogfooding)
+  - Registered in the manifest (`templates` + `instance`); arch-005 coverage verified
+  - Linked from README.md and templates/README.md
+  - Content scan: no instance-specific references (feature ids, dates, machine paths) in the template
+- Verification run: `npm run check` (PASS, e2e SKIP) + `npm run check-arch` (5/5 PASS)
+- Files or artifacts updated: templates/docs/USAGE.md (new), docs/USAGE.md (new), .harness/manifest.json, README.md, templates/README.md
+- Known risk or unresolved issue: none.
+- Next best step: feat-004 (Assurance Suite).
