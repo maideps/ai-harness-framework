@@ -85,3 +85,21 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: .harness/manifest.json, .harness/arch-rules.json, scripts/framework-check.mjs, scripts/stack-detect.mjs, README.md, docs/ARCHITECTURE.md, docs/OBSERVABILITY.md, DECISIONS.md, templates/* (7 new skeletons), feature_list.json (evidence)
 - Known risk or unresolved issue: none new. Adopters must list product dirs in `productRoots` (documented in ARCHITECTURE.md); the adopter experience will be exercised by feat-004's matrix.
 - Next best step: feat-004 (Assurance Suite) — adoption e2e matrix + customization-survival upgrade test.
+
+---
+
+### Session 005 — 2026-08-18 — Reusability verification pass
+
+- Goal: Verify every file against the reusability seam and fix what the pass found.
+- Completed:
+  - Full gate re-run: `npm run check` PASS, `npm run check-arch` 5/5 PASS, `clean-check` PASS
+  - Coverage audit: every tracked file classified (arch-005); manifest template list ↔ tracked templates fully consistent
+  - CORE-surface scan for instance content (feature ids, session refs, machine paths, owner names): fixed the two leaks — `F=feat-003` example in Makefile comment and in the runner's help output → `<id>`; sprint-contract skeleton example → feat-001 (adopter fresh-start numbering)
+  - Gap found and fixed: `DECISIONS.md` was required by the runner but had no adopter skeleton → `templates/DECISIONS.md` added and registered in the manifest
+  - `ensureNoPlaceholders` now fails cleanly (with actionable message) when a required doc is missing instead of crashing
+  - Observability bug fixed: `collectDecisionsSummary` counted the decision template block as a decision → now matches only `### D-<n>:` records (verified: count 7, latest D-007)
+  - npm/make parity verified programmatically: 15 targets ↔ 15 scripts, zero drift
+- Verification run: `npm run check`, `npm run check-arch`, session-trace round-trip (decisions count verified), CORE-surface greps
+- Files or artifacts updated: scripts/framework-check.mjs, Makefile, .harness/manifest.json, templates/DECISIONS.md (new), templates/sprint-contract.md
+- Known risk or unresolved issue: none new. `.nvmrc` pins node 24 while `engines` says >=18 — noted for feat-006 packaging.
+- Next best step: feat-004 (Assurance Suite).

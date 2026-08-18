@@ -35,7 +35,7 @@ check-arch:
 	@node scripts/framework-check.mjs check-arch
 
 ## Verify a specific feature by its layer definitions
-## Usage: make verify-feature F=feat-003
+## Usage: make verify-feature F=<id>
 verify-feature:
 	@node scripts/framework-check.mjs verify-feature $(F)
 

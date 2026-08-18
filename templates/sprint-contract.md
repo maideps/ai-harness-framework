@@ -4,7 +4,7 @@ Fill this out before starting a feature. It serves as your commitment for this s
 
 ---
 
-**Feature ID:** [e.g., feat-003]
+**Feature ID:** [e.g., feat-001]
 **Feature Name:** [from feature_list.json]
 **Date:** [YYYY-MM-DD]
 **Estimated Duration:** [hours or sessions]

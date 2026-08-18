@@ -24,6 +24,7 @@
     "templates/README.md",
     "templates/gitignore",
     "templates/progress.md",
+    "templates/DECISIONS.md",
     "templates/feature-list.json",
     "templates/session-handoff.md",
     "templates/quality-document.md",

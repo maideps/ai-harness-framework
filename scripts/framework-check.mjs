@@ -106,6 +106,9 @@ function getFeatureDependencies(feature) {
 
 function ensureNoPlaceholders() {
   for (const check of placeholderChecks) {
+    if (!existsSync(check.file)) {
+      fail(`${check.file} is missing — copy the skeleton from templates/ and fill it in for this project`);
+    }
     if (readText(check.file).includes(check.text)) {
       fail(`${check.file} still contains template placeholder text`);
     }
@@ -591,7 +594,9 @@ function collectDecisionsSummary() {
   let latest = "";
   if (existsSync("DECISIONS.md")) {
     for (const line of readText("DECISIONS.md").split(/\r?\n/)) {
-      if (/^### /.test(line)) {
+      // Only real decision records (D-001, D-002, …) count; the template
+      // block at the top of the file must not be counted.
+      if (/^### D-\d+:/.test(line)) {
         count += 1;
         latest = line.replace(/^### /, "");
       }
@@ -885,7 +890,7 @@ function printHelp() {
   console.log("  help           Show this help");
   console.log("");
   console.log("Make form:  make <target>            npm form:  npm run <target>");
-  console.log("Feature verification: make verify-feature F=feat-003   or   npm run verify-feature -- feat-003");
+  console.log("Feature verification: make verify-feature F=<id>   or   npm run verify-feature -- <id>");
 }
 
 switch (mode) {
