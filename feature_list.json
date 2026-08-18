@@ -34,8 +34,8 @@
       "dependencies": [
         "feat-001"
       ],
-      "state": "planned",
-      "evidence": "",
+      "state": "passing",
+      "evidence": "All verification layers passed via scripts/verify-feature.sh at 2026-08-18T15:50:22Z",
       "layers": [
         {
           "label": "Layer 1: Static checks",

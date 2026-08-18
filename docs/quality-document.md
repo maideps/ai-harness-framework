@@ -7,6 +7,8 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 | Module | Test Coverage | Type Safety | Documentation | Arch Compliance | Performance |
 |---|---|---|---|---|---|
 | scripts/framework-check.mjs | B | C | B | A | A |
+| .harness/manifest.json + arch-rules.json | B | B | B | A | A |
+| templates/ (adopter skeletons) | — | — | A | A | — |
 | Makefile | C | — | B | A | A |
 | package.json | — | — | B | A | — |
 | scripts (bash suite) | C | — | B | B | B |

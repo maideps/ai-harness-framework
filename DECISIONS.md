@@ -74,3 +74,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: verification works on any machine with Node; both surfaces stay in sync because they delegate to the same runner.
 - Negative: two entry surfaces to keep aligned (mitigated by `ensureMakeTargets` and the npm mirror).
+
+### D-005: Reusability is guaranteed by a classified seam contract
+
+**Date:** 2026-08-18
+**Status:** accepted
+**Context:** "Reusable" is an aspiration until the framework states which files adopters may customize and which are invariant. Adopter skeletons (PROGRESS.md, feature_list.json) were conflated with this repo's own instance state.
+**Decision:** `.harness/manifest.json` classifies every surface as CORE (ships as-is, must not edit), TEMPLATE (skeletons in `templates/`), or INSTANCE (project-owned state that never ships). The manifest is validated by a `manifest` runner mode and enforced by arch-004. Layout changes must update the manifest and docs/ARCHITECTURE.md in the same commit.
+**Alternatives considered:**
+- Prose-only seam documentation — rejected: drift is invisible without a machine check.
+- A separate package repository for the core — rejected for now: one repo serving as both product and dogfood instance is simpler at this stage.
+**Consequences:**
+- Positive: upgrade survival, adoption, and distribution can all be tested against one machine-readable contract.
+- Negative: every layout change now has one extra file to keep accurate (accepted cost).
