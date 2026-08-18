@@ -88,6 +88,10 @@ These files are the source of truth—not chat history:
 
 `feature_list.json` uses a framework-native schema with `state` values of `planned`, `active`, `blocked`, and `passing`.
 
+### Reusability Contract
+
+The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), adopter skeletons live in `templates/`, and **INSTANCE** files (`feature_list.json`, `PROGRESS.md`, `DECISIONS.md`, …) are this repo's own state and never ship to adopters. The manifest is enforced by `make check-arch` (rule arch-004); any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
+
 ### Makefile Targets
 
 | Target | Description |

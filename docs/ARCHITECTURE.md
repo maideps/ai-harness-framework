@@ -43,6 +43,21 @@ Adopting projects should enforce the following layered rules once product code e
 - Infrastructure implements interfaces defined by domain
 - Presentation never directly accesses infrastructure
 
+## Reusability Contract (Seams)
+
+The framework is reusable because its surfaces are classified. `.harness/manifest.json` is the machine-readable declaration of that classification; this section is its prose form. The classification rule of thumb: a file is **CORE** if it ships as-is and must not be edited; **TEMPLATE** if it ships as a skeleton adopters replace; **INSTANCE** if it never ships at all (project-owned state).
+
+- **CORE** — the reusable spine: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `.harness/manifest.json`, `.harness/arch-rules.json`. Same everywhere; changes here flow to every adopter through upgrades.
+- **INSTANCE** — this repo's own state: `feature_list.json`, `PROGRESS.md`, `claude-progress.md`, `DECISIONS.md`, `session-handoff.md`, `docs/quality-document.md`. Adopters receive empty skeletons from `templates/`, never this content.
+- **OPTIONAL COMPONENTS** — the multi-repo extension (`contracts/`, `tasks/`, `repositories/`, `scripts/verify-all`). Checks that reference it must degrade gracefully when its markers are absent.
+
+Customization points (from the manifest):
+- MUST edit: feature content, project docs, project arch rules.
+- MAY edit: extra Makefile targets, package.json project scripts, init.sh stack verification.
+- MUST NOT edit: `scripts/framework-check.mjs`, the manifest, PASS/SKIP/FAIL semantics, the feature state machine and WIP=1 contract.
+
+Every reuse guarantee (upgrade survival, adoption tests, copy vs npx distribution) derives from this classification. Any future change to the repository layout must update the manifest and this section in the same commit.
+
 ## Enforcement
 
 Architectural constraints are codified in `.harness/arch-rules.json` and enforced via:

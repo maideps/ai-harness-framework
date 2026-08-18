@@ -87,6 +87,7 @@ Required checks:
 ## Architecture Boundaries
 
 - Document architectural constraints in `.harness/arch-rules.json`
+- The reusability seam contract lives in `.harness/manifest.json` and `docs/ARCHITECTURE.md` — keep both accurate in the same commit as any repository layout change
 - Run `make check-arch` to enforce layer dependencies and invariants
 - Every new error category caught in review becomes a rule in `.harness/arch-rules.json`
 - See [Architecture Docs](docs/ARCHITECTURE.md) for the full layer model

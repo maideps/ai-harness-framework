@@ -1,0 +1,30 @@
+{
+  "features": [
+    {
+      "id": "feat-001",
+      "name": "Example Feature",
+      "behavior": "Describe the single target behavior this feature implements.",
+      "verification": "Describe how completion is verified end-to-end.",
+      "dependencies": [],
+      "state": "planned",
+      "evidence": "",
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis errors and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve remaining issues and rerun full verification."
+        }
+      ]
+    }
+  ]
+}
