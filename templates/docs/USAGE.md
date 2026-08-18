@@ -59,6 +59,14 @@ npm run session-end     # merge end state, files modified, decisions, verificati
 
 Traces are JSON files in `.harness/traces/`. They are runtime records, not evidence — keep the durable story in `PROGRESS.md`, `DECISIONS.md`, and `feature_list.json`.
 
+## Skills
+
+Reusable capability packs live in `skills/` — one folder per skill with a `SKILL.md` (frontmatter `name`/`description`, `When to Use`, workflow, quick-reference checklist). The lint layer validates every skill's structure.
+
+Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest gate runs), `session-handoff` (durable session ends), `adopt` (bootstrapping the harness), `release` (final pre-release pass), `write-skill` (the meta-skill for authoring new ones).
+
+Project skills may be added under `skills/` — see the `write-skill` skill for the format.
+
 ## Adopting the Framework in Your Project
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:

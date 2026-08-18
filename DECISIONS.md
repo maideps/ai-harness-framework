@@ -114,3 +114,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: distribution (feat-006) has one machine-readable answer for every file; adopters receive project-shaped doc skeletons instead of nothing or leaked instance content; arch-005 prevents silent drift.
 - Negative: every new tracked file in this repo must be classified (accepted cost, enforced by arch-005); adopters with product code must list their roots in `productRoots`.
+
+### D-008: Skills are capability packs validated by the runner
+
+**Date:** 2026-08-18
+**Status:** accepted
+**Context:** How-to knowledge (how to run a feature cycle, verify honestly, hand off a session) lived only inside AGENTS.md prose — no load-when-relevant granularity, no adopter extension point, no machine check. The lidr-specboot reference harness demonstrated a proven format: per-skill folders with SKILL.md frontmatter (name, description), a When to Use section, workflow phases, and quick-reference checklists.
+**Decision:** The harness ships a `skills/` CORE directory with six framework-native skills (feature-cycle, verification, session-handoff, adopt, release, write-skill) in the lidr-style format. The runner's lint layer validates every skill: SKILL.md present, frontmatter name matches its folder, description present, "## When to Use" section present. Adopters may add project skills under `skills/` (mayEdit) but must not modify shipped skills.
+**Alternatives considered:**
+- Keeping skill knowledge only in AGENTS.md — rejected: no granular load conditions, no extension point, nothing to validate.
+- Adopting lidr-specboot's full agents/skills/symlink structure — rejected: role agents and multi-copilot symlinks are out of scope for this harness's verification loop; the skill format is the transferable part.
+**Consequences:**
+- Positive: capability packs are discoverable, loadable, and machine-validated; adopters get a documented extension point; AGENTS.md stays process law while skills carry how-to.
+- Negative: skills are a new surface to keep accurate; skill authors must follow the format (enforced by lint).

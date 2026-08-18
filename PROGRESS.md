@@ -132,3 +132,19 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: .harness/manifest.json, scripts/framework-check.mjs, docs/USAGE.md, templates/docs/USAGE.md, docs/ARCHITECTURE.md
 - Known risk or unresolved issue: none.
 - Next best step: feat-004 (Assurance Suite).
+
+---
+
+### Session 008 — 2026-08-18 — feat-008 Skills Packs
+
+- Goal: Add the capability-pack layer the framework was missing — reusable skills in the format proven by the lidr-specboot reference harness.
+- Completed:
+  - `skills/` registered as a CORE surface in the manifest; adopters may add project skills (mayEdit), shipped skills must not be modified
+  - Six framework-native skills shipped: feature-cycle, verification, session-handoff, adopt, release, write-skill (meta-skill) — each with frontmatter name/description, When to Use, Workflow, Quick Reference
+  - Runner validates skills in the lint layer: SKILL.md present, frontmatter name matches folder, description present, When to Use section present (negative test confirmed: mismatched name → FAIL, exit 1)
+  - `skills/` added to required surfaces (lint, clean-state-check); docs wired (AGENTS.md Skills section, USAGE.md ×2, TOOLS.md ×2); D-008 recorded
+- Verification run: `npm run check` (PASS, e2e SKIP) + `npm run check-arch` (5/5 PASS) + `npm run verify-feature -- feat-008` (ALL LAYERS PASS) + `npm run vcr`
+- Evidence captured: feat-008 `evidence` field; vcr trail `.harness/trails/2026-08-18T19-49-39-468Z-vcr.json`
+- Files or artifacts updated: skills/* (6 new), .harness/manifest.json, scripts/framework-check.mjs, feature_list.json, AGENTS.md, DECISIONS.md, docs/USAGE.md, templates/docs/USAGE.md, docs/TOOLS.md, templates/docs/TOOLS.md
+- Known risk or unresolved issue: none.
+- Next best step: feat-004 (Assurance Suite).

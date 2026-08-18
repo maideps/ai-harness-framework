@@ -107,6 +107,19 @@ Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`)
 - MCP integrations and permitted capabilities are documented in `docs/TOOLS.md`
 - Default permission for sensitive tools is `ask`, not `allow`
 
+## Skills
+
+Skills are reusable capability packs in `skills/` — one folder per skill, each with a `SKILL.md` (frontmatter: name and description; sections: When to Use, Workflow, Quick Reference). Load the relevant skill when starting that kind of work:
+
+- `feature-cycle` — the one-feature-at-a-time loop
+- `verification` — running the gates honestly and reading their output
+- `session-handoff` — ending a session durably
+- `adopt` — bootstrapping the harness in a new project
+- `release` — the final pass before reporting work done
+- `write-skill` — authoring new skills (project skills may be added under `skills/`)
+
+Skill structure is validated by the lint layer; see the `write-skill` skill for the format.
+
 ## End of Session
 
 Before ending a session:

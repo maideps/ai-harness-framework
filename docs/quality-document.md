@@ -29,6 +29,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-08-18: bash suite consolidated into the Node runner; the four `scripts/*.sh` files are now thin shims (D-006). Stack detection centralized in `scripts/stack-detect.mjs`; Makefile and npm scripts are 1:1 mirrors. Session-trace round-trip (start → merge end) verified on Windows.
 - 2026-08-18 (session 004): manifest classifies every tracked file (schema v2, arch-005); 7 adopter doc skeletons added under templates/; instance content stripped from reusable docs (D-007). Python verify chain is argv-based and the compileall exclusion matches both path separators — verified empirically on Windows. verify-feature now enforces the dependency gate.
 - 2026-08-18 (session 005): reusability verification pass — CORE surfaces scanned for instance content (2 leaks fixed), DECISIONS.md skeleton added, missing-doc lint now fails cleanly, decision counting fixed (template block no longer counted). npm/make parity verified programmatically (15/15).
+- 2026-08-18 (session 008): skills component shipped (D-008) — six skills under skills/, validated by the lint layer (frontmatter name/description, When to Use); format adopted from the lidr-specboot reference harness.
 
 ---
 

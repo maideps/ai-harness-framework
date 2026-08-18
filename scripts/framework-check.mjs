@@ -26,7 +26,7 @@ const requiredFiles = [
   "init.sh",
 ];
 
-const requiredDirs = ["docs", "templates", "scripts", ".harness"];
+const requiredDirs = ["docs", "templates", "scripts", ".harness", "skills"];
 const placeholderChecks = [
   { file: "docs/PRODUCT.md", text: "[Describe what this system does and who it serves.]" },
   { file: "docs/PRODUCT.md", text: "[Primary user flow 1]" },
@@ -113,6 +113,45 @@ function ensureNoPlaceholders() {
       fail(`${check.file} still contains template placeholder text`);
     }
   }
+}
+
+function ensureSkills() {
+  if (!existsSync("skills")) {
+    pass("No skills directory — skills are optional for this repository");
+    return;
+  }
+  const entries = readdirSync("skills", { withFileTypes: true });
+  const stray = entries.filter((entry) => !entry.isDirectory());
+  if (stray.length > 0) {
+    fail(`skills/ must contain only skill folders, found: ${stray.map((entry) => entry.name).join(", ")}`);
+  }
+  const skillDirs = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith("."));
+  for (const dir of skillDirs) {
+    const skillFile = path.join("skills", dir.name, "SKILL.md");
+    if (!existsSync(skillFile)) {
+      fail(`skill ${dir.name} is missing SKILL.md`);
+    }
+    const contents = readText(skillFile);
+    const frontmatter = contents.match(/^---\n([\s\S]*?)\n---/);
+    if (!frontmatter) {
+      fail(`skill ${dir.name} SKILL.md is missing YAML frontmatter`);
+    }
+    const nameMatch = frontmatter[1].match(/^name:\s*(.+)$/m);
+    if (!nameMatch || !nameMatch[1].trim()) {
+      fail(`skill ${dir.name} frontmatter is missing a name`);
+    }
+    if (nameMatch[1].trim() !== dir.name) {
+      fail(`skill ${dir.name} frontmatter name (${nameMatch[1].trim()}) must match its folder`);
+    }
+    const descriptionMatch = frontmatter[1].match(/^description:\s*(.+)$/m);
+    if (!descriptionMatch || !descriptionMatch[1].trim()) {
+      fail(`skill ${dir.name} frontmatter is missing a description`);
+    }
+    if (!/^## When to Use/m.test(contents)) {
+      fail(`skill ${dir.name} SKILL.md is missing a "## When to Use" section`);
+    }
+  }
+  pass(`Skills validated (${skillDirs.length} skills)`);
 }
 
 function loadFeatures() {
@@ -780,7 +819,7 @@ function cleanStateCheck() {
   } else {
     check(false, "", "PROGRESS.md (or legacy progress.md) or claude-progress.md is missing");
   }
-  for (const dir of ["docs", "templates", "scripts", ".harness"]) {
+  for (const dir of ["docs", "templates", "scripts", ".harness", "skills"]) {
     check(existsSync(dir) && statSync(dir).isDirectory(), `${dir}/`, `${dir}/ is missing`);
   }
 
@@ -940,6 +979,7 @@ switch (mode) {
     readJson("feature_list.json");
     readJson(".harness/arch-rules.json");
     ensureNoPlaceholders();
+    ensureSkills();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
   }

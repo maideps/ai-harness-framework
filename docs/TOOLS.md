@@ -34,6 +34,10 @@ Default permission for sensitive tools is `ask`, not `allow`. Sensitive tools in
 | `search_files` | Project directories | allow |
 | `list_files` | Project directories | allow |
 
+## Skills
+
+Reusable capability packs are documented in `skills/` (one `SKILL.md` per skill folder). Load the relevant skill when its "When to Use" conditions match; add project skills with the format described in the `write-skill` skill.
+
 ## Git Integration
 
 - Commit messages must follow the project convention: concise, descriptive, explaining WHY
