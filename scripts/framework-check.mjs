@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { EOL } from "node:os";
+import path from "node:path";
+
+import {
+  LAYERS,
+  detectRuntime,
+  resolveLayer,
+  getInstallCommand,
+  getVerifyChain,
+} from "./stack-detect.mjs";
 
 const mode = process.argv[2];
 const args = process.argv.slice(3);
@@ -320,6 +329,489 @@ function recordFeaturePass(featureId, evidence) {
   pass(`Recorded passing evidence for ${featureId}`);
 }
 
+// ---- Ported harness operations (previously bash) -----------------------
+
+const LAYER_BANNERS = {
+  lint: "Layer 1: Static Analysis",
+  typecheck: "Layer 1b: Type Checking",
+  test: "Layer 2: Runtime Tests",
+  build: "Layer 3: Build",
+  e2e: "Layer 3b: E2E Tests",
+  dev: "Dev Server",
+};
+
+// Run one verification layer against the detected project stack.
+// PASS when the resolved command exits with an allowed code, SKIP when the
+// layer is not configured, FAIL otherwise (non-zero exit stops the chain).
+function runLayer(layer) {
+  const banner = LAYER_BANNERS[layer];
+  if (!banner) {
+    fail(`run-layer: unknown layer ${layer ?? "<none>"} (expected one of ${LAYERS.join(", ")})`);
+  }
+
+  console.log(`=== ${banner} ===`);
+  const stack = detectRuntime();
+  const { cmd, skip } = resolveLayer(stack, layer);
+
+  if (!cmd) {
+    console.log(`  [SKIP] ${skip}`);
+    return;
+  }
+  // Guard against a layer script that delegates straight back to the runner
+  // (e.g. a generator that injected `run-layer` as the script itself).
+  if (cmd.includes("run-layer")) {
+    console.log("  [SKIP] layer script delegates back to the harness runner without a direct layer command");
+    return;
+  }
+
+  // Node scripts rely on node_modules/.bin (eslint, tsc, …); npm adds it to
+  // PATH when running scripts, so mirror that here for direct execution.
+  const env = stack === "node"
+    ? {
+        ...process.env,
+        PATH: `${path.join(process.cwd(), "node_modules", ".bin")}${path.delimiter}${process.env.PATH ?? ""}`,
+      }
+    : process.env;
+
+  try {
+    execSync(cmd, { stdio: "inherit", shell: true, env });
+    console.log(`  [PASS] ${banner} complete (${cmd})`);
+  } catch (err) {
+    // pytest exits 5 when no tests were collected — not a failure.
+    const allowed = stack === "python" && layer === "test" ? [0, 5] : [0];
+    if (allowed.includes(err.status ?? 1)) {
+      console.log(`  [PASS] ${banner} complete (${cmd})`);
+    } else {
+      console.log(`  [FAIL] ${banner} failed (exit ${err.status ?? 1})`);
+      process.exit(1);
+    }
+  }
+}
+
+function checkArch() {
+  const rulesPath = ".harness/arch-rules.json";
+  if (!existsSync(rulesPath)) {
+    console.log("=== Architecture check skipped: no arch-rules.json found ===");
+    return;
+  }
+
+  console.log("=== Architecture Constraint Check ===");
+  console.log("");
+  const rules = readJson(rulesPath).rules ?? [];
+  if (!Array.isArray(rules) || rules.length === 0) {
+    console.log("[PASS] No architecture rules defined (acceptable for bootstrap)");
+    return;
+  }
+
+  console.log(`Evaluating ${rules.length} rules...`);
+  console.log("");
+  let passing = true;
+
+  for (const rule of rules) {
+    console.log(`Rule: ${rule.id} — ${rule.description}`);
+    let output = "";
+    try {
+      output = execSync(rule.check, { encoding: "utf8", shell: true });
+    } catch (err) {
+      output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+    }
+
+    let matched = false;
+    try {
+      matched = new RegExp(rule.expect).test(output);
+    } catch {
+      fail(`rule ${rule.id} has an invalid expect pattern: ${rule.expect}`);
+    }
+
+    if (matched) {
+      console.log("  [PASS]");
+    } else {
+      console.log(`  [FAIL] ${rule.what}`);
+      console.log(`  Why: ${rule.why}`);
+      console.log(`  Fix: ${rule.fix}`);
+      console.log("");
+      passing = false;
+    }
+  }
+
+  console.log("");
+  if (passing) {
+    console.log("=== All architecture rules pass ===");
+  } else {
+    console.log("=== Architecture constraint violations found ===");
+    process.exit(1);
+  }
+}
+
+function verifyFeature(featureId) {
+  if (!featureId) {
+    fail("usage: node scripts/framework-check.mjs verify-feature <feature-id>");
+  }
+
+  console.log(`=== Verifying feature: ${featureId} ===`);
+  console.log("");
+
+  const { features } = loadFeatures();
+  const feature = features.find((item) => item.id === featureId);
+  if (!feature) {
+    console.log(`[FAIL] Feature ${featureId} not found in feature_list.json`);
+    process.exit(1);
+  }
+
+  console.log(`Feature: ${feature.name}`);
+  console.log("");
+
+  for (const layer of feature.layers) {
+    console.log(`--- ${layer.label} ---`);
+    console.log(`Running: ${layer.cmd}`);
+    console.log("");
+
+    try {
+      execSync(layer.cmd, { stdio: "inherit", shell: true });
+      console.log("");
+      console.log(`  [PASS] ${layer.label}`);
+      console.log("");
+    } catch {
+      console.log("");
+      console.log(`  [FAIL] ${layer.label}`);
+      console.log("");
+      if (layer.repair) {
+        console.log(`Repair hint: ${layer.repair}`);
+      }
+      console.log("");
+      console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
+      process.exit(1);
+    }
+  }
+
+  console.log(`=== Feature ${featureId}: ALL LAYERS PASS ===`);
+  const evidence = `All verification layers passed via node scripts/framework-check.mjs verify-feature at ${new Date().toISOString()}`;
+  recordFeaturePass(featureId, evidence);
+  console.log("Evidence recorded in feature_list.json");
+}
+
+function tryGit(args) {
+  try {
+    return execSync(`git ${args}`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function isGitRepo() {
+  try {
+    execSync("git rev-parse --git-dir", { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function collectModifiedFiles() {
+  const files = new Set();
+  for (const cmd of ["git diff --name-only --relative", "git ls-files --others --exclude-standard"]) {
+    try {
+      const output = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+      for (const line of output.split(/\r?\n/)) {
+        if (line.trim()) files.add(line.trim());
+      }
+    } catch {
+      // not a git repository — leave empty
+    }
+  }
+  return Array.from(files);
+}
+
+function collectDecisionsSummary() {
+  let count = 0;
+  let latest = "";
+  if (existsSync("DECISIONS.md")) {
+    for (const line of readText("DECISIONS.md").split(/\r?\n/)) {
+      if (/^### /.test(line)) {
+        count += 1;
+        latest = line.replace(/^### /, "");
+      }
+    }
+  }
+  return { count, latest };
+}
+
+function collectVerificationSummary(timestamp, activeFeature) {
+  if (!existsSync("feature_list.json")) {
+    return { timestamp, active_feature: activeFeature, feature_evidence: "", layers: [] };
+  }
+  const { features } = readJson("feature_list.json");
+  const active = features.find((feature) => getFeatureState(feature) === "active") ?? {};
+  return {
+    timestamp,
+    active_feature: activeFeature,
+    feature_evidence: active.evidence ?? "",
+    layers: (active.layers ?? []).map((layer) => ({ label: layer.label, cmd: layer.cmd })),
+  };
+}
+
+function sessionTrace(submode) {
+  if (submode !== "start" && submode !== "end") {
+    fail("usage: node scripts/framework-check.mjs session-trace start|end");
+  }
+
+  const tracesDir = ".harness/traces";
+  mkdirSync(tracesDir, { recursive: true });
+  const now = new Date();
+  const iso = now.toISOString();
+  const digits = iso.replace(/\D/g, "");
+  const stamp = `${digits.slice(0, 8)}-${digits.slice(8, 14)}`;
+  const gitBranch = tryGit("branch --show-current");
+  const gitCommit = tryGit("rev-parse --short HEAD");
+  const activeFeature = getActiveFeatureId();
+
+  if (submode === "start") {
+    const record = {
+      session_start: iso,
+      git_branch: gitBranch,
+      git_commit: gitCommit,
+      active_feature: activeFeature,
+    };
+    const file = path.join(tracesDir, `session-start-${stamp}.json`);
+    writeFileSync(file, `${JSON.stringify(record, null, 2)}${EOL}`, "utf8");
+    console.log(`Session start recorded: ${file}`);
+    console.log(`Active feature: ${activeFeature || "none"}`);
+    return;
+  }
+
+  const endFields = {
+    session_end: iso,
+    end_git_branch: gitBranch,
+    end_git_commit: gitCommit,
+    end_active_feature: activeFeature,
+    verification_results: collectVerificationSummary(iso, activeFeature),
+    files_modified: collectModifiedFiles(),
+    decisions_recorded: collectDecisionsSummary(),
+  };
+
+  // Zero-padded stamps sort chronologically, so the last name is the newest start.
+  const startFiles = readdirSync(tracesDir)
+    .filter((name) => name.startsWith("session-start-") && name.endsWith(".json"))
+    .sort();
+  const latestStart = startFiles.length > 0 ? path.join(tracesDir, startFiles[startFiles.length - 1]) : "";
+
+  if (!latestStart) {
+    const file = path.join(tracesDir, `session-${stamp}-end.json`);
+    const record = {
+      ...endFields,
+      git_branch: gitBranch,
+      git_commit: gitCommit,
+      active_feature: activeFeature,
+      note: "No matching session-start trace found",
+    };
+    writeFileSync(file, `${JSON.stringify(record, null, 2)}${EOL}`, "utf8");
+    console.log(`Session end recorded (no start trace): ${file}`);
+    return;
+  }
+
+  const merged = { ...readJson(latestStart), ...endFields };
+  writeFileSync(latestStart, `${JSON.stringify(merged, null, 2)}${EOL}`, "utf8");
+  console.log(`Session end recorded in: ${latestStart}`);
+}
+
+function scanDebugArtifacts(scanPaths, excludeDirs) {
+  const patterns = [
+    { exts: new Set([".ts", ".js", ".tsx", ".jsx"]), re: /console\.(log|debug|dir)\(|debugger/ },
+    { exts: new Set([".py"]), re: /print\(|pdb\.set_trace/ },
+    { exts: new Set([".go"]), re: /fmt\.Println\(|log\.Print/ },
+  ];
+  const hits = [];
+
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!excludeDirs.has(entry.name)) walk(full);
+        continue;
+      }
+      const ext = path.extname(entry.name);
+      for (const pattern of patterns) {
+        if (!pattern.exts.has(ext)) continue;
+        try {
+          const lines = readText(full).split(/\r?\n/);
+          lines.forEach((line, index) => {
+            if (pattern.re.test(line)) hits.push(`${full}:${index + 1}: ${line.trim()}`);
+          });
+        } catch {
+          // unreadable file — skip
+        }
+      }
+    }
+  };
+
+  for (const scanPath of scanPaths) {
+    walk(scanPath);
+  }
+  return hits;
+}
+
+function cleanStateCheck() {
+  console.log("=== Clean State Check ===");
+  console.log("");
+  let passing = true;
+  const check = (ok, passMessage, failMessage) => {
+    if (ok) {
+      console.log(`  [PASS] ${passMessage}`);
+    } else {
+      console.log(`  [FAIL] ${failMessage}`);
+      passing = false;
+    }
+  };
+
+  console.log("--- Harness Files ---");
+  for (const file of ["AGENTS.md", "CLAUDE.md", "feature_list.json", "DECISIONS.md", "session-handoff.md", "Makefile"]) {
+    check(existsSync(file), file, `${file} is missing`);
+  }
+  if (existsSync("PROGRESS.md")) {
+    console.log("  [PASS] PROGRESS.md");
+  } else if (existsSync("progress.md")) {
+    console.log("  [PASS] progress.md (legacy naming)");
+  } else if (existsSync("claude-progress.md")) {
+    console.log("  [PASS] claude-progress.md");
+  } else {
+    check(false, "", "PROGRESS.md (or legacy progress.md) or claude-progress.md is missing");
+  }
+  for (const dir of ["docs", "templates", "scripts", ".harness"]) {
+    check(existsSync(dir) && statSync(dir).isDirectory(), `${dir}/`, `${dir}/ is missing`);
+  }
+
+  console.log("");
+  console.log("--- Git Status ---");
+  if (isGitRepo()) {
+    const status = execSync("git status --porcelain", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    if (status.trim()) {
+      console.log("  [FAIL] Uncommitted changes:");
+      console.log(execSync("git status --short", { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trimEnd());
+      passing = false;
+    } else {
+      console.log("  [PASS] Working tree clean");
+    }
+  } else {
+    console.log("  [WARN] Not a git repository");
+  }
+
+  console.log("");
+  console.log("--- Debug Artifacts ---");
+  const envScanPaths = (process.env.DEBUG_SCAN_PATHS ?? "").split(/\s+/).filter(Boolean);
+  const candidates = ["src", "app", "apps", "lib", "packages", "services", "backend", "frontend"];
+  const scanPaths = envScanPaths.length > 0
+    ? envScanPaths
+    : candidates.filter((dir) => existsSync(dir) && statSync(dir).isDirectory());
+  const finalScanPaths = scanPaths.length > 0 ? scanPaths : ["."];
+  const excludeDirs = new Set(
+    (process.env.DEBUG_SCAN_EXCLUDE_DIRS ?? ".git node_modules dist build .harness base").split(/\s+/).filter(Boolean),
+  );
+  const hits = scanDebugArtifacts(finalScanPaths, excludeDirs);
+  if (hits.length > 0) {
+    console.log("  [WARN] Potential debug statements found (review before committing):");
+    for (const hit of hits) {
+      console.log(`    ${hit}`);
+    }
+  } else {
+    console.log("  [PASS] No obvious debug artifacts");
+  }
+
+  console.log("");
+  console.log("--- Feature State ---");
+  if (existsSync("feature_list.json")) {
+    const { features } = readJson("feature_list.json");
+    const activeCount = features.filter((feature) => getFeatureState(feature) === "active").length;
+    check(activeCount <= 1, `WIP=${activeCount} (at most 1 active feature)`, `WIP=${activeCount} (multiple active features)`);
+  } else {
+    console.log("  [WARN] Cannot verify feature state (feature_list.json missing)");
+  }
+
+  console.log("");
+  console.log("--- OS Artifacts ---");
+  let staged = "";
+  try {
+    staged = execSync("git diff --cached --name-only", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    // not a git repository — nothing staged
+  }
+  const osArtifacts = staged.split(/\r?\n/).filter((line) => /\.DS_Store$|Thumbs\.db$/.test(line));
+  check(
+    osArtifacts.length === 0,
+    "No OS artifacts staged",
+    `OS artifacts staged: ${osArtifacts.join(", ")}`,
+  );
+
+  console.log("");
+  if (passing) {
+    console.log("=== Clean state check: ALL PASS ===");
+    console.log("Ready to commit.");
+  } else {
+    console.log("=== Clean state check: FAILURES DETECTED ===");
+    console.log("Fix issues above before committing.");
+    process.exit(1);
+  }
+}
+
+function runSetup() {
+  console.log("=== Installing dependencies ===");
+  const command = getInstallCommand();
+  if (!command) {
+    console.log("  [INFO] No dependency manifest found — skipping");
+  } else {
+    execSync(command, { stdio: "inherit", shell: true });
+  }
+  console.log("  [PASS] Setup complete");
+}
+
+function runVerifyChain() {
+  const chain = getVerifyChain();
+  if (chain.length === 0) {
+    console.log("=== No application runtime detected (harness-only bootstrap) ===");
+    console.log("This is expected during initial harness setup.");
+    return;
+  }
+  for (const step of chain) {
+    console.log(`--- Running: ${step.cmd} ---`);
+    try {
+      execSync(step.cmd, { stdio: "inherit", shell: true });
+    } catch (err) {
+      const allowed = step.allowedExitCodes ?? [0];
+      if (!allowed.includes(err.status ?? 1)) {
+        process.exit(1);
+      }
+    }
+  }
+}
+
+function printHelp() {
+  console.log("Available targets (every make target is mirrored by an npm script):");
+  console.log("");
+  console.log("  setup          Install all dependencies from scratch");
+  console.log("  dev            Start local development server");
+  console.log("  check          Full verification: lint → typecheck → test → build → e2e");
+  console.log("  lint           Layer 1: static analysis");
+  console.log("  typecheck      Layer 1b: type checking");
+  console.log("  test           Layer 2: runtime tests");
+  console.log("  build          Layer 3: build verification");
+  console.log("  e2e            Layer 3b: end-to-end tests");
+  console.log("  check-arch     Architecture constraint enforcement");
+  console.log("  verify-feature F=<id>  Run all verification layers for a feature");
+  console.log("  vcr            verify + check-arch + record trail");
+  console.log("  session-start  Record session start");
+  console.log("  session-end    Record session end");
+  console.log("  clean-check    Pre-commit clean state verification");
+  console.log("  help           Show this help");
+  console.log("");
+  console.log("Make form:  make <target>            npm form:  npm run <target>");
+  console.log("Feature verification: make verify-feature F=feat-003   or   npm run verify-feature -- feat-003");
+}
+
 switch (mode) {
   case "lint": {
     for (const path of requiredFiles) {
@@ -400,6 +892,38 @@ switch (mode) {
   }
   case "manifest": {
     ensureManifest();
+    break;
+  }
+  case "run-layer": {
+    runLayer(args[0]);
+    break;
+  }
+  case "check-arch": {
+    checkArch();
+    break;
+  }
+  case "verify-feature": {
+    verifyFeature(args[0]);
+    break;
+  }
+  case "session-trace": {
+    sessionTrace(args[0]);
+    break;
+  }
+  case "clean-state-check": {
+    cleanStateCheck();
+    break;
+  }
+  case "setup": {
+    runSetup();
+    break;
+  }
+  case "verify-chain": {
+    runVerifyChain();
+    break;
+  }
+  case "help": {
+    printHelp();
     break;
   }
   default:

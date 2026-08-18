@@ -6,80 +6,32 @@ echo "=== Harness Initialization ==="
 # Check for required tools
 echo "=== Checking prerequisites ==="
 command -v git >/dev/null 2>&1 || { echo "[WARN] git not found — version control won't be available"; }
-command -v make >/dev/null 2>&1 || command -v mingw32-make >/dev/null 2>&1 || { echo "[WARN] make not found — use mingw32-make on Windows or install make"; }
-
-# Detect package manager and install dependencies if a manifest exists
-if [ -f package.json ]; then
-  if [ -f pnpm-lock.yaml ]; then
-    PM="pnpm"
-  elif [ -f yarn.lock ]; then
-    PM="yarn"
-  elif [ -f bun.lock ] || [ -f bun.lockb ]; then
-    PM="bun"
-  else
-    PM="npm"
-  fi
-
-  echo "=== Installing dependencies with $PM ==="
-  if [ "$PM" = "npm" ]; then
-    npm install
-  else
-    "$PM" install
-  fi
-
-  # Run type check if available
-  node -e "const s=require('./package.json').scripts||{}; process.exit(s.check||s.typecheck||s['type-check']?0:1)" && {
-    if node -e "const s=require('./package.json').scripts||{}; process.exit(s.check?0:1)"; then
-      [ "$PM" = "npm" ] && npm run check || "$PM" run check
-    elif node -e "const s=require('./package.json').scripts||{}; process.exit(s.typecheck?0:1)"; then
-      [ "$PM" = "npm" ] && npm run typecheck || "$PM" run typecheck
-    else
-      [ "$PM" = "npm" ] && npm run type-check || "$PM" run type-check
-    fi
-  }
-
-  # Run lint if available
-  node -e "const s=require('./package.json').scripts||{}; process.exit(s.lint?0:1)" && {
-    [ "$PM" = "npm" ] && npm run lint || "$PM" run lint
-  }
-
-  # Run tests if available
-  node -e "const s=require('./package.json').scripts||{}; process.exit(s.test?0:1)" && {
-    [ "$PM" = "npm" ] && npm test || "$PM" test
-  }
-
-  # Run build if available
-  node -e "const s=require('./package.json').scripts||{}; process.exit(s.build?0:1)" && {
-    [ "$PM" = "npm" ] && npm run build || "$PM" run build
-  }
-elif [ -f pyproject.toml ] || [ -f requirements.txt ]; then
-  echo "=== Running Python verification ==="
-  PY="$(command -v python3 || command -v python)"
-  "$PY" -m pytest || [ $? -eq 5 ]  # pytest exits 5 when no tests — not a failure
-  "$PY" -m compileall -q -x '(^|/)(\.?venv|env|node_modules|build|dist|__pycache__)(/|$)' .
-elif [ -f go.mod ]; then
-  echo "=== Running Go verification ==="
-  go test ./...
-elif [ -f Cargo.toml ]; then
-  echo "=== Running Rust verification ==="
-  cargo test
-elif [ -f pom.xml ]; then
-  echo "=== Running Maven verification ==="
-  mvn test
-elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then
-  echo "=== Running Gradle verification ==="
-  ./gradlew test
-elif ls *.csproj *.sln >/dev/null 2>&1; then
-  echo "=== Running .NET verification ==="
-  dotnet test
-else
-  echo "=== No application runtime detected (harness-only bootstrap) ==="
-  echo "This is expected during initial harness setup."
-  echo "Application verification will be available after feat-002 (Primary Capability)."
+command -v make >/dev/null 2>&1 || command -v mingw32-make >/dev/null 2>&1 || { echo "[WARN] make not found — use the npm entrypoints (npm run <target>) instead"; }
+if ! command -v node >/dev/null 2>&1; then
+  echo "[FAIL] Node.js >= 18 not found — harness tooling (stack detection, verification layers, session traces) runs on Node"
+  exit 1
 fi
 
+# Detect the project stack — single source of truth shared with the Makefile
+# and the verification layers (scripts/stack-detect.mjs).
+RUNTIME=$(node scripts/stack-detect.mjs runtime)
+PM=$(node scripts/stack-detect.mjs package-manager)
 echo ""
-echo "=== Harness Verification ==="
+echo "=== Detected stack: ${RUNTIME}${PM:+ (package manager: $PM)} ==="
+
+# Install dependencies if the stack declares an install step
+INSTALL_CMD=$(node scripts/stack-detect.mjs install)
+if [ -n "$INSTALL_CMD" ]; then
+  echo "=== Installing dependencies: $INSTALL_CMD ==="
+  eval "$INSTALL_CMD"
+else
+  echo "=== No dependency manifest found — skipping install ==="
+fi
+
+# Run the stack's verification chain
+echo ""
+echo "=== Running verification ==="
+node scripts/framework-check.mjs verify-chain
 echo ""
 
 # Verify harness state files exist
@@ -116,6 +68,8 @@ check_progress_file() {
   fi
 }
 
+echo "=== Harness Verification ==="
+echo ""
 echo "Checking harness state files..."
 check_file "AGENTS.md"
 check_file "CLAUDE.md"
@@ -145,4 +99,4 @@ echo "Next steps:"
 echo "1. Read feature_list.json to see current feature state"
 echo "2. Pick ONE unfinished feature to work on"
 echo "3. Implement only that feature"
-echo "4. Run 'make check' before claiming done"
+echo "4. Run 'npm run check' (or 'make check') before claiming done"

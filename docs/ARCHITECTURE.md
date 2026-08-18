@@ -28,11 +28,25 @@ During bootstrap (`feat-001`), the repository primarily validates harness archit
 ## Harness Boundaries
 
 - Root operating manual and state files live at the repository root so every session can discover them immediately.
-- Verification entrypoints live in `init.sh`, `Makefile`, and `scripts/`.
+- Verification entrypoints live in `init.sh`, `Makefile`, `package.json`, and `scripts/`.
 - Policy and enforcement rules live under `.harness/`.
 - Durable user-facing guidance lives in `README.md` and `docs/`.
 
-These boundaries are enforced today by `make check` and `make check-arch`. Verification layers report PASS, SKIP (not configured), or FAIL (stops the chain); only PASS counts as verified.
+These boundaries are enforced today by `make check` / `npm run check` and `make check-arch` / `npm run check-arch`. Verification layers report PASS, SKIP (not configured), or FAIL (stops the chain); only PASS counts as verified.
+
+## Runner Consolidation
+
+The canonical implementation of every harness operation lives in the Node runner `scripts/framework-check.mjs`. There is one runner, two thin surfaces (Makefile targets and npm scripts), and bash shims for compatibility:
+
+- **Node runner** — `scripts/framework-check.mjs` implements all modes: verification layers (`lint`, `typecheck`, `test`, `build`, `e2e`), `run-layer`, `verify-chain`, `check-arch`, `verify-feature`, `session-trace`, `clean-state-check`, `setup`, `record-trail`, `manifest`, `help`. It is the only place the logic exists; every surface delegates to it.
+- **Stack detection** — `scripts/stack-detect.mjs` is the single source of truth for "what kind of project is this". It detects the runtime (node, python, go, rust, jvm, dotnet, none) from manifest markers, the package manager for node stacks (npm, pnpm, yarn, bun), per-layer commands (including tool availability for python), the install step, and the verification chain. `init.sh` and the verification layers both consume it.
+- **Makefile** — every target is a one-line delegation to the runner (`node scripts/framework-check.mjs <mode>`). Make is optional; nothing is implemented in make recipes anymore.
+- **npm scripts** — `package.json` mirrors every make target 1:1 (`npm run check`, `npm run check-arch`, `npm run verify-feature -- <id>`, …). This is the make-free canonical path.
+- **Bash shims** — `init.sh` and `scripts/check-arch.sh`, `verify-feature.sh`, `session-trace.sh`, `clean-state-check.sh` are thin `exec node …` wrappers kept for documented compatibility.
+
+Layer resolution contract for node projects: the package.json script key is the layer command (`scripts.lint` = `eslint .`, `scripts.test` = `vitest`, …). `run-layer` executes that value directly with `node_modules/.bin` on PATH (matching npm's own behavior). A script value that delegates back to the runner (`run-layer`) is treated as unconfigured to prevent self-reference loops. Harness scripts therefore keep their self-checks under the standard keys and adopters replace those values with their own tools; script values must be direct commands, not wrapper indirections.
+
+The harness runtime is Node ≥ 18: any adopter running harness tooling (make targets, npm scripts, init.sh) needs Node regardless of their product stack — detection of python/go/rust/jvm/dotnet projects is about verifying the host project, not replacing the harness runtime.
 
 ## Application Dependency Rules
 
@@ -63,7 +77,7 @@ Every reuse guarantee (upgrade survival, adoption tests, copy vs npx distributio
 Architectural constraints are codified in `.harness/arch-rules.json` and enforced via:
 
 ```bash
-make check-arch
+make check-arch     # or: npm run check-arch
 ```
 
 Each rule in `arch-rules.json` must include:

@@ -6,8 +6,8 @@ Session continuity source of truth for this repository. Update at the end of eac
 
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
-- Primary verification command: `make check` (make-free equivalent: `npm run check`)
-- Current active feature: none (feat-001 and feat-002 passing)
+- Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
+- Current active feature: none (feat-001, feat-002, feat-003 passing)
 - Current blocker: none
 
 ## Session Log
@@ -49,3 +49,22 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: .harness/manifest.json, .harness/arch-rules.json, scripts/framework-check.mjs, templates/* (4 new), docs/ARCHITECTURE.md, README.md, AGENTS.md, feature_list.json
 - Known risk or unresolved issue: the File edit tool silently dropped two large insertions this session; workaround adopted (write-temp + node splice) and verified by read-back. `make` still absent on this machine.
 - Next best step: feat-003 (Node Runner Consolidation) — port the bash suite to the runner and mirror make targets as npm scripts.
+
+---
+
+### Session 003 — 2026-08-18 — feat-003 Node Runner Consolidation
+
+- Goal: One Node runner as the canonical implementation of every harness operation: the four bash scripts ported in, one shared stack-detection module, and npm scripts mirroring every make target.
+- Completed:
+  - `scripts/stack-detect.mjs` — single source of truth for stack detection: runtime (node/python/go/rust/jvm/dotnet), package manager, per-layer commands with tool availability, install step, verification chain
+  - `framework-check.mjs` gained `check-arch`, `verify-feature`, `session-trace` (start/end with merge), `clean-state-check`, `run-layer`, `verify-chain`, `setup`, `help` modes
+  - The four bash scripts are now thin `exec node …` shims; init.sh consumes the stack-detect module for install + verification
+  - Makefile targets are one-line delegations; package.json mirrors every make target (check-arch, verify-feature, vcr, session-start/end, clean-check, setup, help added)
+  - Docs aligned in the same change: README command tables, ARCHITECTURE.md Runner Consolidation section, AGENTS.md command mirrors, D-006 decision, quality-document grades
+- Verification run: `npm run check` (PASS, e2e SKIP) + `npm run check-arch` (4 rules PASS) + `npm run verify-feature -- feat-003` (ALL LAYERS PASS) + `npm run vcr` (trail recorded) + init.sh end-to-end
+- Session-trace round-trip: start → merged end record and end-only fallback both verified via the Node runner on Windows
+- Evidence captured: feat-003 `evidence` field; vcr trail `.harness/trails/2026-08-18T17-01-27-989Z-vcr.json`
+- Commits: this session's work lands as one logical commit (runner consolidation + docs in the same change)
+- Files or artifacts updated: scripts/stack-detect.mjs (new), scripts/framework-check.mjs, scripts/*.sh (4 shims), Makefile, package.json, init.sh, README.md, docs/ARCHITECTURE.md, docs/quality-document.md, DECISIONS.md, AGENTS.md, feature_list.json
+- Known risk or unresolved issue: `make` still not installed here — Makefile delegation verified via the identical npm/runner paths; a real `make check` on Linux is unverified this session. `run-layer` executes package.json script values directly (no npm pre/post hooks) — documented in D-006.
+- Next best step: feat-004 (Assurance Suite) — adoption e2e matrix + customization-survival upgrade test.

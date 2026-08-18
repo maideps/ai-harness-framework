@@ -10,7 +10,15 @@
     "test": "node scripts/framework-check.mjs test",
     "build": "node scripts/framework-check.mjs build",
     "e2e": "node scripts/framework-check.mjs e2e",
-    "dev": "node scripts/framework-check.mjs dev"
+    "dev": "node scripts/framework-check.mjs dev",
+    "check-arch": "node scripts/framework-check.mjs check-arch",
+    "verify-feature": "node scripts/framework-check.mjs verify-feature",
+    "vcr": "npm run check && npm run check-arch && node scripts/framework-check.mjs record-trail vcr",
+    "session-start": "node scripts/framework-check.mjs session-trace start",
+    "session-end": "node scripts/framework-check.mjs session-trace end",
+    "clean-check": "node scripts/framework-check.mjs clean-state-check",
+    "setup": "node scripts/framework-check.mjs setup",
+    "help": "node scripts/framework-check.mjs help"
   },
   "engines": {
     "node": ">=18"

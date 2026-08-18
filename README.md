@@ -10,9 +10,9 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Feature-driven development**: All work is tracked as discrete features in `feature_list.json` with explicit dependencies and verification criteria
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
 - **Durable cross-session continuity**: State files (`PROGRESS.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
-- **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch`
+- **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch` / `npm run check-arch`
 
-The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack.
+The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack. Harness tooling runs on Node and detects the host project's stack (node, python, go, rust, jvm, dotnet) at runtime.
 
 ## Quick Start
 
@@ -24,18 +24,18 @@ cd ai-harness-framework
 # 2. Verify the environment is healthy
 ./init.sh
 
-# 3. Run full verification
-make check
+# 3. Run full verification (make and npm forms are 1:1 mirrors)
+make check          # or: npm run check
 
 # 4. See all available commands
-make help
+make help           # or: npm run help
 ```
 
 ### Prerequisites
 
-- **Node.js** ≥ 18 (see `.nvmrc`)
-- **Git Bash** (on Windows) — scripts use portable POSIX constructs compatible with Git for Windows
-- **Make** — available via Git Bash (`mingw32-make`) on Windows, or natively on macOS/Linux
+- **Node.js** ≥ 18 — the harness runtime: stack detection, verification layers, session traces, and every make target delegate to it
+- **Make** — optional; `npm run <target>` mirrors every make target for make-free environments
+- **Git Bash** (on Windows) — only needed for `./init.sh` and the `scripts/*.sh` compatibility shims
 
 ## How It Works
 
@@ -65,13 +65,13 @@ Every feature passes through three verification gates:
 
 | Layer | Name | Command | What It Checks |
 |-------|------|---------|----------------|
-| 1 | Static Analysis | `make lint` | Code style, formatting, syntax |
-| 1b | Type Checking | `make typecheck` | Type safety |
-| 2 | Runtime Tests | `make test` | Unit and integration tests |
-| 3 | Build Verification | `make build` | Production build succeeds |
-| 3b | End-to-End | `make e2e` | Full system integration |
+| 1 | Static Analysis | `make lint` / `npm run lint` | Code style, formatting, syntax |
+| 1b | Type Checking | `make typecheck` / `npm run typecheck` | Type safety |
+| 2 | Runtime Tests | `make test` / `npm run test` | Unit and integration tests |
+| 3 | Build Verification | `make build` / `npm run build` | Production build succeeds |
+| 3b | End-to-End | `make e2e` / `npm run e2e` | Full system integration |
 
-Run all layers with `make check` (lint → typecheck → test → build → e2e).
+Run all layers with `make check` (lint → typecheck → test → build → e2e); `npm run check` is the make-free equivalent. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
 
 Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 
@@ -92,25 +92,27 @@ These files are the source of truth—not chat history:
 
 The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), adopter skeletons live in `templates/`, and **INSTANCE** files (`feature_list.json`, `PROGRESS.md`, `DECISIONS.md`, …) are this repo's own state and never ship to adopters. The manifest is enforced by `make check-arch` (rule arch-004); any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
 
-### Makefile Targets
+### Command Targets
 
-| Target | Description |
-|--------|-------------|
-| `make setup` | Install all dependencies from scratch |
-| `make dev` | Start local development server |
-| `make check` | Full verification: lint → typecheck → test → build → e2e |
-| `make lint` | Layer 1: static analysis |
-| `make typecheck` | Layer 1b: type checking |
-| `make test` | Layer 2: runtime tests |
-| `make build` | Layer 3: build verification |
-| `make e2e` | Layer 3b: end-to-end tests |
-| `make check-arch` | Architecture constraint enforcement |
-| `make verify-feature F=<id>` | Run all verification layers for a specific feature |
-| `make vcr` | Verify + check-arch + record trail in `.harness/trails/` |
-| `make session-start` | Record session start |
-| `make session-end` | Record session end |
-| `make clean-check` | Pre-commit clean state verification |
-| `make help` | Show all available targets |
+Every make target is mirrored 1:1 by an npm script; both delegate to the Node runner and resolve the host project's stack through the shared detection module (`scripts/stack-detect.mjs`).
+
+| Target | Make form | npm form |
+|--------|-----------|----------|
+| Install dependencies | `make setup` | `npm run setup` |
+| Dev server | `make dev` | `npm run dev` |
+| Full verification | `make check` | `npm run check` |
+| Layer 1: static analysis | `make lint` | `npm run lint` |
+| Layer 1b: type checking | `make typecheck` | `npm run typecheck` |
+| Layer 2: runtime tests | `make test` | `npm run test` |
+| Layer 3: build verification | `make build` | `npm run build` |
+| Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
+| Architecture enforcement | `make check-arch` | `npm run check-arch` |
+| Feature verification | `make verify-feature F=feat-003` | `npm run verify-feature -- feat-003` |
+| Verify + record trail | `make vcr` | `npm run vcr` |
+| Record session start | `make session-start` | `npm run session-start` |
+| Record session end | `make session-end` | `npm run session-end` |
+| Pre-commit clean state | `make clean-check` | `npm run clean-check` |
+| Show all targets | `make help` | `npm run help` |
 
 ## Definition of Done
 

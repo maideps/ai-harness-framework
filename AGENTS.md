@@ -71,18 +71,20 @@ A feature is done only when ALL of the following are true:
 ## Verification Commands
 
 ```bash
-# Full verification (recommended)
-make check
+# Full verification (recommended) — make and npm forms are 1:1 mirrors
+make check        # or: npm run check
 ```
 
-Required checks:
-- `make lint` — Static analysis and code style
-- `make typecheck` — Type checking (if applicable)
-- `make test` — Unit and integration tests
-- `make build` — Production build verification
-- `make e2e` — End-to-end tests (required for cross-component changes)
+Required checks (each with its npm mirror):
+- `make lint` / `npm run lint` — Static analysis and code style
+- `make typecheck` / `npm run typecheck` — Type checking (if applicable)
+- `make test` / `npm run test` — Unit and integration tests
+- `make build` / `npm run build` — Production build verification
+- `make e2e` / `npm run e2e` — End-to-end tests (required for cross-component changes)
 
-`make check` runs all layers in order (lint → typecheck → test → build → e2e). A layer that is not configured reports SKIP and does not count as verified; a failing layer stops the chain. `npm run check` is the equivalent make-free entrypoint.
+Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `vcr`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
+
+`make check` runs all layers in order (lint → typecheck → test → build → e2e). A layer that is not configured reports SKIP and does not count as verified; a failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
 
 ## Architecture Boundaries
 

@@ -87,3 +87,17 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: upgrade survival, adoption, and distribution can all be tested against one machine-readable contract.
 - Negative: every layout change now has one extra file to keep accurate (accepted cost).
+
+### D-006: One Node runner, two surfaces, bash shims
+
+**Date:** 2026-08-18
+**Status:** accepted
+**Context:** Harness operations were split across five bash scripts (`check-arch.sh`, `verify-feature.sh`, `session-trace.sh`, `clean-state-check.sh`) plus inline Makefile recipes and init.sh logic, with jq/node fallback branches duplicated everywhere. Bash-only tooling breaks the Windows-first environment and every copy of logic is a drift risk.
+**Decision:** The Node runner (`scripts/framework-check.mjs`) is the single canonical implementation of every harness operation. A new `scripts/stack-detect.mjs` module is the single source of truth for project-stack detection (runtime, package manager, per-layer commands, install step, verification chain) and is consumed by init.sh and the verification layers. Makefile targets and npm scripts are thin 1:1 mirrors that delegate to the runner; the four bash scripts become `exec node …` shims. The harness runtime is Node ≥ 18 for all adopters regardless of their product stack.
+**Alternatives considered:**
+- Keeping bash as the canonical implementation with a Node fallback — rejected: two implementations of every check, and bash is not portable to the Windows-first environment.
+- Deleting the bash entrypoints entirely — rejected: documented surfaces (`bash scripts/verify-feature.sh feat-001`) and existing tooling reference them; thin shims preserve compatibility at zero logic cost.
+- A shell module shared by init.sh and the Makefile — rejected: make and bash cannot import a common shell module cleanly, and detection logic belongs next to the runner that executes it.
+**Consequences:**
+- Positive: one implementation per operation; `make check` ≡ `npm run check` by construction; stack detection works for node/python/go/rust/jvm/dotnet hosts from one module; session traces, feature verification, and clean-state checks are portable to Windows.
+- Negative: make targets now require Node (already a hard dependency of the harness); `run-layer` executes package.json script values directly, so pre/post npm hooks do not run (documented in ARCHITECTURE.md).
