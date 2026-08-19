@@ -1,0 +1,48 @@
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Explicit gates with clear CI log lines. The publish step's
+      # prepublishOnly hook (npm run check && npm run check-arch) runs the
+      # same gates again at publish time, so a broken build cannot ship.
+      - name: Full verification
+        run: npm run check
+
+      - name: Architecture rules
+        run: npm run check-arch
+
+      # A tag must match the version being published, so a vX.Y.Z tag can
+      # never silently publish a different version from package.json.
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag v$TAG does not match package version $PKG"
+            exit 1
+          fi
+          echo "Tag v$TAG matches package version $PKG"
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

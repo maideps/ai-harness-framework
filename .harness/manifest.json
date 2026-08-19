@@ -71,7 +71,9 @@
     ".harness/trails/",
     ".harness/traces/.gitkeep"
   ],
-  "productRoots": [],
+  "productRoots": [
+    ".github/workflows/publish.yml"
+  ],
   "optionalComponents": [
     {
       "name": "multi-repo",

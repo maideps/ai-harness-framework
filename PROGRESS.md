@@ -285,3 +285,14 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: package.json, package-lock.json
 - Known risk or unresolved issue: actual `npm publish` NOT run — requires explicit user go-ahead and npm credentials; CI does not yet cover the prepublish hook itself.
 - Next best step: publish to npm on user confirmation; then dogfood `npx create-harness` into a real project.
+
+### Session 018 — 2026-08-19 — GitHub CI publish path
+
+- Goal: Publish via GitHub Actions instead of a local `npm login` (the local machine lacks npm credentials).
+- Completed:
+  - New `.github/workflows/publish.yml`: triggers on `v*` tags or manual `workflow_dispatch`; runs `npm ci`, full verification (`check` + `check-arch` explicitly, and again via the `prepublishOnly` hook at publish time), verifies the tag matches the package.json version, then `npm publish` using `secrets.NPM_TOKEN`
+  - Manifest: `.github/workflows/publish.yml` declared product-owned via `productRoots` (not INSTANCE — the adoption matrix caught that INSTANCE surfaces must exist in every adopter repo, and this file ships nowhere); ARCHITECTURE.md notes the productRoots file-level pattern
+- Verification run: pending — workflow files cannot be verified locally; `npm run check` and `npm run check-arch` must pass before commit, and the first Actions run is the real proof.
+- Files or artifacts updated: .github/workflows/publish.yml, .harness/manifest.json, docs/ARCHITECTURE.md
+- Known risk or unresolved issue: requires the `NPM_TOKEN` repo secret (never committed — passed via `env`); the npm account must have publish rights on the `maideps` scope; first Actions execution is unverified until triggered.
+- Next best step: user adds the secret and confirms org membership, then triggers the workflow (Actions tab → publish → Run workflow, or push a `v0.4.0` tag).
