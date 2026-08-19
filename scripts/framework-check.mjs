@@ -1038,15 +1038,20 @@ switch (mode) {
     ensureFeatureGraph();
     pass("Feature dependency graph and WIP contract are valid");
     // Unit tests for the runner's own logic (node:test) run as part of Layer 2.
-    // The positional argument must be a file glob — Node's test runner does not
-    // descend into directories passed as bare paths.
+    // Files are enumerated and passed explicitly: glob patterns in --test args
+    // are expanded by Node on Windows but passed literally on Linux.
     if (existsSync("tests")) {
-      const result = spawnSync(process.execPath, ["--test", "tests/*.test.mjs"], { stdio: "inherit" });
-      const exit = result.error ? 1 : (result.status ?? 1);
-      if (exit !== 0) {
-        fail("runner unit tests failed");
+      const testFiles = readdirSync("tests")
+        .filter((name) => name.endsWith(".test.mjs"))
+        .map((name) => path.join("tests", name));
+      if (testFiles.length > 0) {
+        const result = spawnSync(process.execPath, ["--test", ...testFiles], { stdio: "inherit" });
+        const exit = result.error ? 1 : (result.status ?? 1);
+        if (exit !== 0) {
+          fail("runner unit tests failed");
+        }
+        pass("Runner unit tests pass");
       }
-      pass("Runner unit tests pass");
     }
     break;
   }
