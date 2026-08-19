@@ -18,7 +18,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -26,64 +25,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+import { HARNESS_ROOT, adopt, loadManifest } from "./create-harness.mjs";
+import { upgrade as upgradeHarness } from "./harness-upgrade.mjs";
+
 const RUNNER = path.join(HARNESS_ROOT, "scripts", "framework-check.mjs");
 
-function loadManifest() {
-  return JSON.parse(readFileSync(path.join(HARNESS_ROOT, ".harness", "manifest.json"), "utf8"));
-}
-
-function copyRecursive(src, dest, { skipExisting = false } = {}) {
-  mkdirSync(dest, { recursive: true });
-  for (const entry of readdirSync(src, { withFileTypes: true })) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyRecursive(srcPath, destPath, { skipExisting });
-    } else if (skipExisting && existsSync(destPath)) {
-      continue;
-    } else {
-      copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
 function buildAdopter(stage, stack) {
-  const manifest = loadManifest();
   const root = mkdtempSync(path.join(os.tmpdir(), `cw-adopt-${stage}-${stack}-`));
-  const write = (rel, content) => {
-    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-    writeFileSync(path.join(root, rel), content, "utf8");
-  };
-
-  // CORE exact files and directories
-  for (const surface of manifest.core) {
-    const src = path.join(HARNESS_ROOT, surface);
-    if (!existsSync(src)) continue;
-    if (surface.endsWith("/")) {
-      copyRecursive(src, path.join(root, surface.replace(/\/$/, "")));
-    } else {
-      mkdirSync(path.dirname(path.join(root, surface)), { recursive: true });
-      copyFileSync(src, path.join(root, surface));
-    }
-  }
-  // TEMPLATES → their declared destinations
-  for (const entry of manifest.templates) {
-    if (typeof entry === "string" || entry.keep) continue;
-    const src = path.join(HARNESS_ROOT, entry.from);
-    const dest = path.join(root, entry.to);
-    if (existsSync(src)) {
-      mkdirSync(path.dirname(dest), { recursive: true });
-      copyFileSync(src, dest);
-    }
-  }
-  // Runtime/generated instance surfaces the manifest expects to exist
-  mkdirSync(path.join(root, ".harness", "trails"), { recursive: true });
-  write(".harness/traces/.gitkeep", "");
-  write(".claude/settings.json", "{}\n");
-  write("package-lock.json", "{}\n");
-  write("claude-progress.md", "# Claude Progress\n\nCompatibility alias for PROGRESS.md.\n");
-
+  adopt(root);
   fillDocs(root, stack);
   addProduct(root, stack);
   return root;
@@ -216,8 +165,6 @@ function runCell(stack) {
 
 // ---- Customization-survival upgrade test ---------------------------------
 
-const MUST_NOT_EDIT_SURFACES = ["AGENTS.md", "CLAUDE.md", "codex.md", "GEMINI.md", "LICENSE", ".nvmrc", "scripts/"];
-
 function runUpgradeTest() {
   const root = buildAdopter("upgrade", "node");
   try {
@@ -249,21 +196,13 @@ function runUpgradeTest() {
     // Corrupt a mustNotEdit surface so the upgrade must visibly restore it
     appendFileSync(path.join(root, "scripts", "framework-check.mjs"), "\n// CORRUPTED BY ADOPTER EDIT\n", "utf8");
 
-    // Simulated upgrade: overwrite mustNotEdit CORE, never overwrite the rest
-    for (const surface of MUST_NOT_EDIT_SURFACES) {
-      const src = path.join(HARNESS_ROOT, surface);
-      const dest = path.join(root, surface);
-      if (surface.endsWith("/")) {
-        copyRecursive(src, dest);
-      } else if (existsSync(src)) {
-        copyFileSync(src, dest);
-      }
-    }
-    copyRecursive(path.join(HARNESS_ROOT, "templates"), path.join(root, "templates"), { skipExisting: true });
-
     // Assertions: customizations survived, corrupted surface was restored
     const assertions = [];
     const check = (ok, message) => assertions.push({ ok, message });
+
+    // Simulated upgrade: the real distribution tool (dogfooding feat-006)
+    const report = upgradeHarness(root);
+    check(report.overwritten.length > 0, `upgrade overwrote ${report.overwritten.length} mustNotEdit surface(s)`);
     check(!readFileSync(path.join(root, "scripts", "framework-check.mjs"), "utf8").includes("CORRUPTED BY ADOPTER EDIT"), "upgrade restored the corrupted runner");
     check(readFileSync(path.join(root, "README.md"), "utf8").includes("PROJECT-SPECIFIC LINE"), "README customization survived");
     check(JSON.parse(readFileSync(featureListPath, "utf8")).features[0].name === "Customized Feature Name", "feature content survived");

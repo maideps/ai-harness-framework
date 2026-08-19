@@ -77,6 +77,22 @@ Projects that span multiple repositories can activate the multi-repo component:
 
 Single-repo projects never need the component: `check` passes without it, and `verify-all` reports SKIP when the markers are absent. Repositories without a `scripts/verify` are SKIPped, not passed.
 
+## Distribution
+
+Three tools read the manifest as the single source of truth (make and npm mirrors exist):
+
+| Tool | Purpose |
+|---|---|
+| `create-harness <dir>` | Generates an adopter repo: CORE as-is, templates placed per their `{from, to}` mapping, runtime surfaces created. Never overwrites existing files. |
+| `harness-upgrade <dir>` | Applies an upgrade per the D-010 contract: overwrites mustNotEdit CORE only; every adopter-owned surface is never overwritten. |
+| `harness-audit [dir]` | Local health report: manifest validity, classification coverage, template placement status, skills structure. Exits non-zero on any failure. |
+
+```bash
+node scripts/create-harness.mjs my-project    # or: npm run create-harness -- my-project
+node scripts/harness-audit.mjs my-project
+node scripts/harness-upgrade.mjs my-project
+```
+
 ## Adopting the Framework in Your Project
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:

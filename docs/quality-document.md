@@ -33,6 +33,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-08-18 (session 009): portability extensions (D-009) — codex.md/GEMINI.md shims, docs/STANDARDS.md home for coding standards, commit/review/update-docs skills (9 total).
 - 2026-08-19 (session 010): assurance suite (D-010) — adoption matrix + upgrade test make the e2e layer real (5 cells PASS, toolchains missing here SKIP honestly); runner unit tests (6) run in Layer 2; product-first stack detection.
 - 2026-08-19 (session 011): multi-repo extension (D-011) — opt-in templates/multi-repo skeletons aggregated by verify-all; optional markers override directory-level CORE claims; matrix gained a multi-repo test with negative cases.
+- 2026-08-19 (session 012): distribution (D-012) — create-harness/harness-upgrade/harness-audit tools read the manifest; the adoption matrix dogfoods them (one adoption implementation); bin entries ready for npx distribution.
 
 ---
 

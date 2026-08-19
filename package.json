@@ -18,8 +18,16 @@
     "session-start": "node scripts/framework-check.mjs session-trace start",
     "session-end": "node scripts/framework-check.mjs session-trace end",
     "clean-check": "node scripts/framework-check.mjs clean-state-check",
+    "create-harness": "node scripts/create-harness.mjs",
+    "harness-upgrade": "node scripts/harness-upgrade.mjs",
+    "harness-audit": "node scripts/harness-audit.mjs",
     "setup": "node scripts/framework-check.mjs setup",
     "help": "node scripts/framework-check.mjs help"
+  },
+  "bin": {
+    "create-harness": "scripts/create-harness.mjs",
+    "harness-upgrade": "scripts/harness-upgrade.mjs",
+    "harness-audit": "scripts/harness-audit.mjs"
   },
   "engines": {
     "node": ">=18"

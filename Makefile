@@ -59,6 +59,16 @@ session-end:
 clean-check:
 	@node scripts/framework-check.mjs clean-state-check
 
+## Distribution tools (feat-006) — read the manifest
+create-harness:
+	@node scripts/create-harness.mjs $(D)
+
+harness-upgrade:
+	@node scripts/harness-upgrade.mjs $(D)
+
+harness-audit:
+	@node scripts/harness-audit.mjs $(D)
+
 ## One-time dependency installation
 setup:
 	@node scripts/framework-check.mjs setup

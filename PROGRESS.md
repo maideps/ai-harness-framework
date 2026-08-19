@@ -200,3 +200,21 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: templates/multi-repo/* (5 new), scripts/framework-check.mjs, scripts/adoption-matrix.mjs, Makefile, package.json, .harness/manifest.json, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, feature_list.json
 - Known risk or unresolved issue: none new. The example repository skeleton SKIPs until the adopter adds real checks (documented).
 - Next best step: feat-006 (Distribution) — create-harness, upgrade, and audit tools reading the manifest.
+
+---
+
+### Session 012 — 2026-08-19 — feat-006 Distribution
+
+- Goal: Ship create-harness, upgrade, and audit tools driven by the manifest as the single source of truth.
+- Completed:
+  - `scripts/create-harness.mjs` — generates an adopter repo (CORE as-is, templates per {from,to}, runtime surfaces), never overwrites; reusable exports
+  - `scripts/harness-upgrade.mjs` — applies the D-010 contract (overwrites mustNotEdit CORE only; everything adopter-owned survives)
+  - `scripts/harness-audit.mjs` — local health report (manifest, coverage, template placement, skills), non-zero exit on failure
+  - make/npm mirrors + package.json `bin` entries (npx distribution after publish); ensureMakeTargets covers the new targets
+  - Adoption matrix refactored to dogfood the tools (buildAdopter → adopt(), upgrade test → harness-upgrade) — the e2e layer now proves the distribution tools directly
+  - CLI smoke test: create (15 CORE + 19 templates) / audit (honest FAILs on unfilled docs) / upgrade (overwrites mustNotEdit) — all correct
+- Verification run: `npm run check` (PASS incl. matrix) + `npm run check-arch` (5/5) + `npm run verify-feature -- feat-006` (ALL LAYERS PASS) + `npm run vcr`
+- Evidence captured: feat-006 `evidence` field; vcr trail `.harness/trails/2026-08-19T20-43-23-373Z-vcr.json`
+- Files or artifacts updated: scripts/create-harness.mjs, scripts/harness-upgrade.mjs, scripts/harness-audit.mjs (new), scripts/adoption-matrix.mjs, scripts/framework-check.mjs, Makefile, package.json, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md (D-012), feature_list.json
+- Known risk or unresolved issue: npx distribution requires publishing the package; until then the node/npm entrypoints are the distribution path.
+- Next best step: feat-007 (Sweep and Report) — the final roadmap feature.

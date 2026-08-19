@@ -167,3 +167,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: multi-repo projects get a one-command gate with honest per-repo tri-state; single-repo behavior is unchanged and covered by the matrix; the component is a first-class, manifest-declared opt-in.
 - Negative: one more surface (verify-all) to mirror across make/npm; the example repository skeleton SKIPs until the adopter adds real checks (documented behavior).
+
+### D-012: Distribution tools read the manifest; the matrix dogfoods them
+
+**Date:** 2026-08-19
+**Status:** accepted
+**Context:** Adoption was only possible by hand-copying files or through the matrix's internal copy logic. feat-006 promised create/upgrade/audit tooling driven by the manifest.
+**Decision:** Three Node tools ship in `scripts/` (also `bin` entries and make/npm mirrors): `create-harness` generates an adopter repo from the manifest (CORE as-is, templates per `{from, to}`, runtime surfaces, never overwrites existing files); `harness-upgrade` applies the D-010 contract (overwrites mustNotEdit CORE only); `harness-audit` reports manifest validity, classification coverage, template placement, and skills structure locally. The adoption matrix was refactored to consume `create-harness` and `harness-upgrade` instead of its own copy logic — the e2e layer now proves the distribution tools directly.
+**Alternatives considered:**
+- Keeping the matrix's internal copy logic and adding separate tools — rejected: two implementations of adoption would drift exactly like the bash/Node split feat-003 eliminated.
+- A single do-everything CLI — rejected: create, upgrade, and audit have different contracts (generate / preserve / report).
+**Consequences:**
+- Positive: adoption is a one-command operation; upgrades are safe by construction and machine-checked; audits give adopters a local health report; npx distribution works after publish via the `bin` entries.
+- Negative: three more tools to keep in sync with the manifest (mitigated: the matrix exercises them on every `npm run check`).
