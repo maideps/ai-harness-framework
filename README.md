@@ -11,6 +11,10 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
 - **Durable cross-session continuity**: State files (`PROGRESS.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
 - **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch` / `npm run check-arch`
+- **Skills packs**: Nine reusable capability packs in `skills/` (feature-cycle, verification, review, commit, release, adopt, update-docs, session-handoff, write-skill), validated on every lint run
+- **Proven adoption**: An e2e matrix generates throwaway repos for node/python/go/rust from the seam manifest and runs real feature cycles in each; a customization-survival upgrade test guards the seam contract; CI proves both on Linux with real toolchains
+- **Distribution**: `create-harness`, `harness-upgrade`, and `harness-audit` tools read the manifest as the single source of truth — adopt with one command, upgrade without losing customizations
+- **Optional multi-repo extension**: `verify-all` aggregates per-repository verification for projects that span repositories; single-repo projects are unaffected
 
 The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack. Harness tooling runs on Node and detects the host project's stack (node, python, go, rust, jvm, dotnet) at runtime.
 
@@ -108,10 +112,16 @@ Every make target is mirrored 1:1 by an npm script; both delegate to the Node ru
 | Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
 | Architecture enforcement | `make check-arch` | `npm run check-arch` |
 | Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
+| Multi-repo verification | `make verify-all` | `npm run verify-all` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Record session start | `make session-start` | `npm run session-start` |
 | Record session end | `make session-end` | `npm run session-end` |
 | Pre-commit clean state | `make clean-check` | `npm run clean-check` |
+| Generate an adopter repo | `make create-harness D=<dir>` | `npm run create-harness -- <dir>` |
+| Apply a harness upgrade | `make harness-upgrade D=<dir>` | `npm run harness-upgrade -- <dir>` |
+| Local harness audit | `make harness-audit D=<dir>` | `npm run harness-audit -- <dir>` |
+| Session report | `make report` | `npm run report` |
+| Periodic sweep | `make sweep` | `npm run sweep` |
 | Show all targets | `make help` | `npm run help` |
 
 ## Definition of Done
@@ -137,6 +147,7 @@ The dependency-ordered roadmap lives in `feature_list.json` — the machine-read
 - [Observability](docs/OBSERVABILITY.md) — Session traces, sprint contracts, and evaluation rubrics
 - [Tools & MCP](docs/TOOLS.md) — Tool access scoping and MCP integrations
 - [Usage Guide](docs/USAGE.md) — How to run, verify, and adopt the framework
+- [Project Standards](docs/STANDARDS.md) — This repository's engineering standards
 - [Quality Document](docs/quality-document.md) — Module quality ratings
 - [Decisions](DECISIONS.md) — Recorded architectural decisions
 - [Detailed Decision Records](docs/decisions/) — Expanded decision write-ups

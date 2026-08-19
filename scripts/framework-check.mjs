@@ -264,6 +264,27 @@ function ensureMakeTargets() {
   }
 }
 
+function ensureCommandSurfaces() {
+  // Every make target must be documented: README's Command Targets table and
+  // AGENTS.md's command mirrors. Docs that drift from the actual surface are
+  // the failure mode this harness exists to prevent.
+  const readme = readText("README.md");
+  if (/## Command Targets/.test(readme)) {
+    for (const target of requiredMakeTargets) {
+      if (!readme.includes(`make ${target}`)) {
+        fail(`README.md Command Targets table does not document the ${target} target`);
+      }
+    }
+  }
+  const agents = readText("AGENTS.md");
+  for (const target of requiredMakeTargets) {
+    if (!agents.includes(`make ${target}`) && !agents.includes(`\`${target}\``)) {
+      fail(`AGENTS.md does not mention the ${target} command`);
+    }
+  }
+  pass("README and AGENTS document every make target");
+}
+
 function ensureShellScripts() {
   const shellScripts = [
     "init.sh",
@@ -1026,6 +1047,7 @@ switch (mode) {
     readJson(".harness/arch-rules.json");
     ensureNoPlaceholders();
     ensureSkills();
+    ensureCommandSurfaces();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
   }

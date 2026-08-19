@@ -259,3 +259,16 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/framework-check.mjs, scripts/stack-detect.mjs, scripts/adoption-matrix.mjs, .github/workflows/ci.yml, templates/ci.yml, .harness/manifest.json, docs (USAGE ×2, ARCHITECTURE)
 - Known risk or unresolved issue: GitHub Actions deprecation notice (checkout/setup-* actions on Node 20 will migrate to Node 24) — informational; go.sum cache warning is harmless (no go.sum in this repo).
 - Next best step: publish prep (npm), dogfood adoption into a real project, or extend unit tests.
+
+### Session 016 — 2026-08-19 — README/AGENTS drift fix + enforcement
+
+- Goal: Close the documentation drift found in review — the README command table omitted 6 targets, AGENTS mirrors were stale, and nothing caught it.
+- Completed:
+  - README updated: 6 missing target rows (verify-all, create-harness, harness-upgrade, harness-audit, report, sweep), skills/matrix/distribution/multi-repo bullets, STANDARDS.md link
+  - AGENTS.md mirrors list completed
+  - New lint check (ensureCommandSurfaces): every make target must appear in the README Command Targets table (when present) and in AGENTS.md — drift now fails the gate
+  - templates/README.md gained the full Command Targets table so adopters inherit both the docs and the check
+- Verification run: `npm run check` (PASS), `npm run check-arch` (5/5), lint shows the new PASS line
+- Files or artifacts updated: README.md, AGENTS.md, templates/README.md, scripts/framework-check.mjs
+- Known risk or unresolved issue: none.
+- Next best step: publish prep (npm), dogfood adoption into a real project, or extend unit tests.
