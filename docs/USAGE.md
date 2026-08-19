@@ -93,6 +93,15 @@ node scripts/harness-audit.mjs my-project
 node scripts/harness-upgrade.mjs my-project
 ```
 
+## Reports and Sweeps
+
+```bash
+npm run report       # session digest from .harness/traces/ (last 7 days)
+npm run sweep        # archive old traces, prune orphans, report manifest drift
+```
+
+The sweep never touches instance state — it only organizes runtime trace artifacts.
+
 ## Adopting the Framework in Your Project
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:

@@ -180,3 +180,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: adoption is a one-command operation; upgrades are safe by construction and machine-checked; audits give adopters a local health report; npx distribution works after publish via the `bin` entries.
 - Negative: three more tools to keep in sync with the manifest (mitigated: the matrix exercises them on every `npm run check`).
+
+### D-013: Reports and sweeps organize runtime traces without touching instance state
+
+**Date:** 2026-08-19
+**Status:** accepted
+**Context:** Session traces accumulate forever and had no aggregate view; the roadmap's sweep/report promised drift detection and archival. Session traces were already merged start/end records (feat-003), so the remaining work was aggregation and lifecycle.
+**Decision:** `npm run report` (`scripts/harness-report.mjs`) aggregates `.harness/traces/` into a per-session digest with totals over a window (default 7 days, `--days`/`--json` flags). `npm run sweep` (`scripts/harness-sweep.mjs`) archives traces older than a threshold (default 30 days) to `.harness/traces/archive/`, prunes orphaned `.tmp` files and stale open records, and reports structural drift by running the runner's manifest mode (report-only). The sweep never mutates instance state — it only organizes gitignored runtime artifacts. Aggregation logic has unit tests (tests/report.test.mjs).
+**Alternatives considered:**
+- Deleting old traces instead of archiving — rejected: history is cheap and archived records stay inspectable.
+- Making the sweep fail on drift — rejected: sweep is a maintenance operation, not a gate; it reports and leaves the gate to check-arch.
+**Consequences:**
+- Positive: sessions gain a digest view; trace directories stay bounded; drift is visible on every sweep.
+- Negative: archived traces are gitignored runtime artifacts — teams wanting durable history should rely on `.harness/trails/` evidence files, which remain tracked.

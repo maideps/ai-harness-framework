@@ -21,6 +21,8 @@
     "create-harness": "node scripts/create-harness.mjs",
     "harness-upgrade": "node scripts/harness-upgrade.mjs",
     "harness-audit": "node scripts/harness-audit.mjs",
+    "report": "node scripts/harness-report.mjs",
+    "sweep": "node scripts/harness-sweep.mjs",
     "setup": "node scripts/framework-check.mjs setup",
     "help": "node scripts/framework-check.mjs help"
   },

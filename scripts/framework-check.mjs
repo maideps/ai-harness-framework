@@ -49,6 +49,8 @@ const requiredMakeTargets = [
   "create-harness",
   "harness-upgrade",
   "harness-audit",
+  "report",
+  "sweep",
   "session-start",
   "session-end",
   "clean-check",

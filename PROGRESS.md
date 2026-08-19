@@ -218,3 +218,19 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/create-harness.mjs, scripts/harness-upgrade.mjs, scripts/harness-audit.mjs (new), scripts/adoption-matrix.mjs, scripts/framework-check.mjs, Makefile, package.json, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md (D-012), feature_list.json
 - Known risk or unresolved issue: npx distribution requires publishing the package; until then the node/npm entrypoints are the distribution path.
 - Next best step: feat-007 (Sweep and Report) — the final roadmap feature.
+
+---
+
+### Session 013 — 2026-08-19 — feat-007 Sweep and Report (roadmap complete)
+
+- Goal: Ship the final roadmap feature — session report aggregation and a periodic sweep with drift detection.
+- Completed:
+  - `scripts/harness-report.mjs` — aggregates .harness/traces/ into a session digest (per-session start/end/duration/state, feature, decisions, files, evidence; totals over a window; --days/--json flags); aggregation logic unit-tested (tests/report.test.mjs)
+  - `scripts/harness-sweep.mjs` — archives old traces to .harness/traces/archive/, prunes orphaned .tmp files and stale open records, reports structural drift via the manifest mode (report-only); never touches instance state
+  - make/npm mirrors (report, sweep); ensureMakeTargets covers them; verified live: report showed 5 real sessions (1 open), sweep archived a synthetic old trace + 3 genuinely stale pre-session traces, git tree unchanged
+  - Docs: OBSERVABILITY (instance + template) Session Report/Periodic Sweep sections, USAGE (both), D-013
+- Verification run: `npm run check` (PASS) + `npm run check-arch` (5/5) + `npm run verify-feature -- feat-007` (ALL LAYERS PASS) + `npm run vcr`
+- Evidence captured: feat-007 `evidence` field; vcr trail `.harness/trails/2026-08-19T21-07-50-824Z-vcr.json`
+- Files or artifacts updated: scripts/harness-report.mjs, scripts/harness-sweep.mjs, tests/report.test.mjs (new), Makefile, package.json, scripts/framework-check.mjs, docs/OBSERVABILITY.md, templates/docs/OBSERVABILITY.md, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, feature_list.json
+- Known risk or unresolved issue: none. ALL roadmap features (feat-001..007 + 008, 009) are now passing.
+- Next best step: roadmap complete — next work is optional: publish the package for npx distribution, run the matrix on Linux CI, extend unit tests.

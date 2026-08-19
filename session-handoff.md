@@ -2,44 +2,46 @@
 
 ## Current Objective
 
-- Goal: Make the harness reusable by design — the full core is shipped: seam contract, runner consolidation, skills, portability, adoption matrix, multi-repo component, and distribution tools. One roadmap feature remains: sweep and report (feat-007).
-- Current status: feat-001 through feat-006 plus feat-008, feat-009 passing. Next up: feat-007 (Sweep and Report).
-- Branch / commit: master (feat-006 distribution commit)
+- Goal: The original reusability roadmap is COMPLETE — all seven roadmap features (feat-001..007) plus the two extension features (feat-008 skills, feat-009 portability) are passing and verified.
+- Current status: no active feature. All nine features passing.
+- Branch / commit: master (feat-007 sweep and report commit)
 
 ## Completed This Session
 
-- [x] `create-harness` — generates an adopter repo from the manifest, never overwrites existing files
-- [x] `harness-upgrade` — applies the D-010 upgrade contract (overwrites mustNotEdit CORE only)
-- [x] `harness-audit` — local health report (manifest, coverage, templates, skills)
-- [x] make/npm mirrors + package.json bin entries (npx after publish)
-- [x] Matrix refactored to dogfood the tools — the e2e layer proves distribution directly
-- [x] CLI smoke test verified all three tools end-to-end
-- [x] feat-006 verified through its own layers; D-012 recorded
+- [x] `harness-report` — session digest aggregation from .harness/traces/ (window, totals, --days/--json)
+- [x] `harness-sweep` — archives old traces, prunes orphans, reports manifest drift (report-only, never touches instance state)
+- [x] make/npm mirrors; unit tests for the aggregator (8 total now)
+- [x] feat-007 verified through its own layers; D-013 recorded
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Full check | `npm run check` | PASS | matrix dogfoods the tools |
+| Full check | `npm run check` | PASS | full chain incl. matrix |
 | Architecture | `npm run check-arch` | PASS | 5 rules (arch-001..005) |
-| Feature gate | `npm run verify-feature -- feat-006` | PASS | evidence recorded |
-| VCR trail | `npm run vcr` | recorded | .harness/trails/2026-08-19T20-43-23-373Z-vcr.json |
-| Tool smoke | create/audit/upgrade CLI | correct | audit honestly FAILs unfilled repos |
+| Feature gate | `npm run verify-feature -- feat-007` | PASS | evidence recorded |
+| VCR trail | `npm run vcr` | recorded | .harness/trails/2026-08-19T21-07-50-824Z-vcr.json |
+| Report live | `npm run report` | 5 sessions | 1 open, 31 decisions |
+| Sweep live | `npm run sweep --older-than 7` | archived 4 | instance state untouched |
 
 ## Files Changed
 
-- scripts/create-harness.mjs, scripts/harness-upgrade.mjs, scripts/harness-audit.mjs (new)
-- scripts/adoption-matrix.mjs (dogfood refactor), scripts/framework-check.mjs (targets)
-- Makefile, package.json (scripts + bin), docs/USAGE.md, templates/docs/USAGE.md
-- DECISIONS.md (D-012), feature_list.json
+- scripts/harness-report.mjs, scripts/harness-sweep.mjs, tests/report.test.mjs (new)
+- Makefile, package.json, scripts/framework-check.mjs
+- docs/OBSERVABILITY.md, templates/docs/OBSERVABILITY.md, docs/USAGE.md, templates/docs/USAGE.md
+- DECISIONS.md (D-013), feature_list.json
 
 ## Decisions Made
 
-- D-012: distribution tools read the manifest; the matrix dogfoods them (one adoption implementation).
+- D-013: reports and sweeps organize runtime traces without touching instance state.
 
 ## Blockers / Risks
 
-- npx distribution requires publishing the package; node/npm entrypoints are the path until then.
+- None.
+
+## Roadmap Status
+
+All features passing: feat-001 Core Scaffold, feat-002 Seams and Manifest, feat-003 Node Runner Consolidation, feat-004 Assurance Suite, feat-005 Multi-repo Extension, feat-006 Distribution, feat-007 Sweep and Report, feat-008 Skills Packs, feat-009 Portability Extensions.
 
 ## Next Session Startup
 
@@ -50,4 +52,7 @@
 
 ## Recommended Next Step
 
-- Activate feat-007 (Sweep and Report): merged session traces with evidence digests, weekly report aggregation, periodic sweep (archive traces, prune orphans, diff structural drift against the manifest) — the final roadmap feature.
+Optional, beyond the roadmap:
+- Publish the package so `npx create-harness` distribution works end-to-end.
+- Run `npm run check` on Linux (the matrix with real go/rust toolchains would exercise non-SKIP cells).
+- Extend unit tests to ensureManifest, session-trace, and clean-state logic.

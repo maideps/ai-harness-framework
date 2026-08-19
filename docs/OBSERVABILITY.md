@@ -60,6 +60,22 @@ After touching any module, update `docs/quality-document.md` with ratings (A/B/C
 
 Record evidence in `feature_list.json` under each feature's `evidence` field.
 
+## Session Report
+
+```bash
+make report        # or: npm run report [-- --days N] [-- --json]
+```
+
+Aggregates `.harness/traces/` into a session digest: per-session start/end, duration, open/closed state, active feature, decisions recorded, files modified, and feature evidence — plus totals for the window (default: last 7 days).
+
+## Periodic Sweep
+
+```bash
+make sweep         # or: npm run sweep [-- --older-than N]
+```
+
+The sweep (default threshold: 30 days) archives old session traces to `.harness/traces/archive/`, prunes orphaned `.tmp` files from interrupted merges and stale open session records, and reports structural drift against the manifest (report-only). It never touches instance state — feature list, docs, and decisions are never modified by a sweep.
+
 ## References
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture

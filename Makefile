@@ -69,6 +69,13 @@ harness-upgrade:
 harness-audit:
 	@node scripts/harness-audit.mjs $(D)
 
+## Observability tools (feat-007) — session reports and periodic sweep
+report:
+	@node scripts/harness-report.mjs
+
+sweep:
+	@node scripts/harness-sweep.mjs
+
 ## One-time dependency installation
 setup:
 	@node scripts/framework-check.mjs setup

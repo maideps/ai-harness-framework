@@ -6,6 +6,6 @@ The canonical source of truth is [PROGRESS.md](PROGRESS.md). Read and update tha
 
 Current state (mirror of PROGRESS.md):
 
-- Active feature: none — feat-001 through feat-006 plus feat-008 and feat-009 passing
+- Active feature: none — the full roadmap is passing: feat-001 through feat-007 plus feat-008 and feat-009
 - Primary verification: `make check` (make-free: `npm run check`) — both delegate to the Node runner; e2e layer runs the adoption matrix
 - Blocker: none
