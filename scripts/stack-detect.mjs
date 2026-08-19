@@ -43,9 +43,12 @@ export function detectPackageManager(cwd = ".") {
   return "npm";
 }
 
-function toolAvailable(command) {
+function toolAvailable(probe) {
   try {
-    execSync(`${command} --version`, { stdio: "pipe", shell: true });
+    // The probe is the complete command — callers pass the full version probe
+    // (e.g. "go version", "cargo --version"). Appending --version here broke
+    // tools whose probe already carried the flag ("go version --version").
+    execSync(probe, { stdio: "pipe", shell: true });
     return true;
   } catch {
     return false;
@@ -54,7 +57,7 @@ function toolAvailable(command) {
 
 function pythonInterpreter() {
   for (const candidate of ["python3", "python", "py -3"]) {
-    if (toolAvailable(candidate)) return candidate;
+    if (toolAvailable(`${candidate} --version`)) return candidate;
   }
   return "";
 }
@@ -90,9 +93,9 @@ export function resolveLayer(runtime, layer, cwd = ".") {
       const py = pythonInterpreter();
       switch (layer) {
         case "lint":
-          return toolAvailable("ruff") ? { cmd: "ruff check .", skip: "" } : { cmd: "", skip: "ruff is not installed" };
+          return toolAvailable("ruff --version") ? { cmd: "ruff check .", skip: "" } : { cmd: "", skip: "ruff is not installed" };
         case "typecheck":
-          return toolAvailable("mypy") ? { cmd: "mypy src/", skip: "" } : { cmd: "", skip: "mypy is not installed" };
+          return toolAvailable("mypy --version") ? { cmd: "mypy src/", skip: "" } : { cmd: "", skip: "mypy is not installed" };
         case "test":
           return py && toolAvailable(`${py} -m pytest --version`)
             ? { cmd: `${py} -m pytest -q`, skip: "" }
