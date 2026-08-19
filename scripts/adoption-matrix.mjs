@@ -289,6 +289,75 @@ function runUpgradeTest() {
   }
 }
 
+// ---- Multi-repo component test (feat-005) ---------------------------------
+
+function runMultiRepoTest() {
+  const root = buildAdopter("multirepo", "none");
+  try {
+    // Activate the component: place every multi-repo skeleton at its declared
+    // destination (the manifest's optional-marker entries).
+    const manifest = loadManifest();
+    const optionalPrefixes = ["contracts/", "tasks/", "repositories/", "scripts/verify-all"];
+    for (const entry of manifest.templates) {
+      if (typeof entry === "string" || entry.keep) continue;
+      if (!optionalPrefixes.some((prefix) => entry.to.startsWith(prefix) || entry.to === prefix)) continue;
+      const src = path.join(HARNESS_ROOT, entry.from);
+      const dest = path.join(root, entry.to);
+      mkdirSync(path.dirname(dest), { recursive: true });
+      copyFileSync(src, dest);
+    }
+    // Two working subrepos with real checks
+    const verifyScript = "#!/usr/bin/env node\nconst { spawnSync } = require(\"node:child_process\");\nconst path = require(\"node:path\");\nconst result = spawnSync(process.execPath, [path.join(__dirname, \"check.js\")], { stdio: \"inherit\" });\nprocess.exit(result.error ? 1 : (result.status ?? 1));\n";
+    const goodCheck = "const ok = 1 + 1 === 2;\nif (!ok) { console.log(\"[FAIL] arithmetic\"); process.exit(1); }\nconsole.log(\"[PASS] check\");\n";
+    for (const repo of ["app", "lib"]) {
+      const dir = path.join(root, "repositories", repo);
+      mkdirSync(path.join(dir, "scripts"), { recursive: true });
+      writeFileSync(path.join(dir, "scripts", "verify"), verifyScript, "utf8");
+      writeFileSync(path.join(dir, "scripts", "check.js"), goodCheck, "utf8");
+    }
+    // Git index so the classification coverage check actually runs
+    const gitInit = spawnSync("git", ["init", "-q"], { cwd: root });
+    const gitAdd = () => spawnSync("git", ["add", "-A"], { cwd: root });
+    gitAdd();
+
+    const assertions = [];
+    const check = (ok, message) => assertions.push({ ok, message });
+
+    const checkArch = spawnRunner(root, ["check-arch"]);
+    check(checkArch.exit === 0, `check-arch passes with the component active (exit ${checkArch.exit})`);
+    const verifyAll = spawnRunner(root, ["verify-all"]);
+    check(verifyAll.exit === 0, `verify-all passes all subrepos (exit ${verifyAll.exit})`);
+
+    // Negative: a failing subrepo fails verify-all
+    writeFileSync(path.join(root, "repositories", "lib", "scripts", "check.js"), "process.exit(1);\n", "utf8");
+    const verifyAllFail = spawnRunner(root, ["verify-all"]);
+    check(verifyAllFail.exit === 1, `verify-all fails when a subrepo fails (exit ${verifyAllFail.exit})`);
+    writeFileSync(path.join(root, "repositories", "lib", "scripts", "check.js"), goodCheck, "utf8");
+
+    // Negative: an unclassified file fails arch-005 coverage
+    writeFileSync(path.join(root, "stray.txt"), "unclassified\n", "utf8");
+    gitAdd();
+    const coverageFail = spawnRunner(root, ["check-arch"]);
+    check(coverageFail.exit === 1, `arch-005 rejects unclassified files (exit ${coverageFail.exit})`);
+    rmSync(path.join(root, "stray.txt"), { force: true });
+    gitAdd();
+    const coverageRestored = spawnRunner(root, ["check-arch"]);
+    check(coverageRestored.exit === 0, `arch-005 passes again after the stray file is removed (exit ${coverageRestored.exit})`);
+
+    const failedAssertions = assertions.filter((assertion) => !assertion.ok);
+    for (const assertion of failedAssertions) {
+      console.log(`    [FAIL] ${assertion.message}`);
+    }
+    if (verifyAll.exit !== 0) {
+      console.log("    --- verify-all output (last 15 lines) ---");
+      verifyAll.output.split(/\r?\n/).slice(-15).forEach((line) => console.log(`    | ${line}`));
+    }
+    return { ok: failedAssertions.length === 0, assertions, gitInit: gitInit.status ?? 0 };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 // ---- Entry point ----------------------------------------------------------
 
 function main() {
@@ -325,6 +394,15 @@ function main() {
   } else {
     failures += 1;
     console.log("  [FAIL] upgrade test failed — see assertions above");
+  }
+
+  console.log("=== Multi-repo Component Test ===");
+  const multiRepo = runMultiRepoTest();
+  if (multiRepo.ok) {
+    console.log("  [PASS] multi-repo component: verify-all aggregates, degrades, and arch-005 stays honest");
+  } else {
+    failures += 1;
+    console.log("  [FAIL] multi-repo test failed — see assertions above");
   }
 
   console.log("");

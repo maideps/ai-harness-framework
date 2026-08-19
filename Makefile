@@ -39,6 +39,10 @@ check-arch:
 verify-feature:
 	@node scripts/framework-check.mjs verify-feature $(F)
 
+## Multi-repo verification — runs repositories/*/scripts/verify (SKIP when inactive)
+verify-all:
+	@node scripts/framework-check.mjs verify-all
+
 ## Verify + check-arch + record (writes a verification trail to .harness/trails/)
 vcr: check check-arch
 	@node scripts/framework-check.mjs record-trail vcr

@@ -154,3 +154,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: adoption is proven on every `npm run check`; stack detection matches what adopters actually have; upgrades are safe by construction; the runner has unit tests.
 - Negative: e2e is slower (five throwaway repos per run); missing toolchains report SKIP rather than being exercised — real-toolchain coverage still depends on the environment running the matrix.
+
+### D-011: The multi-repo component is an opt-in skeleton set aggregated by verify-all
+
+**Date:** 2026-08-19
+**Status:** accepted
+**Context:** The roadmap's multi-repo extension (contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all) had no activation story: where do the files come from, and how do single-repo adopters stay unaffected?
+**Decision:** The component ships as `templates/multi-repo/*` skeletons whose declared destinations land on optional-component markers (accepted by the template destination validation alongside INSTANCE). Activation is copying them into place. A root `scripts/verify-all` (Node, extensionless CJS) runs every `repositories/*/scripts/verify` and aggregates PASS/SKIP/FAIL; `npm run verify-all` / `make verify-all` delegate to a runner mode that SKIPs gracefully when the component is absent. Classification precedence now includes optional markers (a specific optional claim beats the scripts/ directory-level CORE claim). The adoption matrix gained a multi-repo test: component active + git index → check-arch and verify-all pass; a failing subrepo fails verify-all; an unclassified stray file fails arch-005.
+**Alternatives considered:**
+- Bash verify-all — rejected: the harness runtime is Node; bash is not portable to the Windows-first environment.
+- Adding verify-all to `make check` — rejected: single-repo checks would then depend on an optional component; keep the layer chain orthogonal and verify-all explicit.
+**Consequences:**
+- Positive: multi-repo projects get a one-command gate with honest per-repo tri-state; single-repo behavior is unchanged and covered by the matrix; the component is a first-class, manifest-declared opt-in.
+- Negative: one more surface (verify-all) to mirror across make/npm; the example repository skeleton SKIPs until the adopter adds real checks (documented behavior).

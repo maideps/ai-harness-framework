@@ -13,6 +13,7 @@
     "dev": "node scripts/framework-check.mjs dev",
     "check-arch": "node scripts/framework-check.mjs check-arch",
     "verify-feature": "node scripts/framework-check.mjs verify-feature",
+    "verify-all": "node scripts/framework-check.mjs verify-all",
     "vcr": "npm run check && npm run check-arch && node scripts/framework-check.mjs record-trail vcr",
     "session-start": "node scripts/framework-check.mjs session-trace start",
     "session-end": "node scripts/framework-check.mjs session-trace end",

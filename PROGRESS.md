@@ -182,3 +182,21 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs (new), tests/stack-detect.test.mjs (new), scripts/framework-check.mjs, scripts/stack-detect.mjs, .harness/manifest.json (tests/ in core), docs/ARCHITECTURE.md (precedence + upgrade contract), DECISIONS.md (D-010), package.json, .nvmrc
 - Known risk or unresolved issue: real-toolchain coverage (pytest/ruff/go/rust) still depends on the environment running the matrix — cells degrade to SKIP on this machine. `npm run check` is now slower (five throwaway repos).
 - Next best step: feat-005 (Multi-repo Extension) — optional multi-repo component gated by the manifest.
+
+---
+
+### Session 011 — 2026-08-19 — feat-005 Multi-repo Extension
+
+- Goal: Ship the optional multi-repo component (contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all) with graceful degradation for single-repo projects.
+- Completed:
+  - Five component skeletons in templates/multi-repo/ (verify-all root gate, contracts/tasks/repositories READMEs, example per-repo verify that SKIPs until a check.js exists) — destinations land on optional markers
+  - `verify-all` runner mode + make/npm targets; SKIPs gracefully when the component is absent; argv-array spawning (no shell) — immune to spaces in the Node path
+  - Manifest template destinations now accept optional-component markers; a specific optional claim overrides the scripts/ directory-level CORE claim (precedence: instance > templates > optional > core)
+  - Matrix multi-repo test: component activated + git index → check-arch + verify-all pass; failing subrepo fails verify-all; unclassified stray file fails arch-005; removal restores
+  - Docs: ARCHITECTURE optional-components + precedence, USAGE multi-repo section (both copies), D-011
+- Debugging notes: the matrix caught two real bugs — extensionless verify scripts must be CJS (ESM import fails without .mjs), and execSync-without-shell breaks on paths with spaces ("C:\Program Files") — both fixed with spawnSync argv arrays; fixture check.js path mismatch fixed
+- Verification run: `npm run check` (PASS incl. matrix) + `npm run check-arch` (5/5) + `npm run verify-feature -- feat-005` (ALL LAYERS PASS) + `npm run vcr`
+- Evidence captured: feat-005 `evidence` field; vcr trail `.harness/trails/2026-08-19T20-14-27-751Z-vcr.json`
+- Files or artifacts updated: templates/multi-repo/* (5 new), scripts/framework-check.mjs, scripts/adoption-matrix.mjs, Makefile, package.json, .harness/manifest.json, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, feature_list.json
+- Known risk or unresolved issue: none new. The example repository skeleton SKIPs until the adopter adds real checks (documented).
+- Next best step: feat-006 (Distribution) — create-harness, upgrade, and audit tools reading the manifest.

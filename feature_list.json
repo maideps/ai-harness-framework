@@ -118,8 +118,8 @@
       "dependencies": [
         "feat-004"
       ],
-      "state": "planned",
-      "evidence": "",
+      "state": "passing",
+      "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-08-19T20:12:46.504Z (SKIP reported in: Layer 3: System confirmation)",
       "layers": [
         {
           "label": "Layer 1: Static checks",

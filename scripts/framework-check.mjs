@@ -45,6 +45,7 @@ const requiredMakeTargets = [
   "e2e",
   "check-arch",
   "verify-feature",
+  "verify-all",
   "session-start",
   "session-end",
   "clean-check",
@@ -332,13 +333,15 @@ function ensureManifest() {
     if (typeof entry.to !== "string" || !entry.to) {
       fail("manifest template " + entry.from + " must declare a destination to");
     }
+    const optionalMarkers = (manifest.optionalComponents ?? []).flatMap((component) => component.markers ?? []);
+    const optionalCovered = optionalMarkers.some((marker) => matchesEntry(entry.to, marker));
     const coreCollision = manifest.core.some((surface) => matchesEntry(entry.to, surface));
-    if (coreCollision) {
+    if (coreCollision && !optionalCovered) {
       fail("manifest template destination collides with a CORE surface: " + entry.to);
     }
     const instanceCovered = manifest.instance.some((surface) => matchesEntry(entry.to, surface));
-    if (!instanceCovered) {
-      fail("manifest template destination is not declared as INSTANCE: " + entry.to);
+    if (!instanceCovered && !optionalCovered) {
+      fail("manifest template destination is not declared as INSTANCE or an optional component: " + entry.to);
     }
   }
   // Classification coverage: every tracked file must be CORE, INSTANCE,
@@ -358,16 +361,16 @@ function ensureManifest() {
     const category = (file) => {
       const inInstance = manifest.instance.some((entry) => matchesEntry(file, entry));
       const inTemplates = templates.some((entry) => matchesEntry(file, entry.from));
-      const inCore = manifest.core.some((entry) => matchesEntry(file, entry));
       const inOptional = (manifest.optionalComponents ?? []).some((component) =>
         (component.markers ?? []).some((marker) => matchesEntry(file, marker)),
       );
+      const inCore = manifest.core.some((entry) => matchesEntry(file, entry));
       const inProduct = manifest.productRoots.some((entry) => matchesEntry(file, entry));
       if (inInstance && inTemplates) return "ambiguous";
       if (inInstance) return "instance";
       if (inTemplates) return "template";
-      if (inCore) return "core";
       if (inOptional) return "optional";
+      if (inCore) return "core";
       if (inProduct) return "product";
       return "unclassified";
     };
@@ -925,6 +928,25 @@ function runSetup() {
   console.log("  [PASS] Setup complete");
 }
 
+function runVerifyAll() {
+  const script = "scripts/verify-all";
+  if (!existsSync(script)) {
+    console.log("[SKIP] Multi-repo component not activated (scripts/verify-all absent)");
+    console.log("  Activate it by copying the templates/multi-repo skeletons to their declared destinations.");
+    return;
+  }
+  try {
+    const result = spawnSync(process.execPath, [script], { stdio: "inherit" });
+    if (result.error || (result.status ?? 1) !== 0) {
+      console.log(`[FAIL] verify-all failed (exit ${result.error ? 1 : result.status})`);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.log(`[FAIL] verify-all failed (${err.message})`);
+    process.exit(1);
+  }
+}
+
 function runVerifyChain() {
   const chain = getVerifyChain();
   if (chain.length === 0) {
@@ -1096,6 +1118,10 @@ switch (mode) {
   }
   case "setup": {
     runSetup();
+    break;
+  }
+  case "verify-all": {
+    runVerifyAll();
     break;
   }
   case "verify-chain": {

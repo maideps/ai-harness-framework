@@ -67,6 +67,16 @@ Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest 
 
 Project skills may be added under `skills/` — see the `write-skill` skill for the format.
 
+## Multi-repo Extension (optional)
+
+Projects that span multiple repositories can activate the multi-repo component:
+
+1. Copy the `templates/multi-repo/*` skeletons to their declared destinations (`scripts/verify-all`, `contracts/`, `tasks/`, `repositories/`).
+2. Give every subrepository a `scripts/verify` that exits non-zero on failure.
+3. Run the root gate: `npm run verify-all` (or `make verify-all`) — it runs every repository's verify and aggregates the results.
+
+Single-repo projects never need the component: `check` passes without it, and `verify-all` reports SKIP when the markers are absent. Repositories without a `scripts/verify` are SKIPped, not passed.
+
 ## Adopting the Framework in Your Project
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:
