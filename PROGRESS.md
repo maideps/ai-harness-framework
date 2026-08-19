@@ -247,3 +247,15 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Verification run: `npm run check` (PASS), `npm run check-arch` (5/5), manifest mode (classifications)
 - Known risk or unresolved issue: the CI workflow itself runs for the first time on GitHub after this push — its execution there is unverified from this machine; watch the Actions tab on the next push.
 - Next best step: watch the CI run; then publish prep (npm), dogfood adoption into a real project, or extend unit tests.
+
+### Session 015 — 2026-08-19 — CI green on Linux with real toolchains
+
+- Goal: Get the Linux CI matrix green — and it earned its keep immediately.
+- Completed:
+  - CI bugs caught by the first two runs and fixed: (1) `node --test` glob expansion differs between Windows and Linux — unit test files are now enumerated explicitly; (2) tool-availability probes were double-flagged (`go version --version` exits 2) — probes now run verbatim
+  - Final state: node 18 + 24 jobs pass; adoption matrix runs all five cells with REAL python/go/rust toolchains (zero SKIPs); `make check` on Linux passes — the Makefile surface is finally proven executed
+  - Rust matrix fixture gained src/main.rs (cargo needs a crate target)
+- Verification run: GitHub Actions runs 32303977456 (fail → fix), 32304763162 (pass, go/rust SKIP → fix), 32306019047 (pass, all cells real) — plus local `npm run check` before each push
+- Files or artifacts updated: scripts/framework-check.mjs, scripts/stack-detect.mjs, scripts/adoption-matrix.mjs, .github/workflows/ci.yml, templates/ci.yml, .harness/manifest.json, docs (USAGE ×2, ARCHITECTURE)
+- Known risk or unresolved issue: GitHub Actions deprecation notice (checkout/setup-* actions on Node 20 will migrate to Node 24) — informational; go.sum cache warning is harmless (no go.sum in this repo).
+- Next best step: publish prep (npm), dogfood adoption into a real project, or extend unit tests.
