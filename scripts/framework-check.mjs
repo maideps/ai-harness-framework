@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync } from "node:fs";
 import { execSync, spawnSync } from "node:child_process";
 import { EOL } from "node:os";
 import path from "node:path";
@@ -422,14 +422,22 @@ function isDirectorySafe(path) {
 }
 
 function reportE2eStatus() {
-  const markers = ["playwright.config.ts", "playwright.config.js", "cypress.config.ts", "cypress.config.js", "tests/e2e", "test/e2e", "e2e"];
-  const configured = markers.some((marker) => existsSync(marker) || isDirectorySafe(marker));
-  if (configured) {
-    console.log("[FAIL] E2E markers detected but no runner is wired into the e2e mode");
+  // The adoption matrix is the real e2e layer (feat-004). It generates
+  // throwaway adopter repos from the manifest and runs the harness in each.
+  if (process.env.CW_ADOPTION_CELL === "1") {
+    console.log("[SKIP] e2e skipped inside an adoption cell (matrix recursion guard)");
+    return;
+  }
+  const matrix = path.join("scripts", "adoption-matrix.mjs");
+  if (!existsSync(matrix)) {
+    console.log("[SKIP] Adoption matrix not present — e2e layer not configured");
+    return;
+  }
+  const result = spawnSync(process.execPath, [matrix], { stdio: "inherit" });
+  const exit = result.error ? 1 : (result.status ?? 1);
+  if (exit !== 0) {
     process.exit(1);
   }
-  console.log("[SKIP] No e2e tests configured - this layer does not count as verified");
-  process.exit(0);
 }
 
 function reportDevStatus() {
@@ -598,13 +606,16 @@ function verifyFeature(featureId) {
     process.exit(1);
   }
 
+  const skippedLayers = [];
   for (const layer of feature.layers) {
     console.log(`--- ${layer.label} ---`);
     console.log(`Running: ${layer.cmd}`);
     console.log("");
 
     try {
-      execSync(layer.cmd, { stdio: "inherit", shell: true });
+      const output = execSync(layer.cmd, { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"], shell: true });
+      const reportedSkip = output.split(/\r?\n/).some((line) => line.includes("[SKIP]"));
+      if (reportedSkip) skippedLayers.push(layer.label);
       console.log("");
       console.log(`  [PASS] ${layer.label}`);
       console.log("");
@@ -622,7 +633,11 @@ function verifyFeature(featureId) {
   }
 
   console.log(`=== Feature ${featureId}: ALL LAYERS PASS ===`);
-  const evidence = `All verification layers passed via node scripts/framework-check.mjs verify-feature at ${new Date().toISOString()}`;
+  if (skippedLayers.length > 0) {
+    console.log(`Note: these layers reported SKIP inside a passing run: ${skippedLayers.join(", ")}`);
+  }
+  const skipNote = skippedLayers.length > 0 ? ` (SKIP reported in: ${skippedLayers.join(", ")})` : "";
+  const evidence = `All verification layers passed via node scripts/framework-check.mjs verify-feature at ${new Date().toISOString()}${skipNote}`;
   recordFeaturePass(featureId, evidence);
   console.log("Evidence recorded in feature_list.json");
 }
@@ -749,7 +764,9 @@ function sessionTrace(submode) {
   }
 
   const merged = { ...readJson(latestStart), ...endFields };
-  writeFileSync(latestStart, `${JSON.stringify(merged, null, 2)}${EOL}`, "utf8");
+  const tmp = `${latestStart}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(merged, null, 2)}${EOL}`, "utf8");
+  renameSync(tmp, latestStart);
   console.log(`Session end recorded in: ${latestStart}`);
 }
 
@@ -993,6 +1010,17 @@ switch (mode) {
   case "test": {
     ensureFeatureGraph();
     pass("Feature dependency graph and WIP contract are valid");
+    // Unit tests for the runner's own logic (node:test) run as part of Layer 2.
+    // The positional argument must be a file glob — Node's test runner does not
+    // descend into directories passed as bare paths.
+    if (existsSync("tests")) {
+      const result = spawnSync(process.execPath, ["--test", "tests/*.test.mjs"], { stdio: "inherit" });
+      const exit = result.error ? 1 : (result.status ?? 1);
+      if (exit !== 0) {
+        fail("runner unit tests failed");
+      }
+      pass("Runner unit tests pass");
+    }
     break;
   }
   case "build": {

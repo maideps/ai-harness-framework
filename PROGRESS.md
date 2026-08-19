@@ -164,3 +164,21 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: codex.md, GEMINI.md, docs/STANDARDS.md, templates/docs/STANDARDS.md (new), skills/{commit,review,update-docs} (new), .harness/manifest.json, scripts/framework-check.mjs, feature_list.json, AGENTS.md, DECISIONS.md, docs/USAGE.md, templates/docs/USAGE.md
 - Known risk or unresolved issue: none.
 - Next best step: feat-004 (Assurance Suite).
+
+---
+
+### Session 010 — 2026-08-19 — feat-004 Assurance Suite
+
+- Goal: Make the e2e verification layer real — prove adoption with a generated-repo matrix and a customization-survival upgrade test.
+- Completed:
+  - `scripts/adoption-matrix.mjs`: generates throwaway adopter repos from the manifest (CORE + templates per {from,to} + filled docs + product markers) and runs check-arch, the product layer chain, and a full feature cycle via verify-feature in each cell (none/node/python/go/rust); cells with missing toolchains SKIP honestly
+  - Customization-survival upgrade test: customizes every adopter-owned surface, corrupts a mustNotEdit surface, simulates an upgrade, asserts customizations survived and the corrupted surface was restored, then re-runs check-arch + feature cycle
+  - Matrix recursion guard (CW_ADOPTION_CELL) so cell-level `npm run check` doesn't re-trigger the matrix
+  - Stack detection now product-first (python/go/rust/jvm/dotnet before package.json — D-010) with tool-availability checks resolving to SKIP instead of FAIL
+  - e2e mode replaced its SKIP reporter with the matrix; Layer 2 now also runs `node --test tests/*.test.mjs` (6 unit tests); verify-feature records SKIPs in evidence; session-trace merges atomically; package.json 0.4.0, .nvmrc 18
+- Matrix first run found and fixed three real bugs: missing src/ parent dir, missing .harness/trails/ surface, and e2e self-recursion in cells
+- Verification run: `npm run check` (PASS incl. real e2e matrix) + `npm run check-arch` (5/5) + `npm run verify-feature -- feat-004` (ALL LAYERS PASS) + `npm run vcr`
+- Evidence captured: feat-004 `evidence` field (notes per-cell SKIPs); vcr trail `.harness/trails/2026-08-19T19-22-18-232Z-vcr.json`
+- Files or artifacts updated: scripts/adoption-matrix.mjs (new), tests/stack-detect.test.mjs (new), scripts/framework-check.mjs, scripts/stack-detect.mjs, .harness/manifest.json (tests/ in core), docs/ARCHITECTURE.md (precedence + upgrade contract), DECISIONS.md (D-010), package.json, .nvmrc
+- Known risk or unresolved issue: real-toolchain coverage (pytest/ruff/go/rust) still depends on the environment running the matrix — cells degrade to SKIP on this machine. `npm run check` is now slower (five throwaway repos).
+- Next best step: feat-005 (Multi-repo Extension) — optional multi-repo component gated by the manifest.

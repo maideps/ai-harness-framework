@@ -16,6 +16,7 @@
     "package.json",
     "init.sh",
     "scripts/",
+    "tests/",
     "skills/",
     "templates/",
     "LICENSE",

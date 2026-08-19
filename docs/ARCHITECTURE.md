@@ -46,6 +46,8 @@ The canonical implementation of every harness operation lives in the Node runner
 
 Layer resolution contract for node projects: the package.json script key is the layer command (`scripts.lint` = `eslint .`, `scripts.test` = `vitest`, …). `run-layer` executes that value directly with `node_modules/.bin` on PATH (matching npm's own behavior). A script value that delegates back to the runner (`run-layer`) is treated as unconfigured to prevent self-reference loops. Harness scripts therefore keep their self-checks under the standard keys and adopters replace those values with their own tools; script values must be direct commands, not wrapper indirections.
 
+Stack precedence: product manifests win over the harness runtime. An adopter repo always contains the harness's own `package.json` (CORE), so detection checks product markers first — python, go, rust, jvm, dotnet — and falls back to `package.json` (node) only when none exist. A python project with the harness installed is therefore detected as python, and its layers resolve to ruff/pytest instead of being shadowed by the harness scripts. Toolchains that are absent resolve to SKIP with a reason (honest degradation) rather than failing.
+
 The harness runtime is Node ≥ 18: any adopter running harness tooling (make targets, npm scripts, init.sh) needs Node regardless of their product stack — detection of python/go/rust/jvm/dotnet projects is about verifying the host project, not replacing the harness runtime.
 
 ## Application Dependency Rules
@@ -73,6 +75,8 @@ Customization points (from the manifest):
 - MUST NOT edit: `scripts/framework-check.mjs`, the manifest classification itself, PASS/SKIP/FAIL semantics, the feature state machine and WIP=1 contract.
 
 Every reuse guarantee (upgrade survival, adoption tests, copy vs npx distribution) derives from this classification. Any future change to the repository layout must update the manifest and this section in the same commit.
+
+Upgrade contract: a harness upgrade overwrites **mustNotEdit CORE surfaces only** (`scripts/`, the root operating-manual shims, LICENSE, `.nvmrc`). Every surface an adopter may own — Makefile additions, package.json scripts, init.sh stack tweaks, manifest `productRoots`, project skills, docs, and all INSTANCE state — is **never overwritten**. The adoption matrix's upgrade test enforces this: it corrupts a mustNotEdit surface, simulates an upgrade, and asserts the corruption was restored while every customization survived. The e2e layer (`npm run e2e`) runs the full adoption matrix (none/node/python/go/rust cells × harness check, product layers, feature cycle) plus the upgrade test; cells whose toolchain is missing report SKIP honestly.
 
 ## Enforcement
 

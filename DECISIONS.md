@@ -140,3 +140,17 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: the harness exposes itself to Copilot, Gemini, and Claude conventions with zero duplication of the contract; coding standards have a home; commit/review/docs discipline is loadable and validated.
 - Negative: two more root files to keep as thin shims (enforced as required surfaces).
+
+### D-010: The e2e layer is the adoption matrix; product stacks win; upgrades never overwrite adopter-owned surfaces
+
+**Date:** 2026-08-19
+**Status:** accepted
+**Context:** The e2e layer reported SKIP — the framework had never proven it could be adopted. The matrix's first run exposed a real seam flaw: an adopter repo always contains the harness's own package.json (CORE), so stack detection resolved every adopter to node and shadowed python/go/rust products. It also forced a decision on upgrade semantics: how does a harness upgrade avoid clobbering customizations while still delivering fixes?
+**Decision:** (1) `npm run e2e` runs a real adoption matrix (`scripts/adoption-matrix.mjs`): throwaway repos are generated from the manifest for none/node/python/go/rust cells, and each runs check-arch, the product layer chain, and a full feature cycle through verify-feature; cells whose toolchain is absent SKIP with a reason. (2) Detection order is product-first: python/go/rust/jvm/dotnet markers are checked before package.json, which becomes the node fallback. (3) Upgrade contract: overwrite mustNotEdit CORE only; never overwrite mayEdit/mustEdit surfaces (Makefile, package.json, init.sh, manifest productRoots, skills additions, docs, INSTANCE state). A customization-survival upgrade test enforces it. (4) Layer 2 now also runs `node --test tests/` for the runner's own logic; verify-feature records which layers reported SKIP in the evidence string; session-trace merges atomically (tmp + rename).
+**Alternatives considered:**
+- Keeping e2e as a SKIP reporter — rejected: adoption was unverified; the matrix found real bugs the SKIP reporter would have hidden.
+- Harness-scripts-first detection with per-stack overrides — rejected: fragile; product-first is a simple, predictable rule.
+- Full-overwrite upgrades — rejected: destroys adopters' customization work; never-overwrite plus mustNotEdit refresh is the survival guarantee.
+**Consequences:**
+- Positive: adoption is proven on every `npm run check`; stack detection matches what adopters actually have; upgrades are safe by construction; the runner has unit tests.
+- Negative: e2e is slower (five throwaway repos per run); missing toolchains report SKIP rather than being exercised — real-toolchain coverage still depends on the environment running the matrix.

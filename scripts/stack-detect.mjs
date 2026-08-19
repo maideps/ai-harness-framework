@@ -14,26 +14,32 @@ import { fileURLToPath } from "node:url";
 
 export const LAYERS = ["lint", "typecheck", "test", "build", "e2e", "dev"];
 
-export function detectRuntime() {
-  if (existsSync("package.json")) return "node";
-  if (existsSync("pyproject.toml") || existsSync("requirements.txt")) return "python";
-  if (existsSync("go.mod")) return "go";
-  if (existsSync("Cargo.toml")) return "rust";
-  if (existsSync("pom.xml") || existsSync("build.gradle") || existsSync("build.gradle.kts")) return "jvm";
+// Product stacks take precedence over the harness runtime: an adopter repo
+// always contains the harness's own package.json (CORE), so node must be the
+// LAST fallback — otherwise a python/go/rust product would be shadowed and
+// its layers would never resolve (D-010).
+export function detectRuntime(cwd = ".") {
+  const at = (rel) => existsSync(path.join(cwd, rel));
+  if (at("pyproject.toml") || at("requirements.txt")) return "python";
+  if (at("go.mod")) return "go";
+  if (at("Cargo.toml")) return "rust";
+  if (at("pom.xml") || at("build.gradle") || at("build.gradle.kts")) return "jvm";
   try {
-    const dotnet = readdirSync(".").filter((name) => name.endsWith(".csproj") || name.endsWith(".sln"));
+    const dotnet = readdirSync(cwd).filter((name) => name.endsWith(".csproj") || name.endsWith(".sln"));
     if (dotnet.length > 0) return "dotnet";
   } catch {
     // unreadable directory — treat as unknown
   }
+  if (at("package.json")) return "node";
   return "none";
 }
 
-export function detectPackageManager() {
-  if (!existsSync("package.json")) return "";
-  if (existsSync("pnpm-lock.yaml")) return "pnpm";
-  if (existsSync("yarn.lock")) return "yarn";
-  if (existsSync("bun.lock") || existsSync("bun.lockb")) return "bun";
+export function detectPackageManager(cwd = ".") {
+  const at = (rel) => existsSync(path.join(cwd, rel));
+  if (!at("package.json")) return "";
+  if (at("pnpm-lock.yaml")) return "pnpm";
+  if (at("yarn.lock")) return "yarn";
+  if (at("bun.lock") || at("bun.lockb")) return "bun";
   return "npm";
 }
 
@@ -53,9 +59,9 @@ function pythonInterpreter() {
   return "";
 }
 
-function readNodeScripts() {
+function readNodeScripts(cwd = ".") {
   try {
-    return JSON.parse(readFileSync("package.json", "utf8")).scripts ?? {};
+    return JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8")).scripts ?? {};
   } catch {
     return {};
   }
@@ -66,11 +72,11 @@ function readNodeScripts() {
 // this is the package.json script value, executed directly by run-layer with
 // node_modules/.bin on PATH); skip is the human-readable SKIP reason when the
 // layer is not configured.
-export function resolveLayer(runtime, layer) {
-  if (layer === "dev") return resolveDev(runtime);
+export function resolveLayer(runtime, layer, cwd = ".") {
+  if (layer === "dev") return resolveDev(runtime, cwd);
   switch (runtime) {
     case "node": {
-      const scripts = readNodeScripts();
+      const scripts = readNodeScripts(cwd);
       let value = scripts[layer];
       if (layer === "typecheck" && typeof value !== "string" && typeof scripts["type-check"] === "string") {
         value = scripts["type-check"];
@@ -88,7 +94,9 @@ export function resolveLayer(runtime, layer) {
         case "typecheck":
           return toolAvailable("mypy") ? { cmd: "mypy src/", skip: "" } : { cmd: "", skip: "mypy is not installed" };
         case "test":
-          return py ? { cmd: `${py} -m pytest -q`, skip: "" } : { cmd: "", skip: "python interpreter not found" };
+          return py && toolAvailable(`${py} -m pytest --version`)
+            ? { cmd: `${py} -m pytest -q`, skip: "" }
+            : { cmd: "", skip: py ? "pytest is not installed" : "python interpreter not found" };
         case "build":
           return { cmd: "", skip: "no python build step configured" };
         case "e2e":
@@ -97,40 +105,51 @@ export function resolveLayer(runtime, layer) {
           return { cmd: "", skip: `no ${layer} step configured` };
       }
     }
-    case "go":
+    case "go": {
+      const available = toolAvailable("go version");
+      const missing = { cmd: "", skip: "go toolchain is not installed" };
       switch (layer) {
-        case "lint": return { cmd: "go vet ./...", skip: "" };
+        case "lint": return available ? { cmd: "go vet ./...", skip: "" } : missing;
         case "typecheck": return { cmd: "", skip: "go has no separate type checking step" };
-        case "test": return { cmd: "go test ./...", skip: "" };
-        case "build": return { cmd: "go build ./...", skip: "" };
+        case "test": return available ? { cmd: "go test ./...", skip: "" } : missing;
+        case "build": return available ? { cmd: "go build ./...", skip: "" } : missing;
         case "e2e": return { cmd: "", skip: "no e2e tests configured" };
         default: return { cmd: "", skip: `no ${layer} step configured` };
       }
-    case "rust":
+    }
+    case "rust": {
+      const available = toolAvailable("cargo --version");
+      const missing = { cmd: "", skip: "rust toolchain is not installed" };
       switch (layer) {
         case "lint": return { cmd: "", skip: "no rust lint step configured" };
         case "typecheck": return { cmd: "", skip: "no rust typecheck step configured" };
-        case "test": return { cmd: "cargo test", skip: "" };
-        case "build": return { cmd: "cargo build", skip: "" };
+        case "test": return available ? { cmd: "cargo test", skip: "" } : missing;
+        case "build": return available ? { cmd: "cargo build", skip: "" } : missing;
         case "e2e": return { cmd: "", skip: "no e2e tests configured" };
         default: return { cmd: "", skip: `no ${layer} step configured` };
       }
+    }
     case "jvm": {
-      const maven = existsSync("pom.xml");
-      if (layer === "test") return { cmd: maven ? "mvn test" : "./gradlew test", skip: "" };
+      const maven = existsSync(path.join(cwd, "pom.xml"));
+      const gradle = existsSync(path.join(cwd, "build.gradle")) || existsSync(path.join(cwd, "build.gradle.kts"));
+      if (layer === "test") {
+        if (maven) return toolAvailable("mvn --version") ? { cmd: "mvn test", skip: "" } : { cmd: "", skip: "maven is not installed" };
+        if (gradle) return existsSync(path.join(cwd, "gradlew")) ? { cmd: "./gradlew test", skip: "" } : { cmd: "", skip: "gradle wrapper (gradlew) is not present" };
+        return { cmd: "", skip: "no jvm build tool detected" };
+      }
       return { cmd: "", skip: `no ${layer} step configured` };
     }
     case "dotnet":
-      if (layer === "test") return { cmd: "dotnet test", skip: "" };
+      if (layer === "test") return toolAvailable("dotnet --version") ? { cmd: "dotnet test", skip: "" } : { cmd: "", skip: "dotnet is not installed" };
       return { cmd: "", skip: `no ${layer} step configured` };
     default:
       return { cmd: "", skip: "no runtime detected" };
   }
 }
 
-function resolveDev(runtime) {
+function resolveDev(runtime, cwd = ".") {
   if (runtime === "node") {
-    const scripts = readNodeScripts();
+    const scripts = readNodeScripts(cwd);
     if (typeof scripts.dev === "string" && scripts.dev.trim()) {
       return { cmd: scripts.dev.trim(), skip: "" };
     }
