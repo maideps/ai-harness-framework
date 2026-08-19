@@ -1,8 +1,32 @@
 {
-  "name": "ai-harness-framework",
+  "name": "@maideps/ai-harness-framework",
   "version": "0.4.0",
-  "private": true,
   "description": "A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maideps/ai-harness-framework.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "codex.md",
+    "GEMINI.md",
+    "Makefile",
+    "init.sh",
+    "scripts/",
+    "skills/",
+    "templates/",
+    "docs/",
+    "LICENSE",
+    ".nvmrc",
+    ".harness/manifest.json",
+    ".harness/arch-rules.json",
+    "README.md"
+  ],
   "scripts": {
     "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e",
     "lint": "node scripts/framework-check.mjs lint",
@@ -24,7 +48,8 @@
     "report": "node scripts/harness-report.mjs",
     "sweep": "node scripts/harness-sweep.mjs",
     "setup": "node scripts/framework-check.mjs setup",
-    "help": "node scripts/framework-check.mjs help"
+    "help": "node scripts/framework-check.mjs help",
+    "prepublishOnly": "npm run check && npm run check-arch"
   },
   "bin": {
     "create-harness": "scripts/create-harness.mjs",

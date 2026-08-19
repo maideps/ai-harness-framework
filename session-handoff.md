@@ -53,6 +53,6 @@ All features passing: feat-001 Core Scaffold, feat-002 Seams and Manifest, feat-
 ## Recommended Next Step
 
 Optional, beyond the roadmap:
-- Publish the package so `npx create-harness` distribution works end-to-end.
+- Publish the package (npm publish — requires user go-ahead + credentials): package.json is publish-ready (`@maideps/ai-harness-framework` 0.4.0, files whitelist, prepublishOnly gate). After publishing, `npx create-harness` distribution works end-to-end.
 - Run `npm run check` on Linux (the matrix with real go/rust toolchains would exercise non-SKIP cells).
 - Extend unit tests to ensureManifest, session-trace, and clean-state logic.

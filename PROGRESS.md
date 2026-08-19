@@ -272,3 +272,16 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: README.md, AGENTS.md, templates/README.md, scripts/framework-check.mjs
 - Known risk or unresolved issue: none.
 - Next best step: publish prep (npm), dogfood adoption into a real project, or extend unit tests.
+
+### Session 017 — 2026-08-19 — npm publish prep
+
+- Goal: Make the framework publishable so `npx create-harness` / `npx harness-upgrade` / `npx harness-audit` distribution works end-to-end.
+- Completed:
+  - package.json: scoped name `@maideps/ai-harness-framework`, version 0.4.0, MIT license, repository URL, `publishConfig.access: public`, `engines.node >=18`, `bin` entries for the three distribution tools, `files` whitelist (CORE surfaces + docs + templates + skills + LICENSE; framework-only state such as `tests/` and `feature_list.json` intentionally excluded), `prepublishOnly: npm run check && npm run check-arch`
+  - Removed `private: true`; regenerated package-lock.json (top-level name/version now match)
+  - `npm pack --dry-run` verified: 65 files, 57.7 kB tarball, all manifest CORE surfaces present except `tests/` (copyCore skips non-existent surfaces — Layer 2 SKIPs honestly in adopters)
+  - Confirmed no stale unscoped-name references in repo docs/scripts (manifest `harness` identity intentionally stays unscoped)
+- Verification run: `npm run check` (all layers PASS), `npm run check-arch` (5/5), `npm pack --dry-run` listing reviewed
+- Files or artifacts updated: package.json, package-lock.json
+- Known risk or unresolved issue: actual `npm publish` NOT run — requires explicit user go-ahead and npm credentials; CI does not yet cover the prepublish hook itself.
+- Next best step: publish to npm on user confirmation; then dogfood `npx create-harness` into a real project.
