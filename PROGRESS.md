@@ -234,3 +234,16 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/harness-report.mjs, scripts/harness-sweep.mjs, tests/report.test.mjs (new), Makefile, package.json, scripts/framework-check.mjs, docs/OBSERVABILITY.md, templates/docs/OBSERVABILITY.md, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, feature_list.json
 - Known risk or unresolved issue: none. ALL roadmap features (feat-001..007 + 008, 009) are now passing.
 - Next best step: roadmap complete — next work is optional: publish the package for npx distribution, run the matrix on Linux CI, extend unit tests.
+
+---
+
+### Session 014 — 2026-08-19 — CI proof on Linux (beyond roadmap)
+
+- Goal: Prove the harness on Linux with real toolchains — closing the two honesty gaps: non-SKIP matrix cells and the never-executed Makefile surface.
+- Completed:
+  - `templates/ci.yml` (→ `.github/workflows/ci.yml`, both registered in the manifest): GitHub Actions on ubuntu with node 18+24 matrix, real python/go/rust toolchains installed, `npm run check` + `npm run check-arch` + `make check` (node 18 only)
+  - Rust matrix fixture fixed: added `src/main.rs` (cargo test/build fail without a crate target — hidden until a real toolchain runs the cell)
+  - Docs: USAGE template tables + ARCHITECTURE templates bullet mention the CI skeleton
+- Verification run: `npm run check` (PASS), `npm run check-arch` (5/5), manifest mode (classifications)
+- Known risk or unresolved issue: the CI workflow itself runs for the first time on GitHub after this push — its execution there is unverified from this machine; watch the Actions tab on the next push.
+- Next best step: watch the CI run; then publish prep (npm), dogfood adoption into a real project, or extend unit tests.

@@ -92,6 +92,7 @@ function addProduct(root, stack) {
     }
     case "rust": {
       write("Cargo.toml", "[package]\nname = \"adopt-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
+      write("src/main.rs", "fn main() {}\n");
       setProductRoots(["src/"]);
       break;
     }

@@ -44,6 +44,7 @@
     { "from": "templates/multi-repo/tasks/README.md", "to": "tasks/README.md" },
     { "from": "templates/multi-repo/repositories/README.md", "to": "repositories/README.md" },
     { "from": "templates/multi-repo/repositories/example/scripts/verify", "to": "repositories/example/scripts/verify" },
+    { "from": "templates/ci.yml", "to": ".github/workflows/ci.yml" },
     { "from": "templates/sprint-contract.md", "keep": true },
     { "from": "templates/evaluator-rubric.md", "keep": true },
     { "from": "templates/clean-state-checklist.md", "keep": true }
@@ -66,6 +67,7 @@
     "docs/STANDARDS.md",
     "docs/quality-document.md",
     "docs/decisions/",
+    ".github/workflows/ci.yml",
     ".harness/trails/",
     ".harness/traces/.gitkeep"
   ],

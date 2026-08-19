@@ -131,6 +131,7 @@ Adoption steps:
    | templates/docs/TOOLS.md | docs/TOOLS.md |
    | templates/docs/USAGE.md | docs/USAGE.md |
    | templates/docs/decisions/index.md | docs/decisions/index.md |
+   | templates/ci.yml | .github/workflows/ci.yml |
    | templates/sprint-contract.md | (keep — reference) |
    | templates/evaluator-rubric.md | (keep — reference) |
    | templates/clean-state-checklist.md | (keep — reference) |
