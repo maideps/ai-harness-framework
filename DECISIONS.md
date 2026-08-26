@@ -193,3 +193,39 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: sessions gain a digest view; trace directories stay bounded; drift is visible on every sweep.
 - Negative: archived traces are gitignored runtime artifacts — teams wanting durable history should rely on `.harness/trails/` evidence files, which remain tracked.
+
+### D-014: `feature_list.json` keeps its own schema instead of the bibliography's
+
+**Date:** 2026-08-26
+**Status:** accepted
+**Context:** `repo-completion-plan.md` (an early planning doc, written against the vendored `base/learn-harness-engineering` reference clone) directed normalizing `feature_list.json` to that source's shape (`id`/`priority`/`area`/`title`/`user_visible_behavior`/`status`/`verification`/`evidence`/`notes`, with status values `not_started`/`in_progress`/`blocked`/`passing`). The schema this harness actually shipped is narrower: `id`/`name`/`behavior`/`state`/`verification`/`evidence`/`dependencies`/`layers`, with state values `planned`/`active`/`passing`. This divergence was never recorded, so a reader comparing the two would see an unexplained gap.
+**Decision:** Keep the shipped schema. `priority` and `area` add sorting/grouping metadata this harness doesn't use — features gate strictly through `dependencies` and the WIP=1 rule, not priority ranking or area grouping. `title`/`user_visible_behavior` are renamed to `name`/`behavior` for brevity; they carry the same meaning. `not_started` was folded into `planned` (no separate `blocked` state — a blocked feature simply stays `planned` until its dependency is `passing`, which `dependencies` already encodes). `layers` and `dependencies` are additions the bibliography schema didn't have, needed for WIP=1 enforcement (arch-002) and the per-layer verify-feature gate (D-001).
+**Alternatives considered:**
+- Migrating to the bibliography schema — rejected: `priority`/`area`/`notes` would be unused fields carried for parity alone, and `blocked` as a distinct state duplicates what `dependencies` already expresses.
+**Consequences:**
+- Positive: the schema stays minimal and every field is load-bearing for an actual runner behavior (arch-002, verify-feature, WIP=1).
+- Negative: a reader coming from the bibliography's `repo-completion-plan.md` sees a schema that doesn't match section 2 of that plan; this entry is the pointer that resolves the apparent gap.
+
+### D-015: `.harness/` ships narrower than the bibliography's five-directory model
+
+**Date:** 2026-08-26
+**Status:** accepted
+**Context:** `base/sources/agentic-repository-harness-guide.md` (the vendored bibliography) models `.harness/` as `instructions/`, `workflows/`, `skills/`, `policies/`, `evals/`, `templates/`. This harness ships `.harness/manifest.json`, `.harness/arch-rules.json`, `.harness/traces/`, and `.harness/trails/` instead — a different, narrower set, with `skills/` and `templates/` promoted to repo-root directories rather than nested under `.harness/`.
+**Decision:** Keep the shipped layout. `instructions/` and `policies/` duplicate what AGENTS.md already states as process law (D-005, D-009); splitting that prose into two more directories was considered and rejected in the D-009 write-up already. `workflows/` and `evals/` have no runner consumer in this harness — nothing reads or enforces them — so shipping empty directories would be unclassified surface with no behavior behind it. `skills/` and `templates/` exist, but at repo root (not nested under `.harness/`) because `create-harness` needs to read `templates/` to generate adopter skeletons and both are large enough to warrant top-level visibility rather than being buried three levels deep. `.harness/` itself is reserved for the machine-checked contract surfaces (manifest, arch-rules) and gitignored runtime output (traces, trails) — not prose.
+**Alternatives considered:**
+- Adopting the full five-directory model — rejected: `instructions/`/`policies/` would fork the single source of truth D-009 already established in AGENTS.md; `workflows/`/`evals/` would ship with no runner behavior, violating the "no unclassified surface" principle behind arch-005 (D-007).
+**Consequences:**
+- Positive: `.harness/` stays small and every file in it is either a validated contract (manifest, arch-rules) or gitignored runtime evidence (traces, trails) — no prose duplication, no dead directories.
+- Negative: a reader coming from the bibliography's `.harness/` tree expects `instructions/`/`workflows/`/`policies/`/`evals/` and won't find them; this entry is the pointer that explains why.
+
+### D-016: Multi-agent means agent-agnostic, not concurrent coordination
+
+**Date:** 2026-08-26
+**Status:** accepted
+**Context:** The framework's multi-agent property had never been stated explicitly in DECISIONS.md, only demonstrated through the shims (D-009: `codex.md`, `GEMINI.md`, `CLAUDE.md` all pointing at the single AGENTS.md contract). Left unstated, a reader could reasonably assume "multi-agent" means concurrent/coordinating agents working the same session, which is not what this harness does or is scoped to do.
+**Decision:** State explicitly: this harness is agent-agnostic — any single agent (Claude, Codex, Gemini, or another tool that reads AGENTS.md) can drive a session through the shared contract, one agent per session. Concurrent multi-agent coordination (multiple agents working the same feature simultaneously, hand-off protocols mid-session, shared-state locking beyond WIP=1) is out of scope for v1.
+**Alternatives considered:**
+- Leaving the boundary implicit — rejected: implicit scope invites both adopters and future contributors to build toward concurrent coordination as if it were a gap rather than a deliberate boundary.
+**Consequences:**
+- Positive: the scope boundary is now a recorded decision, not just an emergent property of the shim design; future proposals to add concurrent coordination are a new decision against this one, not a bug fix.
+- Negative: none — this records existing, working behavior; it changes nothing about the runner or the shims.

@@ -6,7 +6,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 | Module | Test Coverage | Type Safety | Documentation | Arch Compliance | Performance |
 |---|---|---|---|---|---|
-| scripts/framework-check.mjs | B | C | A | A | A |
+| scripts/framework-check.mjs | A | C | A | A | A |
 | scripts/stack-detect.mjs | B | C | A | A | A |
 | .harness/manifest.json + arch-rules.json | B | B | B | A | A |
 | templates/ (adopter skeletons) | — | — | A | A | — |
@@ -19,11 +19,11 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 - **Overall Quality Grade:** B
 - **Blockers:** none
-- **Areas requiring attention:** runner modules still lack dedicated unit tests; make is not installed on the primary dev machine (the npm path is the workaround and now the canonical surface).
+- **Areas requiring attention:** make is not installed on the primary dev machine (the npm path is the workaround and now the canonical surface).
 
 ## Notes
 
-- The runner (`scripts/framework-check.mjs`) self-checks harness surfaces but has no tests of its own logic — a P1 item.
+- The runner (`scripts/framework-check.mjs`) has direct unit coverage (`tests/framework-check.test.mjs`, 17 cases spawning the CLI against fixture repos) for `ensureManifest`, the WIP=1 gate in `ensureFeatureGraph`, and `checkArch`'s rule evaluation — the former P1 item is resolved. The file is not modular (`fail()` calls `process.exit` directly, every mode reads relative to `process.cwd()`), so coverage is black-box (spawn + assert on exit code/output) rather than importing internal functions — consistent with how `scripts/adoption-matrix.mjs` already exercises `check-arch`/`verify-feature`.
 - State files were converted from templates to real records on 2026-08-17 (dogfooding).
 - Tri-state verification semantics (PASS/SKIP/FAIL) are now the documented contract (D-001).
 - 2026-08-18: bash suite consolidated into the Node runner; the four `scripts/*.sh` files are now thin shims (D-006). Stack detection centralized in `scripts/stack-detect.mjs`; Makefile and npm scripts are 1:1 mirrors. Session-trace round-trip (start → merge end) verified on Windows.

@@ -298,6 +298,66 @@ function runMultiRepoTest() {
   }
 }
 
+// ---- Existing-repo adoption test (Tier 3: incorporation into a real repo) -
+
+// Proves the "incorporate into an existing project" path, not just the
+// "bootstrap a fresh repo" path the other cells exercise: pre-seeds a target
+// directory with realistic pre-existing files (a real README, a package.json
+// with real dependencies, a src/ tree) *before* running create-harness, then
+// asserts those files come out byte-identical — the never-overwrite guarantee
+// (create-harness.mjs skipExisting) is what makes adoption safe to run against
+// a repo someone already has real work in.
+function runExistingRepoTest() {
+  const root = mkdtempSync(path.join(os.tmpdir(), "cw-adopt-existing-"));
+  try {
+    const write = (rel, content) => {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), content, "utf8");
+    };
+    const preexisting = {
+      "README.md": "# Real Project\n\nThis is an existing project with its own README, not a harness skeleton.\n",
+      "package.json": `${JSON.stringify(
+        {
+          name: "real-project",
+          version: "2.4.1",
+          dependencies: { express: "^4.18.2", lodash: "^4.17.21" },
+          scripts: { start: "node src/index.js" },
+        },
+        null,
+        2,
+      )}\n`,
+      ".gitignore": "node_modules/\ndist/\n",
+      "src/index.js": "const express = require('express');\nconst app = express();\napp.listen(3000);\n",
+      "src/util.js": "module.exports = { add: (a, b) => a + b };\n",
+    };
+    for (const [rel, content] of Object.entries(preexisting)) {
+      write(rel, content);
+    }
+
+    // Mirror the real CLI entrypoint: adopt with skipExisting: true.
+    const result = adopt(root, { skipExisting: true });
+
+    const assertions = [];
+    const check = (ok, message) => assertions.push({ ok, message });
+
+    for (const [rel, original] of Object.entries(preexisting)) {
+      const after = readFileSync(path.join(root, rel), "utf8");
+      check(after === original, `${rel} is byte-identical after adoption`);
+    }
+    check(existsSync(path.join(root, "AGENTS.md")), "AGENTS.md (CORE) was still placed");
+    check(existsSync(path.join(root, "DECISIONS.md")), "DECISIONS.md (template skeleton) was still placed");
+    check(!result.core.includes("package.json"), "package.json (CORE) was correctly skipped, not copied over the existing one");
+
+    const failedAssertions = assertions.filter((assertion) => !assertion.ok);
+    for (const assertion of failedAssertions) {
+      console.log(`    [FAIL] ${assertion.message}`);
+    }
+    return { ok: failedAssertions.length === 0, assertions };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 // ---- Entry point ----------------------------------------------------------
 
 function main() {
@@ -343,6 +403,15 @@ function main() {
   } else {
     failures += 1;
     console.log("  [FAIL] multi-repo test failed — see assertions above");
+  }
+
+  console.log("=== Existing-Repo Adoption Test ===");
+  const existingRepo = runExistingRepoTest();
+  if (existingRepo.ok) {
+    console.log("  [PASS] pre-existing README/package.json/src files survive create-harness byte-identical");
+  } else {
+    failures += 1;
+    console.log("  [FAIL] existing-repo adoption test failed — see assertions above");
   }
 
   console.log("");

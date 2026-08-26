@@ -1,4 +1,5 @@
 {
+  "_note": "Local development tool config only (Cline/Roo-Code schema) — not part of the harness's shipped agent-adapter contract. New adopters get an empty {} via create-harness; this file only affects this maintainer's own working copy.",
   "token_usage_warning_threshold": 0.8,
   "auto_approve": {
     "read_file": true,
