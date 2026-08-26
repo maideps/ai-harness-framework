@@ -7,3 +7,6 @@ base/
 # Windows reserved device names (shell redirect artifacts)
 nul
 NUL
+
+# Local-only session handoff scratch notes (not project documentation)
+IMPROVEMENT-HANDOFF.md
