@@ -53,6 +53,6 @@ All features passing: feat-001 Core Scaffold, feat-002 Seams and Manifest, feat-
 ## Recommended Next Step
 
 Optional, beyond the roadmap:
-- Publish via GitHub Actions: add the `NPM_TOKEN` secret to the repo (Settings → Secrets and variables → Actions; token needs read/write publish access, and the npm account must be a member of the `maideps` org), then trigger the `publish` workflow from the Actions tab (workflow_dispatch) or push a `v0.4.0` tag. The workflow gates on full `check` + `check-arch` before `npm publish`.
+- Publish via GitHub Actions: add the `NPM_TOKEN` secret to the repo (Settings → Secrets and variables → Actions; token needs read/write publish access, and the npm account must be a member of the `maidelinps` org — `maideps` was unavailable on npm, so the package is scoped `@maidelinps/ai-harness-framework`), then trigger the `publish` workflow from the Actions tab (workflow_dispatch) or push a `v0.4.0` tag. The workflow gates on full `check` + `check-arch` before `npm publish`.
 - Run `npm run check` on Linux (the matrix with real go/rust toolchains would exercise non-SKIP cells).
 - Extend unit tests to ensureManifest, session-trace, and clean-state logic.

@@ -297,6 +297,19 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Known risk or unresolved issue: requires the `NPM_TOKEN` repo secret (never committed — passed via `env`); the npm account must have publish rights on the `maideps` scope; first Actions execution is unverified until triggered.
 - Next best step: user adds the secret and confirms org membership, then triggers the workflow (Actions tab → publish → Run workflow, or push a `v0.4.0` tag).
 
+### Session 020 — 2026-08-26 — npm scope rename: maideps → maidelinps
+
+- Goal: `maideps` was unavailable as an npm organization name; the user created `maidelinps` instead, so the package scope needs to match before publish can work.
+- Completed:
+  - package.json: `name` changed to `@maidelinps/ai-harness-framework`; package-lock.json regenerated via `npm install` so its name fields match
+  - Updated forward-looking operational docs that named the org: claude-progress.md (current-state mirror), session-handoff.md (recommended next step)
+  - Left sessions 017/018's dated log entries above as-written — they're historical record of what was true at the time, not live documentation
+  - GitHub repository URL (`github.com/maideps/ai-harness-framework`) and the manifest's unscoped `harness` identity are unaffected — the npm scope is independent of the GitHub org name
+- Verification run: `npm run check-arch` (PASS, unaffected — package.json/package-lock.json are CORE surfaces, not manifest-tracked content)
+- Files or artifacts updated: package.json, package-lock.json, claude-progress.md, session-handoff.md
+- Known risk or unresolved issue: actual `npm publish` still not run — still requires the `NPM_TOKEN` secret and confirmed `@maidelinps` org membership.
+- Next best step: user adds the `NPM_TOKEN` secret scoped to the `maidelinps` org, then triggers the publish workflow.
+
 ### Session 019 — 2026-08-26 — Fix CI failure in check (24)
 
 - Goal: Fix failing Actions job `check (24)` (run `32999015031`, job `98275603667`).
