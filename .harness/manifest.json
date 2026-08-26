@@ -72,7 +72,9 @@
     ".harness/traces/.gitkeep"
   ],
   "productRoots": [
-    ".github/workflows/publish.yml"
+    ".github/workflows/publish.yml",
+    "IMPROVEMENT-HANDOFF.md",
+    "repo-completion-plan.md"
   ],
   "optionalComponents": [
     {

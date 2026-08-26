@@ -296,3 +296,16 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: .github/workflows/publish.yml, .harness/manifest.json, docs/ARCHITECTURE.md
 - Known risk or unresolved issue: requires the `NPM_TOKEN` repo secret (never committed — passed via `env`); the npm account must have publish rights on the `maideps` scope; first Actions execution is unverified until triggered.
 - Next best step: user adds the secret and confirms org membership, then triggers the workflow (Actions tab → publish → Run workflow, or push a `v0.4.0` tag).
+
+### Session 019 — 2026-08-26 — Fix CI failure in check (24)
+
+- Goal: Fix failing Actions job `check (24)` (run `32999015031`, job `98275603667`).
+- Completed:
+  - Pulled workflow run list and job logs from GitHub Actions MCP.
+  - Root cause: `npm run check-arch` failed because tracked root docs were not classified by `.harness/manifest.json`.
+  - First failing file from CI logs: `IMPROVEMENT-HANDOFF.md`; after fixing locally, `repo-completion-plan.md` surfaced as another unclassified tracked file.
+  - Final fix: classify both files as product-owned (`productRoots`) so they remain repo-only and do not become adopter-required instance surfaces.
+- Verification run: `npm run check-arch` (PASS) and `npm run check` (PASS, including adoption matrix/e2e).
+- Files or artifacts updated: `.harness/manifest.json`
+- Known risk or unresolved issue: none.
+- Next best step: rerun CI on the branch/PR to confirm `check (24)` is green remotely.
