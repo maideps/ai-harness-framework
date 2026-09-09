@@ -61,6 +61,10 @@ Every make target is mirrored 1:1 by an npm script:
 | Generate an adopter repo | `make create-harness D=<dir>` | `npm run create-harness -- <dir>` |
 | Apply a harness upgrade | `make harness-upgrade D=<dir>` | `npm run harness-upgrade -- <dir>` |
 | Local harness audit | `make harness-audit D=<dir>` | `npm run harness-audit -- <dir>` |
+| List upgrade backups | `make backup-list` | `npm run backup-list` |
+| Pin a backup | `make backup-pin F=<id>` | `npm run backup-pin -- <id>` |
+| Unpin a backup | `make backup-unpin F=<id>` | `npm run backup-unpin -- <id>` |
+| Restore a backup | `make backup-restore F=<id\|latest>` | `npm run backup-restore -- <id\|latest>` |
 | Session report | `make report` | `npm run report` |
 | Periodic sweep | `make sweep` | `npm run sweep` |
 | Show all targets | `make help` | `npm run help` |

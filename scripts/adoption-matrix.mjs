@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 
 import { HARNESS_ROOT, adopt, loadManifest } from "./create-harness.mjs";
 import { upgrade as upgradeHarness } from "./harness-upgrade.mjs";
+import { restoreBackup as restoreBackupSnapshot } from "./harness-backup.mjs";
 
 const RUNNER = path.join(HARNESS_ROOT, "scripts", "framework-check.mjs");
 
@@ -203,6 +204,19 @@ function runUpgradeTest() {
     const report = upgradeHarness(root);
     check(report.overwritten.length > 0, `upgrade overwrote ${report.overwritten.length} mustNotEdit surface(s)`);
     check(!readFileSync(path.join(root, "scripts", "framework-check.mjs"), "utf8").includes("CORRUPTED BY ADOPTER EDIT"), "upgrade restored the corrupted runner");
+    // The upgrade backs up what it's about to overwrite before touching it
+    // (feat-012, dogfooding harness-backup.mjs) — the corrupted runner must
+    // be recoverable from the backup even after the upgrade already fixed it.
+    check(!report.backup.skipped, "upgrade created a backup before overwriting (first run — nothing to dedup against)");
+    check(existsSync(path.join(root, ".harness", "backups", report.backup.id, "manifest.json")), "backup manifest was written to .harness/backups/");
+    const restored = restoreBackupSnapshot(root, report.backup.id);
+    check(
+      readFileSync(path.join(root, "scripts", "framework-check.mjs"), "utf8").includes("CORRUPTED BY ADOPTER EDIT"),
+      "restoring the backup brings the pre-upgrade corruption back (proves snapshot fidelity)",
+    );
+    check(restored.restored > 0, `backup restore reported ${restored.restored} file(s) restored`);
+    // Put the repo back in its post-upgrade (fixed) state for the checks below.
+    upgradeHarness(root);
     check(readFileSync(path.join(root, "README.md"), "utf8").includes("PROJECT-SPECIFIC LINE"), "README customization survived");
     check(JSON.parse(readFileSync(featureListPath, "utf8")).features[0].name === "Customized Feature Name", "feature content survived");
     check(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots.join(",") === "src/,custom/", "manifest productRoots survived");

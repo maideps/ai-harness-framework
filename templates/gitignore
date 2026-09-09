@@ -4,6 +4,9 @@
 # Harness runtime traces (session records are local state, not evidence)
 .harness/traces/*.json
 
+# Harness upgrade backups — a local safety net, not durable evidence
+.harness/backups/
+
 # Node projects
 node_modules/
 

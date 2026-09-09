@@ -100,6 +100,8 @@ Every reuse guarantee (upgrade survival, adoption tests, copy vs npx distributio
 
 Upgrade contract: a harness upgrade overwrites **mustNotEdit CORE surfaces only** (`scripts/`, the root operating-manual shims, LICENSE, `.nvmrc`). Every surface an adopter may own — Makefile additions, package.json scripts, init.sh stack tweaks, manifest `productRoots`, project skills, docs, and all INSTANCE state — is **never overwritten**. The adoption matrix's upgrade test enforces this: it corrupts a mustNotEdit surface, simulates an upgrade, and asserts the corruption was restored while every customization survived. The e2e layer (`npm run e2e`) runs the full adoption matrix (none/node/python/go/rust cells × harness check, product layers, feature cycle) plus the upgrade test; cells whose toolchain is missing report SKIP honestly.
 
+Before an upgrade overwrites anything, `harness-upgrade` snapshots the current on-disk state of every file about to be touched via `scripts/harness-backup.mjs` (feat-012) — a safety net independent of git, for a dirty tree or a mustNotEdit file an adopter edited against policy. Backups are checksum-deduped (an upgrade that changes nothing skips a redundant backup), gzip-compressed per file, and live in `.harness/backups/` (gitignored — a local safety net, not durable evidence; the durable record of *what changed* is git itself). Retention keeps the 5 most recent unpinned backups; `backup-pin`/`backup-unpin` protect specific ones from pruning. `backup-restore <id|latest>` reverts per file: a file that existed before the operation gets its content back, a file the operation newly created is removed.
+
 ## Enforcement
 
 Architectural constraints are codified in `.harness/arch-rules.json` and enforced via:

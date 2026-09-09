@@ -1,5 +1,6 @@
 base/
 .harness/traces/*.json
+.harness/backups/
 
 # Local agent runtime state
 .codewhale/

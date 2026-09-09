@@ -283,6 +283,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-012",
+      "name": "Upgrade Backups",
+      "behavior": "Before harness-upgrade overwrites mustNotEdit CORE surfaces, snapshot the current on-disk state of every file about to be touched: checksum-deduped (skip a redundant backup when nothing changed), gzip-compressed per file, stored in .harness/backups/<id>/ (gitignored — a local safety net, not durable evidence). Retention keeps the 5 most recent unpinned backups; pinned backups are never pruned. backup-list/backup-pin/backup-unpin/backup-restore (restore accepts an id or \"latest\") round out the command surface. Restore is per file: existed=true writes the snapshotted content back, existed=false removes a file the operation newly created.",
+      "verification": "npm run check passes; unit tests cover snapshot creation (including existed=false files), dedup, restore fidelity (including the existed=false removal case), and prune/pin interaction; the adoption matrix's upgrade test asserts a real upgrade() call creates a backup and that restoring it reproduces the pre-upgrade (corrupted) state before re-upgrading to leave the repo fixed.",
+      "dependencies": [
+        "feat-006"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix backup/restore/prune logic and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

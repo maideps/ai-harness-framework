@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HARNESS_ROOT } from "./create-harness.mjs";
+import { createBackup } from "./harness-backup.mjs";
 
 // Surfaces that ship as-is and must not be edited by adopters — the only
 // surfaces an upgrade overwrites. Everything else is adopter-owned (D-010).
@@ -41,7 +42,12 @@ function copyRecursive(src, dest, { skipExisting = false } = {}) {
 }
 
 export function upgrade(root) {
-  const report = { overwritten: [], preserved: [] };
+  // Snapshot what's about to be overwritten before touching anything — a
+  // safety net independent of git, for a dirty tree or a mustNotEdit file an
+  // adopter edited against policy (feat-012, backups live in
+  // .harness/backups/, gitignored).
+  const backup = createBackup(root, MUST_NOT_EDIT_SURFACES, HARNESS_ROOT);
+  const report = { overwritten: [], preserved: [], backup };
   for (const surface of MUST_NOT_EDIT_SURFACES) {
     const src = path.join(HARNESS_ROOT, surface);
     const dest = path.join(root, surface);
@@ -71,6 +77,11 @@ function main() {
   const root = path.resolve(target);
   const report = upgrade(root);
   console.log(`=== harness-upgrade: ${root} ===`);
+  if (report.backup.skipped) {
+    console.log(`  Backup: skipped (${report.backup.reason})`);
+  } else {
+    console.log(`  Backup: ${report.backup.id} (${report.backup.fileCount} file(s)) — restore with: node scripts/harness-backup.mjs restore ${report.backup.id}`);
+  }
   console.log("  Overwritten (mustNotEdit CORE):");
   for (const surface of report.overwritten) console.log(`    ${surface}`);
   console.log("  Never overwritten (adopter-owned):");

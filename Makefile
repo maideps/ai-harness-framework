@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop migrate-feature-state
+.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop migrate-feature-state backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -94,6 +94,22 @@ harness-upgrade:
 
 harness-audit:
 	@node scripts/harness-audit.mjs $(D)
+
+## Upgrade backups (feat-012) — checksum-deduped, compressed, pinnable
+## snapshots taken automatically before harness-upgrade overwrites CORE
+## surfaces. Operate on the current directory.
+backup-list:
+	@node scripts/harness-backup.mjs list
+
+backup-pin:
+	@node scripts/harness-backup.mjs pin $(F)
+
+backup-unpin:
+	@node scripts/harness-backup.mjs unpin $(F)
+
+## Usage: make backup-restore F=<backup-id|latest>
+backup-restore:
+	@node scripts/harness-backup.mjs restore $(F)
 
 ## Observability tools (feat-007) — session reports and periodic sweep
 report:

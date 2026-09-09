@@ -128,6 +128,19 @@ node scripts/harness-audit.mjs my-project
 node scripts/harness-upgrade.mjs my-project
 ```
 
+### Upgrade Backups
+
+`harness-upgrade` snapshots every file it's about to overwrite before touching anything — a safety net independent of git, for a dirty tree or a mustNotEdit file an adopter edited against policy (feat-012). Backups live in `.harness/backups/` (gitignored — a local safety net, not durable evidence):
+
+```bash
+npm run backup-list                        # every backup: id, pinned?, file count, timestamp
+npm run backup-pin -- <id>                 # protect a backup from pruning
+npm run backup-unpin -- <id>
+npm run backup-restore -- <id>             # or: npm run backup-restore -- latest
+```
+
+Dedup: an upgrade that changes nothing skips creating a redundant backup (checksummed against the most recent one) — the overwrite still runs. Retention: the 5 most recent *unpinned* backups are kept; pinned backups are never pruned. Restore is per-file: a file that existed before the operation gets its content back; a file the operation created that didn't exist before is removed.
+
 ## Reports and Sweeps
 
 ```bash

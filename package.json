@@ -50,6 +50,10 @@
     "create-harness": "node scripts/create-harness.mjs",
     "harness-upgrade": "node scripts/harness-upgrade.mjs",
     "harness-audit": "node scripts/harness-audit.mjs",
+    "backup-list": "node scripts/harness-backup.mjs list",
+    "backup-pin": "node scripts/harness-backup.mjs pin",
+    "backup-unpin": "node scripts/harness-backup.mjs unpin",
+    "backup-restore": "node scripts/harness-backup.mjs restore",
     "report": "node scripts/harness-report.mjs",
     "sweep": "node scripts/harness-sweep.mjs",
     "setup": "node scripts/framework-check.mjs setup",
@@ -59,7 +63,8 @@
   "bin": {
     "create-harness": "scripts/create-harness.mjs",
     "harness-upgrade": "scripts/harness-upgrade.mjs",
-    "harness-audit": "scripts/harness-audit.mjs"
+    "harness-audit": "scripts/harness-audit.mjs",
+    "harness-backup": "scripts/harness-backup.mjs"
   },
   "engines": {
     "node": ">=18"
