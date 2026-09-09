@@ -18,7 +18,7 @@ If baseline verification is failing, repair that first before adding new scope.
 ## Working Rules
 
 - **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json`
-- **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"`). Complete and move to `passing` before activating the next.
+- **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"`). Complete and move to `passing` before activating the next. On a `lane/<feature-id>` worktree lane, this is scoped per lane — a lane may only activate the feature it is named for (see `lane-new`/`lane-list`/`lane-land`/`lane-drop`, docs/ARCHITECTURE.md, and DECISIONS.md D-017).
 - **Verification required**: Don't claim done without running verification commands
 - **Update artifacts**: Before ending session, update `PROGRESS.md` and `feature_list.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
@@ -82,7 +82,7 @@ Required checks (each with its npm mirror):
 - `make build` / `npm run build` — Production build verification
 - `make e2e` / `npm run e2e` — End-to-end tests (required for cross-component changes)
 
-Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `verify-all`, `vcr`, `create-harness`, `harness-upgrade`, `harness-audit`, `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
+Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `vcr`, `create-harness`, `harness-upgrade`, `harness-audit`, `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
 
 `make check` runs all layers in order (lint → typecheck → test → build → e2e). A layer that is not configured reports SKIP and does not count as verified; a failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
 

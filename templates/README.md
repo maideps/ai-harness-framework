@@ -49,6 +49,10 @@ Every make target is mirrored 1:1 by an npm script:
 | Architecture enforcement | `make check-arch` | `npm run check-arch` |
 | Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
 | Multi-repo verification | `make verify-all` | `npm run verify-all` |
+| Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
+| List worktree lanes | `make lane-list` | `npm run lane-list` |
+| Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
+| Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Record session start | `make session-start` | `npm run session-start` |
 | Record session end | `make session-end` | `npm run session-end` |

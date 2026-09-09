@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001, feat-002, feat-003 passing)
+- Current active feature: none (feat-001 through feat-010 passing; feat-011 planned, next in queue)
 - Current blocker: none
 ## Session Log
 
@@ -322,3 +322,35 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: `.harness/manifest.json`
 - Known risk or unresolved issue: none.
 - Next best step: rerun CI on the branch/PR to confirm `check (24)` is green remotely.
+
+### Session 021 — 2026-09-09 — Multi-agent parallelism: planning only (feat-010/011, D-017)
+
+- Goal: User asked how to run multiple agents against this framework in parallel. Analyzed the runner for concurrency-safety, found five collision points (WIP=1 global, feature_list.json whole-file evidence write, clean-state-check global git-status requirement, session-trace latest-start pairing, single-writer markdown files), and evaluated worktree isolation vs. a lock/lease layer. Recorded the design and added it to the backlog — no implementation this session.
+- Completed:
+  - D-016 ("multi-agent means agent-agnostic, not concurrent coordination") marked superseded by D-017, per its own stated reversal contract
+  - D-017 recorded: concurrent coordination via git worktree lanes (branch-checkout exclusivity replaces a lock file) plus sharded per-feature state (`.harness/state/<id>.json`) replacing the single-file feature_list.json read-modify-write; a lock/lease design was drafted and rejected as redundant with what worktrees already guarantee
+  - feat-010 (Worktree Lanes) and feat-011 (Sharded Feature State) added to feature_list.json as `planned`, dependent on feat-009 and feat-010 respectively, with verification layers defined
+- Verification run: `npm run check-arch` (5/5 PASS, arch-002 accepts the two new `planned` features with no WIP violation)
+- Files or artifacts updated: feature_list.json, DECISIONS.md, PROGRESS.md
+- Known risk or unresolved issue: feat-010/011 are design-only — the `lane-new`/`lane-list`/`lane-land`/`lane-drop` tooling, the git-branch-aware arch-002 rescoping, and the `.harness/state/` shard read/write path do not exist yet. `.harness/state/` will need manifest classification (core, likely) and an arch-005 pass once feat-011 starts.
+- Next best step: activate feat-010 (Worktree Lanes) as the next WIP=1 feature when ready to implement.
+
+### Session 022 — 2026-09-09 — feat-010 Worktree Lanes
+
+- Goal: Implement the design recorded in D-017 — git-worktree-based parallel lanes with git branch-checkout exclusivity as the coordination primitive, no lock/lease layer.
+- Completed:
+  - `scripts/framework-check.mjs` gained the lane subsystem: `laneNew`/`laneList`/`laneLand`/`laneDrop`, plus helpers (`gitCapture`, `getCurrentBranch` via `git symbolic-ref --short HEAD` — robust on an unborn branch with zero commits, unlike `rev-parse --abbrev-ref HEAD`; `laneFeatureIdFromBranch`, `branchExists`, `findWorktreeForBranch`). All git calls use `spawnSync` argv arrays (no shell), consistent with the Windows-path-safety pattern from D-010.
+  - `lane-new F=<id>`: creates a sibling worktree (`../<repo>-lane-<id>`) on branch `lane/<id>` (new from current HEAD, or reused), refuses if the feature is `passing`/`blocked`/has unmet dependencies, marks it `active` in the lane's own `feature_list.json` (uncommitted); idempotent on a second call.
+  - `lane-list`: enumerates local `lane/*` branches with feature/state/worktree path, reading the worktree's live file when one exists, else the branch's committed content via `git show`.
+  - `lane-land F=<id>`: refuses unless the lane branch's committed feature is `passing` and the landing branch is clean; merges `--no-ff`, removes the worktree, deletes the branch.
+  - `lane-drop F=<id>`: removes a lane's worktree without merging; relies on `git worktree remove`'s built-in refusal on uncommitted/untracked changes (no `--force`) so abandoning a lane never silently discards work — verified this refusal empirically before writing the automated test.
+  - `ensureLaneWipContract()` (arch-002, wired into both `arch:wip-contract` and Layer 2 `test`): on a `lane/<feature-id>` branch, the sole active feature (if any) must equal `<feature-id>`; no-ops entirely off a lane branch (existing WIP=1 behavior unchanged, confirmed by test).
+  - Command surface: Makefile + npm mirrors for all four lane commands, added to `requiredMakeTargets`, documented in README.md, templates/README.md, AGENTS.md's mirror list, `docs/ARCHITECTURE.md` (full "Worktree Lanes" section) and `templates/docs/ARCHITECTURE.md` (concise version), `docs/USAGE.md` and `templates/docs/USAGE.md` (kept byte-identical, per existing repo convention).
+  - `.harness/arch-rules.json` arch-002 description/what/why/fix updated to cover lane ownership.
+  - 15 new unit tests in `tests/framework-check.test.mjs` exercising real git worktrees in throwaway repos (lane-new/list/land/drop lifecycle including refusal paths, plus the three lane-aware WIP cases) — 38/38 runner tests pass.
+- No manifest changes needed: everything lives inside already-CORE-classified files (scripts/, Makefile, package.json); no new tracked directories.
+- Verification run: `npm run check` (all layers PASS, e2e matrix green including SKIPped toolchains reported honestly) + `npm run check-arch` (5/5 PASS) + `npm run verify-feature -- feat-010` (ALL LAYERS PASS, evidence recorded)
+- Evidence captured: feat-010 `evidence` field
+- Files or artifacts updated: scripts/framework-check.mjs, Makefile, package.json, .harness/arch-rules.json, README.md, templates/README.md, AGENTS.md, docs/ARCHITECTURE.md, templates/docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, tests/framework-check.test.mjs, feature_list.json, PROGRESS.md
+- Known risk or unresolved issue: `feature_list.json` is still one shared file — two lanes landing different features can still conflict on adjacent edits or simultaneous end-of-array insertions (documented in ARCHITECTURE.md and USAGE.md as the known gap feat-011 closes). Lane commands were smoke-tested manually on Windows in addition to the automated suite; not yet exercised on Linux CI.
+- Next best step: feat-011 (Sharded Feature State) — move mutable fields into `.harness/state/<id>.json` so lane landings stop touching the shared file at all.

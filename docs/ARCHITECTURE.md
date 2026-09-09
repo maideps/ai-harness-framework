@@ -50,6 +50,21 @@ Stack precedence: product manifests win over the harness runtime. An adopter rep
 
 The harness runtime is Node ≥ 18: any adopter running harness tooling (make targets, npm scripts, init.sh) needs Node regardless of their product stack — detection of python/go/rust/jvm/dotnet projects is about verifying the host project, not replacing the harness runtime.
 
+## Worktree Lanes
+
+Concurrent multi-agent work (D-017) is supported through git worktrees, not a lock or lease layer. Each lane is a sibling git worktree checked out on branch `lane/<feature-id>`:
+
+- **`lane-new F=<id>`** — creates a sibling worktree (`../<repo>-lane-<id>`) on branch `lane/<id>` (new, from the current HEAD, or reused if it already exists), validates the feature's dependencies are already `passing`, and marks it `active` in the lane's own `feature_list.json` (uncommitted — the lane's first commit records it).
+- **`lane-list`** — lists local `lane/*` branches with the feature each claims, its state, and whether a worktree currently exists for it.
+- **`lane-land F=<id>`** — run from the branch you want to merge into: refuses unless the lane branch's committed `feature_list.json` marks the feature `passing`, then merges (`--no-ff`), removes the worktree, and deletes the branch.
+- **`lane-drop F=<id>`** — removes a lane's worktree without merging; the branch is left intact. `git worktree remove` refuses on uncommitted or untracked changes by default, so abandoning a lane never silently discards work.
+
+Why no lock file: a git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity already gives mutual exclusion on "who owns this feature" — a lease with a stale-claim reaper would just reimplement what git already guarantees. `git status` and the gitignored `.harness/traces/` are naturally worktree-scoped, so `clean-state-check` and session traces need no lane-awareness at all.
+
+What lanes do change: arch-002 (`arch:wip-contract`) is lane-aware — on a `lane/<feature-id>` branch, the sole active feature (if any) must be `<feature-id>`, catching drift where a lane's working copy activates a different feature than the one it's named for. This is a real, local check (derived from the current git branch), evaluated in both `check-arch` and Layer 2 (`npm run test`).
+
+What lanes do not yet solve: `feature_list.json` remains one shared file, so two lanes landing different features can still conflict on adjacent edits or simultaneous append-at-end-of-array insertions (two lanes each adding a brand-new feature). The planned follow-up (feat-011, Sharded Feature State) moves the mutable per-feature fields into `.harness/state/<id>.json` so lane landings touch disjoint paths and merge conflict-free by construction.
+
 ## Application Dependency Rules
 
 Adopting projects should enforce the following layered rules once product code exists:

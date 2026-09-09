@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help
+.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -42,6 +42,26 @@ verify-feature:
 ## Multi-repo verification — runs repositories/*/scripts/verify (SKIP when inactive)
 verify-all:
 	@node scripts/framework-check.mjs verify-all
+
+## Worktree lanes (feat-010) — parallel isolated development lanes, git branch-checkout
+## exclusivity is the coordination primitive (see DECISIONS.md D-017)
+## Usage: make lane-new F=<feature-id>
+lane-new:
+	@node scripts/framework-check.mjs lane-new $(F)
+
+## List local lane/* branches, their feature, state, and worktree path
+lane-list:
+	@node scripts/framework-check.mjs lane-list
+
+## Merge a passing lane back into the current branch and clean up its worktree/branch
+## Usage: make lane-land F=<feature-id>  (run from the branch you want to merge into)
+lane-land:
+	@node scripts/framework-check.mjs lane-land $(F)
+
+## Abandon a lane's worktree without merging (branch is left intact)
+## Usage: make lane-drop F=<feature-id>
+lane-drop:
+	@node scripts/framework-check.mjs lane-drop $(F)
 
 ## Verify + check-arch + record (writes a verification trail to .harness/trails/)
 vcr: check check-arch

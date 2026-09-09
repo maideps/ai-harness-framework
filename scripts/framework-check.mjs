@@ -46,6 +46,10 @@ const requiredMakeTargets = [
   "check-arch",
   "verify-feature",
   "verify-all",
+  "lane-new",
+  "lane-list",
+  "lane-land",
+  "lane-drop",
   "create-harness",
   "harness-upgrade",
   "harness-audit",
@@ -688,6 +692,245 @@ function isGitRepo() {
   }
 }
 
+// ---- Worktree lanes (feat-010, D-017) -----------------------------------
+// A lane is a sibling git worktree checked out on branch `lane/<feature-id>`.
+// Git's own branch-checkout exclusivity — a branch can only be checked out
+// in one worktree at a time — is the coordination primitive; no lock file
+// or lease is needed. Args are passed via spawnSync argv arrays (no shell)
+// so worktree paths containing spaces are never reinterpreted.
+
+function gitCapture(args) {
+  const result = spawnSync("git", args, { encoding: "utf8" });
+  if (result.error || (result.status ?? 1) !== 0) {
+    return null;
+  }
+  return (result.stdout ?? "").replace(/\r?\n$/, "");
+}
+
+function getCurrentBranch() {
+  // symbolic-ref (not rev-parse --abbrev-ref) so this resolves on an unborn
+  // branch too (a freshly created branch with zero commits) — rev-parse
+  // fails with "ambiguous argument 'HEAD'" until the first commit exists.
+  return gitCapture(["symbolic-ref", "--short", "HEAD"]) ?? "";
+}
+
+function laneFeatureIdFromBranch(branch) {
+  const match = /^lane\/(.+)$/.exec(branch ?? "");
+  return match ? match[1] : null;
+}
+
+function laneBranchName(featureId) {
+  return `lane/${featureId}`;
+}
+
+function branchExists(branch) {
+  const result = spawnSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+  return (result.status ?? 1) === 0;
+}
+
+function findWorktreeForBranch(branch) {
+  const list = gitCapture(["worktree", "list", "--porcelain"]) ?? "";
+  for (const block of list.split(/\r?\n\r?\n/)) {
+    const pathMatch = /^worktree (.+)$/m.exec(block);
+    const branchMatch = /^branch refs\/heads\/(.+)$/m.exec(block);
+    if (pathMatch && branchMatch && branchMatch[1] === branch) {
+      return pathMatch[1];
+    }
+  }
+  return null;
+}
+
+function ensureLaneWipContract() {
+  const laneFeatureId = laneFeatureIdFromBranch(getCurrentBranch());
+  if (!laneFeatureId || !existsSync("feature_list.json")) {
+    return;
+  }
+  const { features } = loadFeatures();
+  const active = features.filter((feature) => getFeatureState(feature) === "active");
+  if (active.length === 1 && active[0].id !== laneFeatureId) {
+    fail(
+      `lane branch lane/${laneFeatureId} owns feature ${laneFeatureId}, but feature_list.json marks ${active[0].id} active — a lane may only activate the feature it is named for`,
+    );
+  }
+}
+
+function repoRoot() {
+  const root = gitCapture(["rev-parse", "--show-toplevel"]);
+  if (!root) {
+    fail("not a git repository — worktree lanes require git");
+  }
+  return path.resolve(root);
+}
+
+function laneWorktreePath(featureId) {
+  const root = repoRoot();
+  return path.join(path.dirname(root), `${path.basename(root)}-lane-${featureId}`);
+}
+
+function laneNew(featureId) {
+  if (!featureId) {
+    fail("usage: node scripts/framework-check.mjs lane-new <feature-id>");
+  }
+  const branch = laneBranchName(featureId);
+  const existingWorktree = findWorktreeForBranch(branch);
+  if (existingWorktree) {
+    console.log(`Lane already exists: ${branch} at ${existingWorktree}`);
+    return;
+  }
+
+  const { features } = loadFeatures();
+  const feature = features.find((item) => item.id === featureId);
+  if (!feature) {
+    fail(`feature ${featureId} not found in feature_list.json`);
+  }
+  const state = getFeatureState(feature);
+  if (state === "passing") {
+    fail(`feature ${featureId} is already passing — nothing to do`);
+  }
+  if (state === "blocked") {
+    fail(`feature ${featureId} is blocked — unblock it before starting a lane`);
+  }
+  const unmet = getFeatureDependencies(feature).filter((dependencyId) => {
+    const dependency = features.find((item) => item.id === dependencyId);
+    return !dependency || getFeatureState(dependency) !== "passing";
+  });
+  if (unmet.length > 0) {
+    fail(`feature ${featureId} has unmet dependencies: ${unmet.join(", ")} — complete those first`);
+  }
+
+  const worktreeDir = laneWorktreePath(featureId);
+  const addArgs = branchExists(branch)
+    ? ["worktree", "add", worktreeDir, branch]
+    : ["worktree", "add", "-b", branch, worktreeDir];
+  console.log(`=== Creating lane: ${branch} ===`);
+  const result = spawnSync("git", addArgs, { stdio: "inherit" });
+  if ((result.status ?? 1) !== 0) {
+    fail(`git worktree add failed for ${branch}`);
+  }
+
+  if (state !== "active") {
+    const listPath = path.join(worktreeDir, "feature_list.json");
+    const data = JSON.parse(readFileSync(listPath, "utf8"));
+    const target = data.features.find((item) => item.id === featureId);
+    target.state = "active";
+    if ("status" in target) {
+      target.status = "in_progress";
+    }
+    writeFileSync(listPath, `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
+  }
+
+  console.log("");
+  console.log(`Lane ready: ${worktreeDir}`);
+  console.log(`Branch: ${branch}`);
+  console.log(`Feature ${featureId} marked active in the lane's feature_list.json (uncommitted).`);
+  console.log("Next: work the feature inside that worktree, verify, commit, then run lane-land from the branch you want to merge into.");
+}
+
+function readFeatureListAt(worktreePath, featureId) {
+  const listPath = path.join(worktreePath, "feature_list.json");
+  if (!existsSync(listPath)) {
+    return null;
+  }
+  const data = JSON.parse(readFileSync(listPath, "utf8"));
+  return data.features.find((item) => item.id === featureId) ?? null;
+}
+
+function readFeatureListAtRef(branch, featureId) {
+  const content = gitCapture(["show", `${branch}:feature_list.json`]);
+  if (!content) {
+    return null;
+  }
+  try {
+    const data = JSON.parse(content);
+    return data.features.find((item) => item.id === featureId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function laneList() {
+  const laneRefs = (gitCapture(["for-each-ref", "--format=%(refname:short)", "refs/heads/lane"]) ?? "")
+    .split(/\r?\n/)
+    .filter(Boolean);
+  if (laneRefs.length === 0) {
+    console.log("No lanes found (no local lane/* branches).");
+    return;
+  }
+  console.log("=== Lanes ===");
+  console.log("");
+  for (const branch of laneRefs) {
+    const featureId = laneFeatureIdFromBranch(branch);
+    const worktreePath = findWorktreeForBranch(branch);
+    const feature = worktreePath
+      ? readFeatureListAt(worktreePath, featureId)
+      : readFeatureListAtRef(branch, featureId);
+    const state = feature ? getFeatureState(feature) ?? "unknown" : "unknown";
+    console.log(`  ${branch}  feature=${featureId}  state=${state}  worktree=${worktreePath ?? "(none)"}`);
+  }
+}
+
+function laneLand(featureId) {
+  if (!featureId) {
+    fail("usage: node scripts/framework-check.mjs lane-land <feature-id>");
+  }
+  const branch = laneBranchName(featureId);
+  if (!branchExists(branch)) {
+    fail(`lane branch ${branch} does not exist`);
+  }
+  const feature = readFeatureListAtRef(branch, featureId);
+  if (!feature || getFeatureState(feature) !== "passing") {
+    fail(`feature ${featureId} is not marked passing on ${branch} — verify and commit it in the lane before landing`);
+  }
+
+  const status = gitCapture(["status", "--porcelain"]) ?? "";
+  if (status.trim()) {
+    fail("current branch has uncommitted changes — commit or stash before landing a lane");
+  }
+
+  console.log(`=== Landing lane: ${branch} into ${getCurrentBranch()} ===`);
+  const merge = spawnSync("git", ["merge", "--no-ff", branch, "-m", `Merge lane ${branch} (feature ${featureId})`], {
+    stdio: "inherit",
+  });
+  if ((merge.status ?? 1) !== 0) {
+    fail(`merge of ${branch} failed — resolve conflicts, then finish the merge manually`);
+  }
+
+  const worktreePath = findWorktreeForBranch(branch);
+  if (worktreePath) {
+    const remove = spawnSync("git", ["worktree", "remove", worktreePath], { stdio: "inherit" });
+    if ((remove.status ?? 1) !== 0) {
+      console.log(`[WARN] could not remove worktree ${worktreePath} automatically — remove it manually once clean`);
+    }
+  }
+  const deleteBranch = spawnSync("git", ["branch", "-d", branch], { stdio: "inherit" });
+  if ((deleteBranch.status ?? 1) !== 0) {
+    console.log(`[WARN] could not delete branch ${branch} automatically — delete it manually if no longer needed`);
+  }
+
+  console.log("");
+  console.log(`Lane landed: ${branch} merged, worktree and branch cleaned up.`);
+}
+
+function laneDrop(featureId) {
+  if (!featureId) {
+    fail("usage: node scripts/framework-check.mjs lane-drop <feature-id>");
+  }
+  const branch = laneBranchName(featureId);
+  const worktreePath = findWorktreeForBranch(branch);
+  if (!worktreePath) {
+    fail(`no worktree found for lane ${branch}`);
+  }
+  console.log(`=== Dropping lane: ${branch} ===`);
+  const result = spawnSync("git", ["worktree", "remove", worktreePath], { stdio: "inherit" });
+  if ((result.status ?? 1) !== 0) {
+    fail(
+      `could not remove worktree ${worktreePath} — commit, stash, or discard its changes first (git worktree remove --force will discard them, run it yourself if that is what you intend)`,
+    );
+  }
+  console.log("");
+  console.log(`Worktree removed. Branch ${branch} still exists — delete it manually (git branch -D ${branch}) if it's no longer needed.`);
+}
+
 function collectModifiedFiles() {
   const files = new Set();
   for (const cmd of ["git diff --name-only --relative", "git ls-files --others --exclude-standard"]) {
@@ -1018,6 +1261,10 @@ function printHelp() {
   console.log("  e2e            Layer 3b: end-to-end tests");
   console.log("  check-arch     Architecture constraint enforcement");
   console.log("  verify-feature F=<id>  Run all verification layers for a feature");
+  console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
+  console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
+  console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
+  console.log("  lane-drop F=<id>  Abandon a lane's worktree without merging");
   console.log("  vcr            verify + check-arch + record trail");
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
@@ -1058,6 +1305,7 @@ switch (mode) {
   }
   case "test": {
     ensureFeatureGraph();
+    ensureLaneWipContract();
     pass("Feature dependency graph and WIP contract are valid");
     // Unit tests for the runner's own logic (node:test) run as part of Layer 2.
     // Files are enumerated and passed explicitly: glob patterns in --test args
@@ -1096,6 +1344,7 @@ switch (mode) {
   }
   case "arch:wip-contract": {
     ensureFeatureGraph();
+    ensureLaneWipContract();
     console.log("PASS");
     break;
   }
@@ -1154,6 +1403,22 @@ switch (mode) {
   }
   case "verify-all": {
     runVerifyAll();
+    break;
+  }
+  case "lane-new": {
+    laneNew(args[0]);
+    break;
+  }
+  case "lane-list": {
+    laneList();
+    break;
+  }
+  case "lane-land": {
+    laneLand(args[0]);
+    break;
+  }
+  case "lane-drop": {
+    laneDrop(args[0]);
     break;
   }
   case "verify-chain": {

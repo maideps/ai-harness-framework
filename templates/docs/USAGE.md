@@ -31,6 +31,10 @@ For node projects, the package.json script keys are the layer commands (`scripts
 | Layer 3b: end-to-end | `make e2e` | `npm run e2e` |
 | Architecture rules | `make check-arch` | `npm run check-arch` |
 | Feature gate | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
+| Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
+| List worktree lanes | `make lane-list` | `npm run lane-list` |
+| Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
+| Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Session start / end | `make session-start` / `session-end` | `npm run session-start` / `session-end` |
 | Pre-commit clean state | `make clean-check` | `npm run clean-check` |
@@ -66,6 +70,21 @@ Reusable capability packs live in `skills/` — one folder per skill with a `SKI
 Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest gate runs), `session-handoff` (durable session ends), `adopt` (bootstrapping the harness), `release` (final pre-release pass), `commit` (focused commits), `review` (pre-gate independent pass), `update-docs` (docs-drift cleanup), `write-skill` (the meta-skill for authoring new ones).
 
 Project skills may be added under `skills/` — see the `write-skill` skill for the format.
+
+## Worktree Lanes
+
+Multiple agents can work on independent features at the same time, each in its own sibling git worktree:
+
+```bash
+npm run lane-new -- feat-020    # sibling worktree ../<repo>-lane-feat-020 on branch lane/feat-020,
+                                 # feature marked active there (uncommitted)
+npm run lane-list               # every local lane/* branch: feature, state, worktree path
+npm run lane-land -- feat-020   # from the branch to merge into: refuses unless the lane's
+                                 # feature is passing, then merges, removes the worktree, deletes the branch
+npm run lane-drop -- feat-020   # abandon the lane's worktree without merging (branch kept)
+```
+
+A git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity is the coordination primitive — no lock file or lease. WIP=1 applies per lane: a `lane/<feature-id>` branch may only activate the feature it is named for (`arch-002` enforces this). `feature_list.json` is still one shared file, so two lanes landing different features can still conflict on adjacent edits — pick genuinely independent features (no shared dependency edge, no shared files) for concurrent lanes.
 
 ## Multi-repo Extension (optional)
 

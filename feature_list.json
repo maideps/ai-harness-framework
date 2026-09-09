@@ -249,6 +249,62 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-010",
+      "name": "Worktree Lanes",
+      "behavior": "Add git-worktree-based parallel lanes so multiple features can be developed concurrently without file collisions: `lane-new`/`lane-list`/`lane-land`/`lane-drop` tooling that creates sibling-directory worktrees on `lane/<feature-id>` branches, and arch-002 re-scoped from repo-wide WIP=1 to per-lane WIP=1 (the active feature is detected relative to the current git branch, not the whole feature_list.json).",
+      "verification": "npm run check passes; check-arch enforces per-lane WIP=1 so two lanes may each have a different active feature without violating the rule; a simulated two-worktree session (two sibling checkouts on two `lane/*` branches) each pass check and check-arch independently, and clean-state-check stays correctly scoped to its own worktree.",
+      "dependencies": [
+        "feat-009"
+      ],
+      "state": "passing",
+      "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-09-09T17:01:04.429Z (SKIP reported in: Layer 3: System confirmation)",
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix lane tooling or the re-scoped WIP=1 check and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-011",
+      "name": "Sharded Feature State",
+      "behavior": "Split the mutable per-feature fields (state, evidence, owner, timestamps) out of feature_list.json into one file per feature under .harness/state/<id>.json, so two lanes landing different features never touch the same tracked path and merge without conflict by construction. feature_list.json keeps only declaration fields (id, name, behavior, dependencies, layers). verify-feature, session-trace, and harness-report read/write the shard files instead of rewriting the whole feature list.",
+      "verification": "npm run check passes; verify-feature reads and writes only its own feature's shard file (never the shared feature_list.json); a simulated two-lane merge (two branches each updating a different feature's shard under .harness/state/) merges with zero conflicts; harness-report aggregates state correctly across all shards.",
+      "dependencies": [
+        "feat-010"
+      ],
+      "state": "planned",
+      "evidence": "",
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix shard read/write logic and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

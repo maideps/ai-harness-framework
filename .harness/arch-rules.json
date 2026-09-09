@@ -11,12 +11,12 @@
     },
     {
       "id": "arch-002",
-      "description": "Feature tracker preserves WIP=1 and dependency order",
+      "description": "Feature tracker preserves WIP=1, dependency order, and lane ownership",
       "check": "node scripts/framework-check.mjs arch:wip-contract",
       "expect": "PASS",
-      "what": "feature_list.json allows multiple active features or an active feature with unmet dependencies.",
-      "why": "The harness depends on a single active feature and explicit dependency ordering to keep sessions scoped, resumable, and verifiable.",
-      "fix": "Set at most one feature to active and ensure its dependencies are already passing before resuming implementation."
+      "what": "feature_list.json allows multiple active features, an active feature with unmet dependencies, or (on a lane/<feature-id> branch) an active feature that does not match the lane's declared feature.",
+      "why": "The harness depends on a single active feature and explicit dependency ordering to keep sessions scoped, resumable, and verifiable. Worktree lanes (feat-010, D-017) extend this per-branch: a lane branch may only activate the feature it is named for, so concurrent lanes stay independently auditable.",
+      "fix": "Set at most one feature to active and ensure its dependencies are already passing before resuming implementation. On a lane/<feature-id> branch, the active feature must be <feature-id> — activate that feature or switch lanes."
     },
     {
       "id": "arch-003",
