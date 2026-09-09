@@ -6,8 +6,6 @@
       "behavior": "Describe the single target behavior this feature implements.",
       "verification": "Describe how completion is verified end-to-end.",
       "dependencies": [],
-      "state": "planned",
-      "evidence": "",
       "layers": [
         {
           "label": "Layer 1: Static checks",

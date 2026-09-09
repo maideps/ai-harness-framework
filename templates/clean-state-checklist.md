@@ -16,7 +16,7 @@ Run through this checklist at session end to confirm the repository is in a clea
 ## State Files
 
 - [ ] `PROGRESS.md` updated with current state, decisions, blockers, next steps
-- [ ] `feature_list.json` updated with the new feature state
+- [ ] The active feature's `.harness/state/<id>.json` updated with the new state
 - [ ] `DECISIONS.md` updated with any new architectural decisions
 - [ ] `session-handoff.md` filled out (for large sessions)
 - [ ] `docs/quality-document.md` updated for modules touched
@@ -41,7 +41,7 @@ Run through this checklist at session end to confirm the repository is in a clea
 
 ## Next Session Preview
 
-- [ ] `feature_list.json` has exactly one feature with `state: "active"` (or zero)
+- [ ] At most one feature has `state: "active"` across `.harness/state/*.json` (WIP=1)
 - [ ] The next feature in dependency order is clearly identified
 - [ ] No blockers that would prevent the next session from starting
 

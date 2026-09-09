@@ -36,7 +36,7 @@ After touching any module, update `docs/quality-document.md` with ratings (A/B/C
 
 `make vcr` / `npm run vcr` records a verification trail to `.harness/trails/` after check and check-arch pass. A plain `make check` does not write trails — only a successful VCR run does.
 
-Record evidence in `feature_list.json` under each feature's `evidence` field.
+Record evidence in that feature's `.harness/state/<id>.json` under its `evidence` field.
 
 ## Session Report
 

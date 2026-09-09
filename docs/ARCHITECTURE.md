@@ -38,7 +38,7 @@ These boundaries are enforced today by `make check` / `npm run check` and `make 
 
 The canonical implementation of every harness operation lives in the Node runner `scripts/framework-check.mjs`. There is one runner, two thin surfaces (Makefile targets and npm scripts), and bash shims for compatibility:
 
-- **Node runner** — `scripts/framework-check.mjs` implements all modes: verification layers (`lint`, `typecheck`, `test`, `build`, `e2e`), `run-layer`, `verify-chain`, `check-arch`, `verify-feature`, `session-trace`, `clean-state-check`, `setup`, `record-trail`, `manifest`, `help`. It is the only place the logic exists; every surface delegates to it.
+- **Node runner** — `scripts/framework-check.mjs` implements all modes: verification layers (`lint`, `typecheck`, `test`, `build`, `e2e`), `run-layer`, `verify-chain`, `check-arch`, `verify-feature`, `lane-new`/`lane-list`/`lane-land`/`lane-drop`, `migrate-feature-state`, `session-trace`, `clean-state-check`, `setup`, `record-trail`, `manifest`, `help`. It is the only place the logic exists; every surface delegates to it.
 - **Stack detection** — `scripts/stack-detect.mjs` is the single source of truth for "what kind of project is this". It detects the runtime (node, python, go, rust, jvm, dotnet, none) from manifest markers, the package manager for node stacks (npm, pnpm, yarn, bun), per-layer commands (including tool availability for python), the install step, and the verification chain. `init.sh` and the verification layers both consume it.
 - **Makefile** — every target is a one-line delegation to the runner (`node scripts/framework-check.mjs <mode>`). Make is optional; nothing is implemented in make recipes anymore.
 - **npm scripts** — `package.json` mirrors every make target 1:1 (`npm run check`, `npm run check-arch`, `npm run verify-feature -- <id>`, …). This is the make-free canonical path.
@@ -54,16 +54,23 @@ The harness runtime is Node ≥ 18: any adopter running harness tooling (make ta
 
 Concurrent multi-agent work (D-017) is supported through git worktrees, not a lock or lease layer. Each lane is a sibling git worktree checked out on branch `lane/<feature-id>`:
 
-- **`lane-new F=<id>`** — creates a sibling worktree (`../<repo>-lane-<id>`) on branch `lane/<id>` (new, from the current HEAD, or reused if it already exists), validates the feature's dependencies are already `passing`, and marks it `active` in the lane's own `feature_list.json` (uncommitted — the lane's first commit records it).
+- **`lane-new F=<id>`** — creates a sibling worktree (`../<repo>-lane-<id>`) on branch `lane/<id>` (new, from the current HEAD, or reused if it already exists), validates the feature's dependencies are already `passing`, and marks it `active` in the lane's own `.harness/state/<id>.json` (uncommitted — the lane's first commit records it).
 - **`lane-list`** — lists local `lane/*` branches with the feature each claims, its state, and whether a worktree currently exists for it.
-- **`lane-land F=<id>`** — run from the branch you want to merge into: refuses unless the lane branch's committed `feature_list.json` marks the feature `passing`, then merges (`--no-ff`), removes the worktree, and deletes the branch.
+- **`lane-land F=<id>`** — run from the branch you want to merge into: refuses unless the lane branch's committed `.harness/state/<id>.json` marks the feature `passing`, then merges (`--no-ff`), removes the worktree, and deletes the branch.
 - **`lane-drop F=<id>`** — removes a lane's worktree without merging; the branch is left intact. `git worktree remove` refuses on uncommitted or untracked changes by default, so abandoning a lane never silently discards work.
 
 Why no lock file: a git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity already gives mutual exclusion on "who owns this feature" — a lease with a stale-claim reaper would just reimplement what git already guarantees. `git status` and the gitignored `.harness/traces/` are naturally worktree-scoped, so `clean-state-check` and session traces need no lane-awareness at all.
 
-What lanes do change: arch-002 (`arch:wip-contract`) is lane-aware — on a `lane/<feature-id>` branch, the sole active feature (if any) must be `<feature-id>`, catching drift where a lane's working copy activates a different feature than the one it's named for. This is a real, local check (derived from the current git branch), evaluated in both `check-arch` and Layer 2 (`npm run test`).
+What lanes change: arch-002 (`arch:wip-contract`) is lane-aware — on a `lane/<feature-id>` branch, the sole active feature (if any) must be `<feature-id>`, catching drift where a lane's working copy activates a different feature than the one it's named for. This is a real, local check (derived from the current git branch), evaluated in both `check-arch` and Layer 2 (`npm run test`).
 
-What lanes do not yet solve: `feature_list.json` remains one shared file, so two lanes landing different features can still conflict on adjacent edits or simultaneous append-at-end-of-array insertions (two lanes each adding a brand-new feature). The planned follow-up (feat-011, Sharded Feature State) moves the mutable per-feature fields into `.harness/state/<id>.json` so lane landings touch disjoint paths and merge conflict-free by construction.
+## Sharded Feature State
+
+feat-011 (D-017) closed the gap the first cut of Worktree Lanes left open: `feature_list.json` declares what a feature is (id, name, behavior, verification, dependencies, layers) and changes rarely; each feature's mutable fields — `state`, `evidence` — live in their own file, `.harness/state/<feature-id>.json`. Two lanes landing two different features now touch two different files and merge conflict-free by construction, instead of racing to rewrite the same shared array.
+
+- **Read** — `loadFeaturesWithState()` overlays each declared feature with its shard (missing shard = `{state: "planned", evidence: ""}`); every runtime consumer (WIP=1, dependency checks, `verify-feature`, session traces, `clean-state-check`, lane commands) reads through it.
+- **Write** — `verify-feature` (via `recordFeaturePass`) writes only the passing feature's shard; `feature_list.json` is never rewritten by the gate. Lane commands read/write shards inside the lane's own worktree or, for a landed branch, via `git show <branch>:.harness/state/<id>.json`.
+- **Shape enforcement** — Layer 1b (`npm run typecheck`) rejects any `state`/`status`/`evidence` key left inline in `feature_list.json`, and validates every shard file: valid JSON, an allowed state, a real declared feature id (arch-006, `arch:sharded-state`). A stray shard with no matching declaration fails the same way a stray unclassified file fails arch-005.
+- **Migration** — `npm run migrate-feature-state` moves a repo's inline `state`/`status`/`evidence` into shards and strips those keys from `feature_list.json`; idempotent, skips features that already have a shard.
 
 ## Application Dependency Rules
 
@@ -80,7 +87,7 @@ The framework is reusable because its surfaces are classified. `.harness/manifes
 
 - **CORE** — the reusable spine: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `LICENSE`, `.nvmrc`, `.harness/manifest.json`, `.harness/arch-rules.json`. Same everywhere; changes here flow to every adopter through upgrades.
 - **TEMPLATES** — adopter skeletons in `templates/`. Each manifest entry declares its destination: `{ "from": "templates/progress.md", "to": "PROGRESS.md" }` (copy-and-fill) or `"keep": true` (reference material that stays under `templates/` — sprint contract, evaluator rubric, clean-state checklist). Destinations must be declared INSTANCE and must not collide with CORE (enforced by arch-004). This includes the CI workflow skeleton (`templates/ci.yml` → `.github/workflows/ci.yml`), which runs the full harness check plus the adoption matrix on Linux with real python/go/rust toolchains. Adopters receive these and fill them in; this repo's filled versions live at the declared destinations as INSTANCE state. This repo additionally keeps a `.github/workflows/publish.yml` (tag or manual publish of the harness package to npm) — distribution infrastructure for the harness package itself, not an adopter surface, so it is declared product-owned via `productRoots` and ships nowhere.
-- **INSTANCE** — this repo's own state: `feature_list.json`, `PROGRESS.md`, `claude-progress.md`, `DECISIONS.md`, `session-handoff.md`, `README.md`, `.gitignore`, `package-lock.json`, `.claude/settings.json`, `docs/`, `.harness/trails/`, `.harness/traces/.gitkeep`. Adopters receive empty skeletons from `templates/`, never this content.
+- **INSTANCE** — this repo's own state: `feature_list.json`, `.harness/state/` (sharded per-feature state, feat-011), `PROGRESS.md`, `claude-progress.md`, `DECISIONS.md`, `session-handoff.md`, `README.md`, `.gitignore`, `package-lock.json`, `.claude/settings.json`, `docs/`, `.harness/trails/`, `.harness/traces/.gitkeep`. Adopters receive empty skeletons from `templates/`, never this content.
 - **PRODUCT-OWNED** — directories (or files) listed in `productRoots` (e.g. `src/`, `packages/`, a single workflow file); files under them are outside the harness contract and exempt from classification. Adopters list their product code here; the harness repo itself uses it for repo-only distribution infrastructure.
 - **OPTIONAL COMPONENTS** — the multi-repo extension (`contracts/`, `tasks/`, `repositories/`, `scripts/verify-all`). Adopters activate it by copying the `templates/multi-repo/*` skeletons to their declared destinations; `npm run verify-all` (root gate) runs every `repositories/*/scripts/verify` and aggregates results, SKIPping repositories without a verify script. Single-repo projects pass `check` without the component, and every check that references it degrades gracefully when its markers are absent. Template destinations may land on optional markers as well as INSTANCE surfaces.
 
@@ -113,9 +120,10 @@ Each rule in `arch-rules.json` must include:
 Bootstrap-time rules currently verify:
 
 - required harness surfaces exist
-- the feature tracker preserves WIP=1 and dependency order
+- the feature tracker preserves WIP=1, dependency order, and (on a `lane/<feature-id>` branch) lane ownership
 - framework docs do not drift back to template placeholders
 - the manifest classifies every tracked file (reusability seam)
+- feature declarations carry no leftover inline state — mutable fields live only in `.harness/state/<id>.json` shards
 
 Adopting projects should add language- and framework-specific checks as the codebase grows.
 

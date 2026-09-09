@@ -50,6 +50,7 @@ const requiredMakeTargets = [
   "lane-list",
   "lane-land",
   "lane-drop",
+  "migrate-feature-state",
   "create-harness",
   "harness-upgrade",
   "harness-audit",
@@ -174,12 +175,58 @@ function loadFeatures() {
   return data;
 }
 
+// ---- Sharded feature state (feat-011, D-017) ----------------------------
+// feature_list.json holds declarations only (id, name, behavior, verification,
+// dependencies, layers). The mutable fields — state, evidence — live one file
+// per feature under .harness/state/<id>.json, so verify-feature and lane
+// landings never rewrite the shared feature_list.json again: two lanes
+// finishing two different features touch two different files and merge
+// without conflict by construction.
+
+const featureStateDir = ".harness/state";
+
+function featureStatePath(featureId) {
+  return path.join(featureStateDir, `${featureId}.json`);
+}
+
+// Missing shard = never touched = "planned" with no evidence yet.
+function readFeatureState(featureId) {
+  return readFeatureStateFrom(featureStatePath(featureId));
+}
+
+function readFeatureStateFrom(shardPath) {
+  if (!existsSync(shardPath)) {
+    return { state: "planned", evidence: "" };
+  }
+  const shard = JSON.parse(readFileSync(shardPath, "utf8"));
+  return {
+    state: getFeatureState(shard) ?? "planned",
+    evidence: typeof shard.evidence === "string" ? shard.evidence : "",
+  };
+}
+
+function writeFeatureState(featureId, { state, evidence }) {
+  mkdirSync(featureStateDir, { recursive: true });
+  writeFileSync(featureStatePath(featureId), `${JSON.stringify({ state, evidence }, null, 2)}${EOL}`, "utf8");
+}
+
+// The merged view every runtime consumer uses: declaration fields from
+// feature_list.json overlaid with that feature's current shard (state,
+// evidence). Kept separate from loadFeatures() because ensureFeatureShape
+// needs the raw declaration to confirm it carries no leftover mutable field.
+function loadFeaturesWithState() {
+  const { features } = loadFeatures();
+  return { features: features.map((feature) => ({ ...feature, ...readFeatureState(feature.id) })) };
+}
+
 function ensureFeatureShape() {
   const { features } = loadFeatures();
+  const declaredIds = new Set();
   for (const feature of features) {
     if (!("id" in feature)) {
       fail("feature <unknown> is missing required key id");
     }
+    declaredIds.add(feature.id);
     if (!("name" in feature) && !("title" in feature)) {
       fail(`feature ${feature.id} must define name or title`);
     }
@@ -189,20 +236,10 @@ function ensureFeatureShape() {
     if (!("verification" in feature)) {
       fail(`feature ${feature.id} is missing required key verification`);
     }
-    if (!("evidence" in feature)) {
-      fail(`feature ${feature.id} is missing required key evidence`);
-    }
-
-    const lifecycle = getFeatureState(feature);
-    if (!lifecycle) {
-      fail(`feature ${feature.id} must define state or status`);
-    }
-
-    if (typeof feature.state === "string" && !allowedStates.has(feature.state)) {
-      fail(`feature ${feature.id} has invalid state ${feature.state}`);
-    }
-    if (typeof feature.status === "string" && !allowedStatusValues.has(feature.status)) {
-      fail(`feature ${feature.id} has invalid status ${feature.status}`);
+    if ("state" in feature || "status" in feature || "evidence" in feature) {
+      fail(
+        `feature ${feature.id} declares mutable state in feature_list.json — state/evidence now live in .harness/state/${feature.id}.json (run node scripts/framework-check.mjs migrate-feature-state to move it)`,
+      );
     }
 
     if ("dependencies" in feature && !Array.isArray(feature.dependencies)) {
@@ -211,19 +248,80 @@ function ensureFeatureShape() {
     if (!Array.isArray(feature.layers) || feature.layers.length === 0) {
       fail(`feature ${feature.id} must define at least one verification layer`);
     }
-    if (typeof feature.evidence !== "string") {
-      fail(`feature ${feature.id} evidence must be a string`);
-    }
     for (const layer of feature.layers) {
       if (!layer.label || !layer.cmd || !layer.repair) {
         fail(`feature ${feature.id} contains an incomplete verification layer`);
       }
     }
   }
+  ensureShardedStateShape(declaredIds);
+}
+
+function ensureShardedStateShape(declaredIds) {
+  if (!existsSync(featureStateDir)) {
+    return;
+  }
+  for (const entry of readdirSync(featureStateDir)) {
+    if (!entry.endsWith(".json")) {
+      continue;
+    }
+    const featureId = entry.slice(0, -".json".length);
+    if (!declaredIds.has(featureId)) {
+      fail(`${featureStateDir}/${entry} does not correspond to any feature declared in feature_list.json`);
+    }
+    let shard;
+    try {
+      shard = JSON.parse(readFileSync(path.join(featureStateDir, entry), "utf8"));
+    } catch {
+      fail(`${featureStateDir}/${entry} is not valid JSON`);
+    }
+    const lifecycle = getFeatureState(shard);
+    if (!lifecycle) {
+      fail(`${featureStateDir}/${entry} must define state or status`);
+    }
+    if (typeof shard.state === "string" && !allowedStates.has(shard.state)) {
+      fail(`${featureStateDir}/${entry} has invalid state ${shard.state}`);
+    }
+    if (typeof shard.status === "string" && !allowedStatusValues.has(shard.status)) {
+      fail(`${featureStateDir}/${entry} has invalid status ${shard.status}`);
+    }
+    if (typeof shard.evidence !== "string") {
+      fail(`${featureStateDir}/${entry} evidence must be a string`);
+    }
+  }
+}
+
+function migrateFeatureState() {
+  const data = loadFeatures();
+  let migrated = 0;
+  for (const feature of data.features) {
+    const hasInline = "state" in feature || "status" in feature || "evidence" in feature;
+    if (!hasInline) {
+      continue;
+    }
+    if (!existsSync(featureStatePath(feature.id))) {
+      const state = getFeatureState(feature) ?? "planned";
+      const evidence = typeof feature.evidence === "string" ? feature.evidence : "";
+      writeFeatureState(feature.id, { state, evidence });
+      console.log(`  migrated ${feature.id}: state=${state}`);
+    } else {
+      console.log(`  skipped ${feature.id}: shard already exists at ${featureStatePath(feature.id)}`);
+    }
+    delete feature.state;
+    delete feature.status;
+    delete feature.evidence;
+    migrated += 1;
+  }
+  if (migrated === 0) {
+    console.log("Nothing to migrate — feature_list.json already declares no inline state.");
+    return;
+  }
+  writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
+  pass(`Migrated ${migrated} feature(s) to ${featureStateDir}/`);
 }
 
 function ensureFeatureGraph() {
-  const { features } = loadFeatures();
+  const { features } = loadFeaturesWithState();
   const ids = new Set();
   for (const feature of features) {
     if (ids.has(feature.id)) {
@@ -441,7 +539,7 @@ function getActiveFeatureId() {
   if (!existsSync("feature_list.json")) {
     return "";
   }
-  const { features } = readJson("feature_list.json");
+  const { features } = loadFeaturesWithState();
   const active = features.find((feature) => getFeatureState(feature) === "active");
   return active ? active.id : "";
 }
@@ -478,20 +576,14 @@ function reportDevStatus() {
   process.exit(0);
 }
 function recordFeaturePass(featureId, evidence) {
-  const data = loadFeatures();
-  const feature = data.features.find((item) => item.id === featureId);
-  if (!feature) {
+  const { features } = loadFeatures();
+  if (!features.some((item) => item.id === featureId)) {
     fail(`feature ${featureId} not found`);
   }
-
-  if ("state" in feature || !("status" in feature)) {
-    feature.state = "passing";
-  }
-  if ("status" in feature) {
-    feature.status = "passing";
-  }
-  feature.evidence = evidence;
-  writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
+  // Writes only the shard — feature_list.json is never rewritten here, which
+  // is the entire point: two lanes recording evidence for two different
+  // features touch two different files and merge without conflict.
+  writeFeatureState(featureId, { state: "passing", evidence });
   pass(`Recorded passing evidence for ${featureId}`);
 }
 
@@ -617,7 +709,7 @@ function verifyFeature(featureId) {
   console.log(`=== Verifying feature: ${featureId} ===`);
   console.log("");
 
-  const { features } = loadFeatures();
+  const { features } = loadFeaturesWithState();
   const feature = features.find((item) => item.id === featureId);
   if (!feature) {
     console.log(`[FAIL] Feature ${featureId} not found in feature_list.json`);
@@ -672,7 +764,7 @@ function verifyFeature(featureId) {
   const skipNote = skippedLayers.length > 0 ? ` (SKIP reported in: ${skippedLayers.join(", ")})` : "";
   const evidence = `All verification layers passed via node scripts/framework-check.mjs verify-feature at ${new Date().toISOString()}${skipNote}`;
   recordFeaturePass(featureId, evidence);
-  console.log("Evidence recorded in feature_list.json");
+  console.log(`Evidence recorded in ${featureStatePath(featureId)}`);
 }
 
 function tryGit(args) {
@@ -745,7 +837,7 @@ function ensureLaneWipContract() {
   if (!laneFeatureId || !existsSync("feature_list.json")) {
     return;
   }
-  const { features } = loadFeatures();
+  const { features } = loadFeaturesWithState();
   const active = features.filter((feature) => getFeatureState(feature) === "active");
   if (active.length === 1 && active[0].id !== laneFeatureId) {
     fail(
@@ -778,21 +870,21 @@ function laneNew(featureId) {
     return;
   }
 
-  const { features } = loadFeatures();
+  const { features } = loadFeaturesWithState();
   const feature = features.find((item) => item.id === featureId);
   if (!feature) {
     fail(`feature ${featureId} not found in feature_list.json`);
   }
-  const state = getFeatureState(feature);
-  if (state === "passing") {
+  const currentState = feature.state;
+  if (currentState === "passing") {
     fail(`feature ${featureId} is already passing — nothing to do`);
   }
-  if (state === "blocked") {
+  if (currentState === "blocked") {
     fail(`feature ${featureId} is blocked — unblock it before starting a lane`);
   }
   const unmet = getFeatureDependencies(feature).filter((dependencyId) => {
     const dependency = features.find((item) => item.id === dependencyId);
-    return !dependency || getFeatureState(dependency) !== "passing";
+    return !dependency || dependency.state !== "passing";
   });
   if (unmet.length > 0) {
     fail(`feature ${featureId} has unmet dependencies: ${unmet.join(", ")} — complete those first`);
@@ -808,43 +900,40 @@ function laneNew(featureId) {
     fail(`git worktree add failed for ${branch}`);
   }
 
-  if (state !== "active") {
-    const listPath = path.join(worktreeDir, "feature_list.json");
-    const data = JSON.parse(readFileSync(listPath, "utf8"));
-    const target = data.features.find((item) => item.id === featureId);
-    target.state = "active";
-    if ("status" in target) {
-      target.status = "in_progress";
-    }
-    writeFileSync(listPath, `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
+  if (currentState !== "active") {
+    const shardDir = path.join(worktreeDir, featureStateDir);
+    mkdirSync(shardDir, { recursive: true });
+    writeFileSync(
+      path.join(shardDir, `${featureId}.json`),
+      `${JSON.stringify({ state: "active", evidence: feature.evidence }, null, 2)}${EOL}`,
+      "utf8",
+    );
   }
 
   console.log("");
   console.log(`Lane ready: ${worktreeDir}`);
   console.log(`Branch: ${branch}`);
-  console.log(`Feature ${featureId} marked active in the lane's feature_list.json (uncommitted).`);
+  console.log(`Feature ${featureId} marked active in the lane's ${featureStateDir}/${featureId}.json (uncommitted).`);
   console.log("Next: work the feature inside that worktree, verify, commit, then run lane-land from the branch you want to merge into.");
 }
 
-function readFeatureListAt(worktreePath, featureId) {
-  const listPath = path.join(worktreePath, "feature_list.json");
-  if (!existsSync(listPath)) {
-    return null;
-  }
-  const data = JSON.parse(readFileSync(listPath, "utf8"));
-  return data.features.find((item) => item.id === featureId) ?? null;
+function readFeatureStateAt(worktreePath, featureId) {
+  return readFeatureStateFrom(path.join(worktreePath, featureStatePath(featureId)));
 }
 
-function readFeatureListAtRef(branch, featureId) {
-  const content = gitCapture(["show", `${branch}:feature_list.json`]);
+function readFeatureStateAtRef(branch, featureId) {
+  // git object pathspecs are always forward-slash, regardless of host OS —
+  // featureStatePath() uses path.join (backslashes on Windows), so build the
+  // pathspec directly instead of reusing it here.
+  const content = gitCapture(["show", `${branch}:${featureStateDir}/${featureId}.json`]);
   if (!content) {
-    return null;
+    return { state: "planned", evidence: "" };
   }
   try {
-    const data = JSON.parse(content);
-    return data.features.find((item) => item.id === featureId) ?? null;
+    const shard = JSON.parse(content);
+    return { state: getFeatureState(shard) ?? "planned", evidence: typeof shard.evidence === "string" ? shard.evidence : "" };
   } catch {
-    return null;
+    return { state: "planned", evidence: "" };
   }
 }
 
@@ -861,10 +950,9 @@ function laneList() {
   for (const branch of laneRefs) {
     const featureId = laneFeatureIdFromBranch(branch);
     const worktreePath = findWorktreeForBranch(branch);
-    const feature = worktreePath
-      ? readFeatureListAt(worktreePath, featureId)
-      : readFeatureListAtRef(branch, featureId);
-    const state = feature ? getFeatureState(feature) ?? "unknown" : "unknown";
+    const { state } = worktreePath
+      ? readFeatureStateAt(worktreePath, featureId)
+      : readFeatureStateAtRef(branch, featureId);
     console.log(`  ${branch}  feature=${featureId}  state=${state}  worktree=${worktreePath ?? "(none)"}`);
   }
 }
@@ -877,8 +965,8 @@ function laneLand(featureId) {
   if (!branchExists(branch)) {
     fail(`lane branch ${branch} does not exist`);
   }
-  const feature = readFeatureListAtRef(branch, featureId);
-  if (!feature || getFeatureState(feature) !== "passing") {
+  const { state } = readFeatureStateAtRef(branch, featureId);
+  if (state !== "passing") {
     fail(`feature ${featureId} is not marked passing on ${branch} — verify and commit it in the lane before landing`);
   }
 
@@ -966,7 +1054,7 @@ function collectVerificationSummary(timestamp, activeFeature) {
   if (!existsSync("feature_list.json")) {
     return { timestamp, active_feature: activeFeature, feature_evidence: "", layers: [] };
   }
-  const { features } = readJson("feature_list.json");
+  const { features } = loadFeaturesWithState();
   const active = features.find((feature) => getFeatureState(feature) === "active") ?? {};
   return {
     timestamp,
@@ -1153,7 +1241,7 @@ function cleanStateCheck() {
   console.log("");
   console.log("--- Feature State ---");
   if (existsSync("feature_list.json")) {
-    const { features } = readJson("feature_list.json");
+    const { features } = loadFeaturesWithState();
     const activeCount = features.filter((feature) => getFeatureState(feature) === "active").length;
     check(activeCount <= 1, `WIP=${activeCount} (at most 1 active feature)`, `WIP=${activeCount} (multiple active features)`);
   } else {
@@ -1265,6 +1353,7 @@ function printHelp() {
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
   console.log("  lane-drop F=<id>  Abandon a lane's worktree without merging");
+  console.log("  migrate-feature-state  Move inline state/evidence into .harness/state/<id>.json");
   console.log("  vcr            verify + check-arch + record trail");
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
@@ -1353,6 +1442,11 @@ switch (mode) {
     console.log("PASS");
     break;
   }
+  case "arch:sharded-state": {
+    ensureFeatureShape();
+    console.log("PASS");
+    break;
+  }
   case "record-feature-pass": {
     const [featureId, ...evidenceParts] = args;
     if (!featureId || evidenceParts.length === 0) {
@@ -1419,6 +1513,10 @@ switch (mode) {
   }
   case "lane-drop": {
     laneDrop(args[0]);
+    break;
+  }
+  case "migrate-feature-state": {
+    migrateFeatureState();
     break;
   }
   case "verify-chain": {

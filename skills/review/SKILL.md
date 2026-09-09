@@ -18,7 +18,7 @@ An adversarial pass on your own work before it goes through the gate. It exists 
 2. Review the diff file by file: scope creep, unrelated edits, debug artifacts, commented-out code, TODOs without owners.
 3. Confirm the gates actually ran and their output was read — PASS vs SKIP must be reported separately; a SKIP is not evidence.
 4. Check the feature's dependency chain: dependencies must be `passing` or the gate will refuse the transition.
-5. Verify the evidence path: trail in `.harness/trails/` (via `npm run vcr`), evidence field in `feature_list.json`, state files updated.
+5. Verify the evidence path: trail in `.harness/trails/` (via `npm run vcr`), evidence field in `.harness/state/<feature-id>.json`, state files updated.
 6. Write down anything not verified — say it in the handoff instead of implying it.
 
 ## Rules

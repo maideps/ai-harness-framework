@@ -18,9 +18,9 @@ If baseline verification is failing, repair that first before adding new scope.
 ## Working Rules
 
 - **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json`
-- **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"`). Complete and move to `passing` before activating the next. On a `lane/<feature-id>` worktree lane, this is scoped per lane — a lane may only activate the feature it is named for (see `lane-new`/`lane-list`/`lane-land`/`lane-drop`, docs/ARCHITECTURE.md, and DECISIONS.md D-017).
+- **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"` in that feature's `.harness/state/<id>.json`). Complete and move to `passing` before activating the next. On a `lane/<feature-id>` worktree lane, this is scoped per lane — a lane may only activate the feature it is named for (see `lane-new`/`lane-list`/`lane-land`/`lane-drop`, docs/ARCHITECTURE.md, and DECISIONS.md D-017).
 - **Verification required**: Don't claim done without running verification commands
-- **Update artifacts**: Before ending session, update `PROGRESS.md` and `feature_list.json`
+- **Update artifacts**: Before ending session, update `PROGRESS.md` and the active feature's `.harness/state/<id>.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
 - **Leave clean state**: Next session must be able to run `./init.sh` immediately
 - **One logical operation per commit**: The repo must be in a consistent state after every commit
@@ -50,7 +50,8 @@ Agents must read and update these files — they are the source of truth, not ch
 
 | File | Purpose | When to Read | When to Update |
 |---|---|---|---|
-| `feature_list.json` | Feature state tracker | Session start | After every feature state change |
+| `feature_list.json` | Feature declarations (id, behavior, dependencies, layers) | Session start | When features are added, split, or redefined |
+| `.harness/state/<id>.json` | That feature's mutable state (state, evidence) | Session start | After every feature state change |
 | `PROGRESS.md` | Session continuity log (canonical) | Session start | Session end |
 | `claude-progress.md` | Compatibility alias for progress tracking | Session start (if used) | Session end (if used) |
 | `DECISIONS.md` | Architectural decisions log | Before major decisions | After any architectural decision |
@@ -65,7 +66,7 @@ A feature is done only when ALL of the following are true:
 - [ ] Layer 1 (syntax/static checks) passes
 - [ ] Layer 2 (runtime behavior/tests) passes
 - [ ] Layer 3 (system confirmation/e2e) passes when crossing component boundaries
-- [ ] Evidence recorded in `feature_list.json` and `PROGRESS.md`
+- [ ] Evidence recorded in `.harness/state/<id>.json` and `PROGRESS.md`
 - [ ] Repository remains restartable from `./init.sh`
 
 ## Verification Commands
@@ -82,7 +83,7 @@ Required checks (each with its npm mirror):
 - `make build` / `npm run build` — Production build verification
 - `make e2e` / `npm run e2e` — End-to-end tests (required for cross-component changes)
 
-Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `vcr`, `create-harness`, `harness-upgrade`, `harness-audit`, `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
+Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `migrate-feature-state`, `vcr`, `create-harness`, `harness-upgrade`, `harness-audit`, `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
 
 `make check` runs all layers in order (lint → typecheck → test → build → e2e). A layer that is not configured reports SKIP and does not count as verified; a failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
 

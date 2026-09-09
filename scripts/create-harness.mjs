@@ -88,6 +88,7 @@ export function createRuntimeSurfaces(root) {
     }
   };
   mkdirSync(path.join(root, ".harness", "trails"), { recursive: true });
+  mkdirSync(path.join(root, ".harness", "state"), { recursive: true });
   write(".harness/traces/.gitkeep", "");
   write(".claude/settings.json", "{}\n");
   write("package-lock.json", "{}\n");

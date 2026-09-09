@@ -1,8 +1,8 @@
 {
   "harness": "ai-harness-framework",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "schemaVersions": {
-    "featureList": 1,
+    "featureList": 2,
     "archRules": 1,
     "trace": 1,
     "manifest": 3
@@ -51,6 +51,7 @@
   ],
   "instance": [
     "feature_list.json",
+    ".harness/state/",
     "PROGRESS.md",
     "claude-progress.md",
     "DECISIONS.md",

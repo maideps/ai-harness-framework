@@ -58,7 +58,7 @@ After touching any module, update `docs/quality-document.md` with ratings (A/B/C
 - Layer 2: Test run summary
 - Layer 3: Build artifact or e2e result
 
-Record evidence in `feature_list.json` under each feature's `evidence` field.
+Record evidence in that feature's `.harness/state/<id>.json` under its `evidence` field.
 
 ## Session Report
 

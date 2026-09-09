@@ -108,8 +108,6 @@ function fillFeatureList(root) {
     behavior: "Prove the harness runs a full feature cycle in this adopted repository.",
     verification: "verify-feature runs all layers and records evidence.",
     dependencies: [],
-    state: "active",
-    evidence: "",
     layers: [
       { label: "Layer 1: Static checks", cmd: "npm run lint", repair: "Fix static-analysis issues and rerun the layer command." },
       { label: "Layer 2: Runtime tests", cmd: "npm run test", repair: "Fix failing tests and rerun the layer command." },

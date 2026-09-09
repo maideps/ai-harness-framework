@@ -146,10 +146,29 @@ test("ensureManifest: fails when a file is claimed as both instance and template
 
 // ---- WIP=1 gate (mode: "arch:wip-contract", function ensureFeatureGraph) --
 
-function featureListFixture(features) {
+// Feature declarations (feature_list.json) and mutable state (.harness/state/<id>.json)
+// are separate files as of feat-011 (D-017). Fixtures below still pass `state`/
+// `evidence` inline on each feature spec for readability — this helper splits
+// them into the declaration file plus one shard per feature that declares them,
+// so callers don't need to know the on-disk split.
+function splitFeatureFixture(features) {
   const root = fixture();
-  write(root, "feature_list.json", `${JSON.stringify({ features }, null, 2)}\n`);
+  const declarations = features.map(({ state, evidence, ...decl }) => decl);
+  write(root, "feature_list.json", `${JSON.stringify({ features: declarations }, null, 2)}\n`);
+  for (const feature of features) {
+    if ("state" in feature || "evidence" in feature) {
+      write(
+        root,
+        `.harness/state/${feature.id}.json`,
+        `${JSON.stringify({ state: feature.state ?? "planned", evidence: feature.evidence ?? "" }, null, 2)}\n`,
+      );
+    }
+  }
   return root;
+}
+
+function featureListFixture(features) {
+  return splitFeatureFixture(features);
 }
 
 test("WIP=1: passes with zero active features", () => {
@@ -335,8 +354,7 @@ test("check-arch: fails on an invalid expect regex", () => {
 // above already use for a different subsystem.
 
 function gitFeatureFixture(features) {
-  const root = fixture();
-  write(root, "feature_list.json", `${JSON.stringify({ features }, null, 2)}\n`);
+  const root = splitFeatureFixture(features);
   spawnSync("git", ["init", "-q"], { cwd: root });
   spawnSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
   spawnSync("git", ["config", "user.name", "Test"], { cwd: root });
@@ -366,8 +384,8 @@ test("lane-new: creates a sibling worktree on lane/<id> and marks the feature ac
     const result = run(root, "lane-new", ["feat-001"]);
     assert.equal(result.exit, 0, result.output);
     assert.ok(existsSync(worktreePath), "expected sibling worktree directory to exist");
-    const laneList = JSON.parse(readFileSync(path.join(worktreePath, "feature_list.json"), "utf8"));
-    assert.equal(laneList.features.find((f) => f.id === "feat-001").state, "active");
+    const shard = JSON.parse(readFileSync(path.join(worktreePath, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "active");
   } finally {
     cleanupLane(root, worktreePath);
   }
@@ -459,8 +477,8 @@ test("lane-land: merges a passing lane, removes the worktree, and deletes the br
   const worktreePath = laneWorktreePathFor(root, "feat-001");
   try {
     run(root, "lane-new", ["feat-001"]);
-    write(worktreePath, "feature_list.json", `${JSON.stringify(
-      { features: [{ id: "feat-001", state: "passing", evidence: "test", dependencies: [], layers: [] }] },
+    write(worktreePath, ".harness/state/feat-001.json", `${JSON.stringify(
+      { state: "passing", evidence: "test" },
       null,
       2,
     )}\n`);
@@ -471,8 +489,13 @@ test("lane-land: merges a passing lane, removes the worktree, and deletes the br
     assert.equal(result.exit, 0, result.output);
     assert.ok(!existsSync(worktreePath), "worktree should be removed after landing");
 
-    const landed = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
-    assert.equal(landed.features.find((f) => f.id === "feat-001").state, "passing");
+    // feature_list.json is declaration-only and must never be rewritten by a
+    // land — the whole point of sharding (feat-011, D-017) is that landing
+    // touches only this feature's own shard.
+    const declarationsUntouched = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
+    assert.ok(!("state" in declarationsUntouched.features[0]), "feature_list.json must stay declaration-only");
+    const landedShard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(landedShard.state, "passing");
 
     const branches = spawnSync("git", ["branch", "--list", "lane/feat-001"], { cwd: root, encoding: "utf8" });
     assert.equal(branches.stdout.trim(), "", "lane branch should be deleted after a successful land");
@@ -486,8 +509,8 @@ test("lane-land: refuses when the branch to merge into has uncommitted changes",
   const worktreePath = laneWorktreePathFor(root, "feat-001");
   try {
     run(root, "lane-new", ["feat-001"]);
-    write(worktreePath, "feature_list.json", `${JSON.stringify(
-      { features: [{ id: "feat-001", state: "passing", evidence: "test", dependencies: [], layers: [] }] },
+    write(worktreePath, ".harness/state/feat-001.json", `${JSON.stringify(
+      { state: "passing", evidence: "test" },
       null,
       2,
     )}\n`);
@@ -529,8 +552,7 @@ test("lane-drop: refuses to discard an uncommitted lane, then removes it cleanly
 // ---- Lane-aware WIP=1 (ensureLaneWipContract, via arch:wip-contract) ------
 
 function laneBranchFixture(branch, features) {
-  const root = fixture();
-  write(root, "feature_list.json", `${JSON.stringify({ features }, null, 2)}\n`);
+  const root = splitFeatureFixture(features);
   spawnSync("git", ["init", "-q"], { cwd: root });
   spawnSync("git", ["checkout", "-q", "-b", branch], { cwd: root });
   return root;
@@ -571,6 +593,184 @@ test("lane WIP: passes on a non-lane branch regardless of which feature is activ
   try {
     const result = run(root, "arch:wip-contract");
     assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- Sharded feature state shape (feat-011, D-017, mode: "typecheck") ----
+
+test("typecheck: passes a declaration-only feature_list.json with no shard", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    { features: [{ id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }] }] },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: fails when feature_list.json still declares inline state", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          state: "active",
+          layers: [{ label: "L", cmd: "true", repair: "r" }],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /feature feat-001 declares mutable state in feature_list\.json/);
+    assert.match(result.stderr, /migrate-feature-state/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: passes a valid shard that matches a declared feature", () => {
+  const root = splitFeatureFixture([
+    { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }], state: "passing", evidence: "e" },
+  ]);
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: fails on a shard with no matching declared feature (stray shard)", () => {
+  const root = splitFeatureFixture([
+    { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }] },
+  ]);
+  write(root, ".harness/state/feat-999.json", `${JSON.stringify({ state: "passing", evidence: "" }, null, 2)}\n`);
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /\.harness\/state\/feat-999\.json does not correspond to any feature declared/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: fails on a shard with an invalid state value", () => {
+  const root = splitFeatureFixture([
+    { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }] },
+  ]);
+  write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "done", evidence: "" }, null, 2)}\n`);
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /\.harness\/state\/feat-001\.json has invalid state done/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- verify-feature writes only the shard (feat-011, D-017) --------------
+
+test("verify-feature: records passing evidence in the shard, never rewrites feature_list.json", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          layers: [{ label: "L", cmd: `${NODE} -e "process.exit(0)"`, repair: "r" }],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  const declarationsBefore = readFileSync(path.join(root, "feature_list.json"), "utf8");
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(readFileSync(path.join(root, "feature_list.json"), "utf8"), declarationsBefore, "feature_list.json must be byte-identical after verify-feature");
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "passing");
+    assert.match(shard.evidence, /All verification layers passed/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- migrate-feature-state -------------------------------------------------
+
+test("migrate-feature-state: moves inline state/evidence into shards and strips them from feature_list.json", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], state: "passing", evidence: "old evidence", layers: [{ label: "L", cmd: "true", repair: "r" }] },
+        { id: "feat-002", name: "Two", behavior: "b", verification: "v", dependencies: [], status: "not_started", layers: [{ label: "L", cmd: "true", repair: "r" }] },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "migrate-feature-state");
+    assert.equal(result.exit, 0, result.output);
+
+    const declarations = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
+    for (const feature of declarations.features) {
+      assert.ok(!("state" in feature) && !("status" in feature) && !("evidence" in feature), `${feature.id} must have no inline mutable fields after migration`);
+    }
+
+    const shard1 = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard1.state, "passing");
+    assert.equal(shard1.evidence, "old evidence");
+    const shard2 = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8"));
+    assert.equal(shard2.state, "planned");
+
+    const typecheck = run(root, "typecheck");
+    assert.equal(typecheck.exit, 0, typecheck.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("migrate-feature-state: is idempotent and does not clobber an existing shard", () => {
+  const root = splitFeatureFixture([
+    { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [], state: "active", evidence: "current" },
+  ]);
+  // Simulate a legacy repo where feature_list.json still has stale inline
+  // fields alongside an already-migrated (and more current) shard.
+  const declarations = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
+  declarations.features[0].state = "planned";
+  writeFileSync(path.join(root, "feature_list.json"), `${JSON.stringify(declarations, null, 2)}\n`);
+  try {
+    const result = run(root, "migrate-feature-state");
+    assert.equal(result.exit, 0, result.output);
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "active", "existing shard must win over stale inline data");
+
+    const second = run(root, "migrate-feature-state");
+    assert.equal(second.exit, 0, second.output);
+    assert.match(second.stdout, /Nothing to migrate/);
   } finally {
     cleanup(root);
   }

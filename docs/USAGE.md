@@ -35,6 +35,7 @@ For node projects, the package.json script keys are the layer commands (`scripts
 | List worktree lanes | `make lane-list` | `npm run lane-list` |
 | Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
 | Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
+| Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Session start / end | `make session-start` / `session-end` | `npm run session-start` / `session-end` |
 | Pre-commit clean state | `make clean-check` | `npm run clean-check` |
@@ -42,14 +43,14 @@ For node projects, the package.json script keys are the layer commands (`scripts
 
 ## The Feature Workflow
 
-1. Read `feature_list.json` — the machine-readable source of truth. Pick ONE unfinished feature.
-2. Activate it by setting its `state` to `"active"`. The harness enforces **WIP=1** (at most one active feature) and **dependency order** (an active feature's dependencies must already be `passing`).
+1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature.
+2. Activate it by setting `state` to `"active"` in that feature's `.harness/state/<feature-id>.json` (create the file if it doesn't exist yet: `{"state": "active", "evidence": ""}`). The harness enforces **WIP=1** (at most one active feature) and **dependency order** (an active feature's dependencies must already be `passing`).
 3. Implement the feature. Run `npm run check` before every commit.
 4. Verify through the gate — never mark a feature `passing` by hand:
    ```bash
    npm run verify-feature -- <feature-id>
    ```
-   The gate runs the feature's own verification layers, refuses to pass a feature whose dependencies are not `passing`, and records evidence in `feature_list.json`.
+   The gate runs the feature's own verification layers, refuses to pass a feature whose dependencies are not `passing`, and records evidence in `.harness/state/<feature-id>.json` — `feature_list.json` itself is never rewritten (feat-011, D-017).
 5. Record durable evidence of a full run with `npm run vcr` (writes a trail to `.harness/trails/`).
 6. End the session: update `PROGRESS.md`, `session-handoff.md`, and `docs/quality-document.md`, then run `npm run clean-check` and commit.
 
@@ -77,14 +78,29 @@ Multiple agents can work on independent features at the same time, each in its o
 
 ```bash
 npm run lane-new -- feat-020    # sibling worktree ../<repo>-lane-feat-020 on branch lane/feat-020,
-                                 # feature marked active there (uncommitted)
+                                 # feature marked active in .harness/state/feat-020.json (uncommitted)
 npm run lane-list               # every local lane/* branch: feature, state, worktree path
 npm run lane-land -- feat-020   # from the branch to merge into: refuses unless the lane's
                                  # feature is passing, then merges, removes the worktree, deletes the branch
 npm run lane-drop -- feat-020   # abandon the lane's worktree without merging (branch kept)
 ```
 
-A git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity is the coordination primitive — no lock file or lease. WIP=1 applies per lane: a `lane/<feature-id>` branch may only activate the feature it is named for (`arch-002` enforces this). `feature_list.json` is still one shared file, so two lanes landing different features can still conflict on adjacent edits — pick genuinely independent features (no shared dependency edge, no shared files) for concurrent lanes.
+A git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity is the coordination primitive — no lock file or lease. WIP=1 applies per lane: a `lane/<feature-id>` branch may only activate the feature it is named for (`arch-002` enforces this). Feature state is sharded — one file per feature under `.harness/state/<id>.json` (feat-011, D-017) — so two lanes landing two different features touch two different files and merge conflict-free by construction; `feature_list.json` itself only changes when features are declared, so lane landings rarely touch it at all.
+
+## Sharded Feature State
+
+`feature_list.json` declares what each feature is (id, name, behavior, verification, dependencies, layers) and rarely changes. Each feature's mutable state — `state` and `evidence` — lives in its own file, `.harness/state/<feature-id>.json`:
+
+```json
+{
+  "state": "passing",
+  "evidence": "All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-09-09T00:00:00.000Z"
+}
+```
+
+A missing shard means "planned, no evidence yet" — you don't need to create one until you activate a feature. `npm run verify-feature -- <id>` writes only that feature's shard; it never rewrites `feature_list.json`. `npm run typecheck` (Layer 1b) rejects any `state`/`status`/`evidence` key found inline in `feature_list.json` — that data belongs in the shard now.
+
+Upgrading a repository from the older inline-state schema (or hand-migrating one): `npm run migrate-feature-state` moves every feature's inline `state`/`status`/`evidence` into its shard and strips those keys from `feature_list.json`. It's idempotent — a feature that already has a shard is left alone, and running it again on an already-migrated repo reports nothing to do.
 
 ## Multi-repo Extension (optional)
 
@@ -170,4 +186,4 @@ Customization points (from the manifest):
 - **SKIP** — the layer is not configured; it does not count as verified.
 - **FAIL** — non-zero exit; the chain stops.
 
-`npm run check-arch` enforces five rules: required harness surfaces exist, the feature tracker preserves WIP=1 and dependency order, framework docs contain no template placeholders, the manifest is valid, and every tracked file is classified by the manifest.
+`npm run check-arch` enforces six rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, and feature declarations carry no leftover inline state (sharded state stays consistent).

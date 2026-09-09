@@ -1,6 +1,6 @@
 {
   "name": "@maidelinps/ai-harness-framework",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows",
   "license": "MIT",
   "repository": {
@@ -42,6 +42,7 @@
     "lane-list": "node scripts/framework-check.mjs lane-list",
     "lane-land": "node scripts/framework-check.mjs lane-land",
     "lane-drop": "node scripts/framework-check.mjs lane-drop",
+    "migrate-feature-state": "node scripts/framework-check.mjs migrate-feature-state",
     "vcr": "npm run check && npm run check-arch && node scripts/framework-check.mjs record-trail vcr",
     "session-start": "node scripts/framework-check.mjs session-trace start",
     "session-end": "node scripts/framework-check.mjs session-trace end",

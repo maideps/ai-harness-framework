@@ -117,6 +117,7 @@ Every make target is mirrored 1:1 by an npm script; both delegate to the Node ru
 | List worktree lanes | `make lane-list` | `npm run lane-list` |
 | Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
 | Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
+| Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Record session start | `make session-start` | `npm run session-start` |
 | Record session end | `make session-end` | `npm run session-end` |

@@ -16,7 +16,7 @@ The canonical workflow contract remains in AGENTS.md.
 
 ## State Files
 
-- feature_list.json
+- feature_list.json (declarations only; mutable state lives in .harness/state/<id>.json)
 - PROGRESS.md (canonical)
 - claude-progress.md (compatibility alias)
 - DECISIONS.md

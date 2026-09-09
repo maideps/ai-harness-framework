@@ -44,6 +44,15 @@
       "what": "A tracked file is not declared as CORE, INSTANCE, TEMPLATE, or product-owned (productRoots) in the manifest, or is declared twice.",
       "why": "Reusability requires that distribution can answer, for every file, whether it ships as-is, ships as a skeleton, never ships, or belongs to the adopting project. Unclassified files get silently dropped or silently leaked — both break the seam contract.",
       "fix": "Classify the file in .harness/manifest.json (core / instance / templates), or add its parent directory to productRoots if it is product-owned."
+    },
+    {
+      "id": "arch-006",
+      "description": "Feature declarations carry no inline mutable state; sharded state stays consistent",
+      "check": "node scripts/framework-check.mjs arch:sharded-state",
+      "expect": "PASS",
+      "what": "A feature_list.json entry still declares state/status/evidence inline, or a file under .harness/state/ is invalid JSON, has an invalid state, or does not correspond to any declared feature.",
+      "why": "Sharded feature state (feat-011, D-017) only delivers conflict-free lane landings if feature_list.json truly stays declaration-only and every shard is a real, valid record of one feature's current state — drift here silently reintroduces the whole-file race the sharding exists to remove.",
+      "fix": "Run `node scripts/framework-check.mjs migrate-feature-state` to move inline state/evidence into .harness/state/<id>.json, or fix/remove the invalid or stray shard file."
     }
   ]
 }
