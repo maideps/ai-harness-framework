@@ -1,5 +1,8 @@
 # AI Harness Framework
 
+[![CI](https://github.com/maideps/ai-harness-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/maideps/ai-harness-framework/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows. This repository serves as both the harness implementation and a reference template for bootstrapping harness-enabled projects.
 
 ## What It Is
@@ -9,6 +12,8 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Layered verification**: Three verification gates (static checks → runtime tests → system confirmation) that must pass in order before any feature is considered done
 - **Feature-driven development**: All work is tracked as discrete features in `feature_list.json` with explicit dependencies and verification criteria
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
+- **Concurrent multi-agent lanes**: Multiple agents can work independent features at once, each in its own sibling git worktree on branch `lane/<feature-id>` (`lane-new`/`lane-list`/`lane-land`/`lane-drop`) — git's own branch-checkout exclusivity is the coordination primitive, no lock file needed, and WIP=1 is enforced per lane
+- **Sharded feature state**: `feature_list.json` declares what a feature is and rarely changes; each feature's mutable state (`state`, `evidence`) lives in its own `.harness/state/<id>.json` — two lanes finishing two different features merge without conflict by construction
 - **Durable cross-session continuity**: State files (`PROGRESS.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
 - **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch` / `npm run check-arch`
 - **Skills packs**: Nine reusable capability packs in `skills/` (feature-cycle, verification, review, commit, release, adopt, update-docs, session-handoff, write-skill), validated on every lint run
@@ -22,7 +27,7 @@ The framework is intentionally generic: it provides a reusable harness contract 
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/maideps/ai-harness-framework.git
 cd ai-harness-framework
 
 # 2. Verify the environment is healthy
@@ -65,7 +70,7 @@ Layers may only depend on layers below them. The domain layer has zero external 
 
 ### Verification Layers
 
-Every feature passes through three verification gates:
+Every feature passes through these layers, grouped into three gates (static checks, runtime tests, system confirmation):
 
 | Layer | Name | Command | What It Checks |
 |-------|------|---------|----------------|
@@ -85,16 +90,17 @@ These files are the source of truth—not chat history:
 
 | File | Purpose |
 |------|---------|
-| `feature_list.json` | Feature state tracker with dependencies and verification criteria |
+| `feature_list.json` | Feature declarations — id, behavior, dependencies, verification layers. Rarely changes. |
+| `.harness/state/<id>.json` | That feature's mutable state (`state`, `evidence`) — one file per feature |
 | `PROGRESS.md` | Session continuity starter artifact — current state, blockers, next steps |
 | `DECISIONS.md` | Architectural decisions log — why the codebase is structured this way |
 | `session-handoff.md` | Multi-session handoff starter artifact |
 
-`feature_list.json` uses a framework-native schema with `state` values of `planned`, `active`, `blocked`, and `passing`.
+`state` values are `planned`, `active`, `blocked`, and `passing`. `verify-feature` writes only the shard for the feature it just verified — `feature_list.json` itself is never rewritten by the gate (see [Sharded Feature State](docs/ARCHITECTURE.md#sharded-feature-state)).
 
 ### Reusability Contract
 
-The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `PROGRESS.md`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
+The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `.harness/state/`, `PROGRESS.md`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
 
 ### Command Targets
 
@@ -138,12 +144,12 @@ A feature is complete only when ALL of the following are true:
 - [ ] Layer 1 (syntax/static checks) passes
 - [ ] Layer 2 (runtime behavior/tests) passes
 - [ ] Layer 3 (system confirmation/e2e) passes when crossing component boundaries
-- [ ] Evidence recorded in `feature_list.json` and `PROGRESS.md`
+- [ ] Evidence recorded in `.harness/state/<id>.json` and `PROGRESS.md`
 - [ ] Repository remains restartable from `./init.sh`
 
 ## Feature Roadmap
 
-The dependency-ordered roadmap lives in `feature_list.json` — the machine-readable source of truth. Each feature there declares its behavior, dependencies, verification layers, and current state; this document intentionally does not duplicate it.
+The dependency-ordered roadmap lives in `feature_list.json` — the machine-readable source of truth. Each feature there declares its behavior, dependencies, and verification layers; current state lives in `.harness/state/<id>.json`. This document intentionally does not duplicate either.
 
 ## Documentation
 

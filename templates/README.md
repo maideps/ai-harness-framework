@@ -67,7 +67,8 @@ Every make target is mirrored 1:1 by an npm script:
 
 ## State Files
 
-- `feature_list.json` — feature state tracker with dependencies and verification criteria
+- `feature_list.json` — feature declarations: id, behavior, dependencies, verification layers
+- `.harness/state/<id>.json` — that feature's mutable state (`state`, `evidence`); one file per feature
 - `PROGRESS.md` — session continuity log
 - `DECISIONS.md` — architectural decisions log
 - `session-handoff.md` — multi-session handoff notes
