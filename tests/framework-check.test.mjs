@@ -775,3 +775,153 @@ test("migrate-feature-state: is idempotent and does not clobber an existing shar
     cleanup(root);
   }
 });
+
+// ---- add-feature (dogfooding feedback Tier 1 item 2) ----------------------
+
+test("add-feature: appends a declaration-only stub with no inline state", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    { features: [{ id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }] }] },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "add-feature", ["feat-002", "Some", "New", "Feature"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Added feat-002 to feature_list\.json/);
+
+    const data = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
+    assert.equal(data.features.length, 2);
+    const added = data.features[1];
+    assert.equal(added.id, "feat-002");
+    assert.equal(added.name, "Some New Feature", "multi-word name is rejoined from separate argv entries");
+    assert.deepEqual(added.dependencies, []);
+    assert.equal(added.layers.length, 3);
+    assert.ok(!("state" in added) && !("evidence" in added), "stub must be declaration-only (feat-011 schema)");
+
+    // The gate must accept the generated shape as-is.
+    const typecheck = run(root, "typecheck");
+    assert.equal(typecheck.exit, 0, typecheck.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("add-feature: refuses a duplicate feature id", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    { features: [{ id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [] }] },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "add-feature", ["feat-001", "Duplicate"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /feature feat-001 already exists/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- check-arch: untracked-file warning (dogfooding feedback Tier 1 item 1) -
+
+test("check-arch: warns (does not fail) when untracked files exist", () => {
+  const root = archRulesFixture([]);
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["add", ".harness/arch-rules.json"], { cwd: root });
+  write(root, "stray.txt", "untracked\n");
+  try {
+    const result = run(root, "check-arch");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[WARN\] 1 untracked file\(s\) exist/);
+    assert.match(result.stdout, /stray\.txt/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check-arch: no warning when the working tree has no untracked files", () => {
+  const root = archRulesFixture([]);
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["add", "-A"], { cwd: root });
+  try {
+    const result = run(root, "check-arch");
+    assert.equal(result.exit, 0, result.output);
+    assert.doesNotMatch(result.stdout, /untracked file/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check-arch: no warning (and no crash) outside a git repository", () => {
+  const root = archRulesFixture([]);
+  try {
+    const result = run(root, "check-arch");
+    assert.equal(result.exit, 0, result.output);
+    assert.doesNotMatch(result.stdout, /untracked file/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- PROGRESS.md session-number consistency (dogfooding feedback Tier 1 item 3) -
+
+function progressFixture(content) {
+  const root = fixture();
+  write(root, "PROGRESS.md", content);
+  return root;
+}
+
+test("lint:progress-log: passes on strictly sequential session numbers", () => {
+  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 003 — c\n");
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /unique and contiguous \(3 sessions\)/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: passes when sessions are logged out of file order (legitimate hotfix insertion)", () => {
+  // Mirrors this repo's own real history: Session 020 was written before 019.
+  const root = progressFixture("### Session 001 — a\n\n### Session 003 — c\n\n### Session 002 — b\n");
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails on a duplicate session number", () => {
+  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 002 — b again\n");
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /duplicate session number: Session 2/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails on a gap in the session numbers", () => {
+  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 004 — d\n");
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /missing Session 3/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: passes when PROGRESS.md has no numbered sessions yet", () => {
+  const root = progressFixture("# Progress Log\n\nNothing logged yet.\n");
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});

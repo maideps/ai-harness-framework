@@ -14,7 +14,7 @@ The core workflow of this harness. Everything else serves this loop.
 
 ## Workflow
 
-1. Read `feature_list.json` — it is the source of truth, not chat history.
+1. Read `feature_list.json` — it is the source of truth, not chat history. To add a new feature, use `npm run add-feature -- <id> <name>` (correctly-shaped stub) instead of hand-writing the JSON.
 2. Pick exactly ONE unfinished feature. Set its state to `"active"` in `.harness/state/<feature-id>.json` (create the file if it doesn't exist yet: `{"state": "active", "evidence": ""}`). Leave every other feature alone.
 3. Confirm the contract: at most one active feature (WIP=1), and every dependency of the active feature must already be `passing`. `npm run test` enforces both.
 4. Implement only that feature. Stay in scope — do not touch files unrelated to it.

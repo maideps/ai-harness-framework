@@ -36,6 +36,7 @@ For node projects, the package.json script keys are the layer commands (`scripts
 | Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
 | Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
 | Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
+| Add a feature stub | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name>` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Session start / end | `make session-start` / `session-end` | `npm run session-start` / `session-end` |
 | Pre-commit clean state | `make clean-check` | `npm run clean-check` |
@@ -43,7 +44,7 @@ For node projects, the package.json script keys are the layer commands (`scripts
 
 ## The Feature Workflow
 
-1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature.
+1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name>` appends a correctly-shaped stub (dependencies `[]`, the standard 3-layer chain) so you fill in `behavior`/`verification`/`dependencies` instead of hand-writing the JSON.
 2. Activate it by setting `state` to `"active"` in that feature's `.harness/state/<feature-id>.json` (create the file if it doesn't exist yet: `{"state": "active", "evidence": ""}`). The harness enforces **WIP=1** (at most one active feature) and **dependency order** (an active feature's dependencies must already be `passing`).
 3. Implement the feature. Run `npm run check` before every commit.
 4. Verify through the gate — never mark a feature `passing` by hand:
@@ -200,3 +201,8 @@ Customization points (from the manifest):
 - **FAIL** — non-zero exit; the chain stops.
 
 `npm run check-arch` enforces six rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, and feature declarations carry no leftover inline state (sharded state stays consistent).
+
+Two more checks worth knowing about, neither a numbered arch rule:
+
+- **`check-arch` warns (does not fail) on untracked files.** Coverage rules like arch-005 only see what `git ls-files` already tracks — a brand-new file silently passes coverage until it's `git add`ed, then fails once it is. `check-arch` prints a heads-up (`[WARN] N untracked file(s) exist…`) before evaluating rules, so a rule result you're about to read isn't misread as covering a file it can't see yet.
+- **`npm run lint` fails on a broken `PROGRESS.md` session log.** Parses every `### Session N` header and fails on a duplicate or a gap in the numeric *set* (not file order — a legitimate out-of-order write, e.g. a same-day hotfix session logged after a later-numbered one, is not a bug).

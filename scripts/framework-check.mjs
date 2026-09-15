@@ -51,6 +51,7 @@ const requiredMakeTargets = [
   "lane-land",
   "lane-drop",
   "migrate-feature-state",
+  "add-feature",
   "create-harness",
   "harness-upgrade",
   "harness-audit",
@@ -119,6 +120,37 @@ function getFeatureState(feature) {
 
 function getFeatureDependencies(feature) {
   return Array.isArray(feature.dependencies) ? feature.dependencies : [];
+}
+
+// Dogfooding feedback Tier 1 item 3: nothing caught a duplicate "### Session
+// 016" entry across many sessions of re-reading PROGRESS.md for context.
+// Checks the *set* of session numbers, not file order — a legitimate
+// out-of-order insertion (a same-day hotfix session written up after a
+// later-numbered one) is not a bug, only a duplicate or a gap is.
+function ensureProgressLog() {
+  const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
+  if (!progressFile) {
+    return; // ensureProgressArtifact already requires one to exist; nothing to lint yet
+  }
+  const numbers = [...readText(progressFile).matchAll(/^###\s+Session\s+(\d+)\b/gm)].map((match) => Number(match[1]));
+  if (numbers.length === 0) {
+    return; // no numbered sessions logged yet
+  }
+
+  const seen = new Set();
+  for (const number of numbers) {
+    if (seen.has(number)) {
+      fail(`${progressFile} has a duplicate session number: Session ${number} appears more than once`);
+    }
+    seen.add(number);
+  }
+  const sorted = [...seen].sort((a, b) => a - b);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== sorted[i - 1] + 1) {
+      fail(`${progressFile} is missing Session ${sorted[i - 1] + 1} — session numbers jump from ${sorted[i - 1]} to ${sorted[i]}`);
+    }
+  }
+  pass(`Progress log session numbers are unique and contiguous (${sorted.length} sessions)`);
 }
 
 function ensureNoPlaceholders() {
@@ -293,6 +325,39 @@ function ensureShardedStateShape(declaredIds) {
       fail(`${featureStateDir}/${entry} evidence must be a string`);
     }
   }
+}
+
+// Dogfooding feedback Tier 1 item 2: every feature in one real adopter
+// project (15 of them) was added via a one-off `node -e` script hand-building
+// the JSON object — repetitive, and one typo away from a malformed
+// feature_list.json. Appends a correctly-shaped, declaration-only stub
+// (feat-011's schema — no inline state/evidence) with the standard 3-layer
+// verification chain; behavior/verification/dependencies are left as TODOs
+// for the operator to fill in.
+function addFeature(featureId, name) {
+  if (!featureId || !name) {
+    fail("usage: node scripts/framework-check.mjs add-feature <id> <name>");
+  }
+  const data = loadFeatures();
+  if (data.features.some((feature) => feature.id === featureId)) {
+    fail(`feature ${featureId} already exists in feature_list.json`);
+  }
+  data.features.push({
+    id: featureId,
+    name,
+    behavior: "TODO: describe the single target behavior this feature implements.",
+    verification: "TODO: describe how completion is verified end-to-end.",
+    dependencies: [],
+    layers: [
+      { label: "Layer 1: Static checks", cmd: "npm run lint", repair: "Fix static-analysis issues and rerun the layer command." },
+      { label: "Layer 2: Runtime tests", cmd: "npm run test", repair: "Fix failing tests and rerun the layer command." },
+      { label: "Layer 3: System confirmation", cmd: "npm run check", repair: "Resolve cross-layer issues and rerun full verification." },
+    ],
+  });
+  writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
+  pass(
+    `Added ${featureId} to feature_list.json — fill in behavior/verification/dependencies, then activate by creating .harness/state/${featureId}.json with {"state": "active", "evidence": ""}`,
+  );
 }
 
 function migrateFeatureState() {
@@ -650,6 +715,39 @@ function runLayer(layer) {
   }
 }
 
+// arch-005 (and any rule built on the "manifest" mode's classification
+// coverage) only sees git-tracked files via `git ls-files` — a new file
+// silently passes coverage until it's `git add`ed, then fails once it is,
+// often first noticed in CI rather than locally (dogfooding feedback,
+// Tier 1 item 1). Warn, don't fail: this is a heads-up about what the rule
+// results below can and can't see yet, not a violation of anything.
+function warnUntrackedFiles() {
+  let untracked = [];
+  try {
+    untracked = execSync("git ls-files --others --exclude-standard", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split(/\r?\n/)
+      .filter(Boolean);
+  } catch {
+    return; // not a git repository — nothing to warn about
+  }
+  if (untracked.length === 0) {
+    return;
+  }
+  console.log(
+    `[WARN] ${untracked.length} untracked file(s) exist — coverage rules below (e.g. arch-005) only see files git already tracks. Run \`git add\` then re-run check-arch to see what CI will actually evaluate:`,
+  );
+  for (const file of untracked.slice(0, 10)) {
+    console.log(`         ${file}`);
+  }
+  if (untracked.length > 10) {
+    console.log(`         ...and ${untracked.length - 10} more`);
+  }
+  console.log("");
+}
+
 function checkArch() {
   const rulesPath = ".harness/arch-rules.json";
   if (!existsSync(rulesPath)) {
@@ -659,6 +757,7 @@ function checkArch() {
 
   console.log("=== Architecture Constraint Check ===");
   console.log("");
+  warnUntrackedFiles();
   const rules = readJson(rulesPath).rules ?? [];
   if (!Array.isArray(rules) || rules.length === 0) {
     console.log("[PASS] No architecture rules defined (acceptable for bootstrap)");
@@ -1358,6 +1457,7 @@ function printHelp() {
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
   console.log("  lane-drop F=<id>  Abandon a lane's worktree without merging");
   console.log("  migrate-feature-state  Move inline state/evidence into .harness/state/<id>.json");
+  console.log("  add-feature ID=<id> NAME=<name>  Append a declaration-only feature stub");
   console.log("  vcr            verify + check-arch + record trail");
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
@@ -1388,6 +1488,7 @@ switch (mode) {
     ensureNoPlaceholders();
     ensureSkills();
     ensureCommandSurfaces();
+    ensureProgressLog();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
   }
@@ -1444,6 +1545,10 @@ switch (mode) {
   case "arch:no-placeholders": {
     ensureNoPlaceholders();
     console.log("PASS");
+    break;
+  }
+  case "lint:progress-log": {
+    ensureProgressLog();
     break;
   }
   case "arch:sharded-state": {
@@ -1521,6 +1626,10 @@ switch (mode) {
   }
   case "migrate-feature-state": {
     migrateFeatureState();
+    break;
+  }
+  case "add-feature": {
+    addFeature(args[0], args.slice(1).join(" "));
     break;
   }
   case "verify-chain": {

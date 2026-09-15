@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop migrate-feature-state backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop migrate-feature-state add-feature backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -68,6 +68,12 @@ lane-drop:
 ## Idempotent; safe to run on a repo that has already migrated.
 migrate-feature-state:
 	@node scripts/framework-check.mjs migrate-feature-state
+
+## Append a declaration-only feature stub to feature_list.json (dogfooding
+## feedback Tier 1 item 2). Fill in behavior/verification/dependencies after.
+## Usage: make add-feature ID=<feature-id> NAME=<name>
+add-feature:
+	@node scripts/framework-check.mjs add-feature $(ID) $(NAME)
 
 ## Verify + check-arch + record (writes a verification trail to .harness/trails/)
 vcr: check check-arch

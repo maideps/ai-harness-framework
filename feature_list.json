@@ -309,6 +309,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-013",
+      "name": "Dogfooding Feedback Round 1",
+      "behavior": "Three quick, low-risk fixes from real-world adopter feedback (DOGFOODING-FEEDBACK-payroll.md Tier 1), each tied to an incident that actually happened: (1) check-arch warns (does not fail) when untracked-but-not-gitignored files exist, since coverage rules like arch-005 only see git-tracked files and this caused two real CI breaks in an adopter project; (2) a new add-feature <id> <name> command appends a correctly-shaped, declaration-only feature stub, replacing the hand-rolled node -e JSON construction the adopter repeated 11+ times; (3) the lint layer fails on a duplicate or missing session number in PROGRESS.md's ### Session N headers (checked as a set, not file order, so a legitimate out-of-order hotfix write is not flagged) — the adopter's log accumulated a real duplicate session number that nothing ever caught.",
+      "verification": "npm run check passes; unit tests cover the untracked-file warning (present/absent/no-git-repo), add-feature (stub shape, duplicate-id rejection, multi-word name handling), and the progress-log check (sequential, out-of-order-but-valid, duplicate, gap, no-sessions-yet cases).",
+      "dependencies": [
+        "feat-011"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix the warning/add-feature/progress-log logic and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
