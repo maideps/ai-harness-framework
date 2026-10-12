@@ -407,3 +407,15 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/framework-check.mjs, tests/framework-check.test.mjs, Makefile, package.json, .gitignore, feature_list.json, .harness/state/feat-013.json (new), README.md, templates/README.md, AGENTS.md, docs/USAGE.md, templates/docs/USAGE.md, skills/feature-cycle/SKILL.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: Tiers 2–4 of the dogfooding feedback (local-overrides convention, a UX nudge steered toward a skill rather than schema, a CORE-hash drift check that will need to be `arch-007` since `arch-006` is now taken, a `manualVerificationNotes` field, a PROGRESS.md rollup convention, and the `productRoots` granularity discussion) are analyzed but intentionally not started — the user asked specifically for Round 1 first.
 - Next best step: discuss Tier 2 (items 4, 7, 8 — cheap, low-controversy) before touching schema or templates; Tier 3 items 5 and 6 need a design decision first; Tier 4 is discussion-only per the source doc itself.
+
+### Session 026 — 2026-10-12 — Fix flaky backup ids (D-021)
+
+- Goal: adopting the harness in a new project exposed an intermittent failure in the shipped backup tests; find the root cause and fix it at the source.
+- Completed:
+  - Root cause: backup ids were millisecond timestamps, so two backups in the same millisecond collided (second overwrote the first, ordering ambiguous). Fixed in `createBackup` by forcing the creation time to be strictly later than the latest existing backup; `createdAt` and the id share one value.
+  - New regression test: 20 back-to-back backups produce distinct ids; `list` and `latest` return the newest.
+- Verification run: `node --test tests/harness-backup.test.mjs` 15 of 15 runs pass (previously failed 5 of 5 runs, 1-2 tests); `npm run check` all layers pass, e2e adoption matrix all cells pass.
+- Evidence captured: this entry and D-021.
+- Files or artifacts updated: scripts/harness-backup.mjs, tests/harness-backup.test.mjs, DECISIONS.md, PROGRESS.md
+- Known risk or unresolved issue: adopters need `harness-upgrade` to receive the fix (scripts/ is a mustNotEdit CORE surface).
+- Next best step: run `harness-upgrade` in adopter repos (e.g. ai-invoice-intake), then continue with its feat-001.

@@ -8,6 +8,7 @@ import {
   createBackup,
   listBackups,
   pinBackup,
+  resolveBackupId,
   restoreBackup,
 } from "../scripts/harness-backup.mjs";
 
@@ -87,6 +88,25 @@ test("createBackup: does not dedup once the adopter-side content actually change
     const second = createBackup(root, SURFACES, harnessRoot);
     assert.equal(second.skipped, false);
     assert.equal(listBackups(root).length, 2);
+  } finally {
+    cleanup(harnessRoot, root);
+  }
+});
+
+test("createBackup: backups created back-to-back always get distinct, correctly ordered ids", () => {
+  const harnessRoot = harnessFixture();
+  const root = adopterFixture();
+  try {
+    const ids = [];
+    for (let i = 0; i < 20; i++) {
+      write(root, "AGENTS.md", `version ${i}\n`);
+      const result = createBackup(root, SURFACES, harnessRoot);
+      assert.equal(result.skipped, false);
+      ids.push(result.id);
+    }
+    assert.equal(new Set(ids).size, ids.length, "every backup id is unique, even within one millisecond");
+    assert.equal(listBackups(root)[0].id, ids[ids.length - 1], "the newest backup sorts first");
+    assert.equal(resolveBackupId(root, "latest"), ids[ids.length - 1], "'latest' resolves to the newest backup");
   } finally {
     cleanup(harnessRoot, root);
   }

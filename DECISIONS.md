@@ -286,3 +286,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: the progress-log check is actually usable against this repo's own history (validated immediately — no false positive on 24 real sessions); the untracked-file warning from this same feature doesn't nag about a file class that was never going to be committed.
 - Negative: a future session-feedback file with a different name will need the same one-line `.gitignore` addition rather than matching a wildcard pattern — accepted, since a wildcard broad enough to catch arbitrary future filenames would risk silently ignoring something that should have been tracked.
+
+### D-021: Backup ids are forced strictly monotonic, not left to clock resolution
+
+**Date:** 2026-10-12
+**Status:** accepted
+**Context:** While adopting the harness in a new project, `npm run check` failed intermittently on two tests in `tests/harness-backup.test.mjs` (reproduced in 5 of 5 runs here). `createBackup` derived the backup id from `new Date().toISOString()`, which has millisecond resolution. Two backups created in the same millisecond got the same directory name, so the second silently overwrote the first, and `listBackups` (sorted by `createdAt`) could not order them. A clock stepping backwards would have the same effect.
+**Decision:** `createBackup` now computes the creation time as `max(now, latestExistingBackup + 1ms)` and derives both `createdAt` and the id from that single value, so ids are unique and strictly ordered. A regression test creates 20 backups back-to-back and asserts distinct ids and that `list` and `latest` resolve to the newest.
+**Alternatives considered:**
+- Random or counter suffix on the id — Rejected: ids would no longer sort chronologically by name, and `createdAt` ties would still be ambiguous.
+- Relaxing the failing tests (sleeping between backups) — Rejected: it hides a real defect that a fast `harness-upgrade` followed by another operation could hit.
+**Consequences:**
+- Positive: backup ids are collision-free and ordering is deterministic; the backup tests are no longer flaky (15 of 15 passing runs after the change).
+- Negative: under a burst of backups a `createdAt` can run a few milliseconds ahead of the wall clock — harmless for a local safety net.

@@ -119,7 +119,17 @@ export function createBackup(root, surfaces, harnessRoot) {
     return { skipped: true, reason: "identical to the most recent backup", id: existing[0].id };
   }
 
-  const id = new Date().toISOString().replace(/[:.]/g, "-");
+  // Backup ids are derived from the creation timestamp. Two backups created in
+  // the same millisecond (or with a clock that steps backwards) would share a
+  // directory and sort ambiguously, so the timestamp is forced to be strictly
+  // later than the most recent existing backup.
+  let nowMs = Date.now();
+  if (existing.length > 0) {
+    const latestMs = Date.parse(existing[0].createdAt);
+    if (!Number.isNaN(latestMs) && nowMs <= latestMs) nowMs = latestMs + 1;
+  }
+  const createdAt = new Date(nowMs).toISOString();
+  const id = createdAt.replace(/[:.]/g, "-");
   const dir = path.join(backupsRoot(root), id);
   const filesDir = path.join(dir, "files");
   mkdirSync(filesDir, { recursive: true });
@@ -136,7 +146,7 @@ export function createBackup(root, surfaces, harnessRoot) {
 
   writeManifest(root, id, {
     id,
-    createdAt: new Date().toISOString(),
+    createdAt,
     overallChecksum: checksum,
     pinned: false,
     files: manifestFiles,
