@@ -199,6 +199,7 @@ Customization points (from the manifest):
 - **PASS** — the layer ran and succeeded; it counts as verified.
 - **SKIP** — the layer is not configured; it does not count as verified.
 - **FAIL** — non-zero exit; the chain stops.
+- **The default `e2e` layer is the framework's adoption matrix.** It generates throwaway adopter repos and runs the harness in each. Its fixtures always use the canonical harness layer scripts, so repointing `lint`, `typecheck`, `test` or `build` at your product tooling (a documented customisation point) does not break it. It tests the harness, not your product: once you have real end-to-end tests, replace the `e2e` script with them.
 
 `npm run check-arch` enforces six rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, and feature declarations carry no leftover inline state (sharded state stays consistent).
 

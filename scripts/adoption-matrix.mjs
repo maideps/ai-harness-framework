@@ -28,12 +28,32 @@ import { fileURLToPath } from "node:url";
 import { HARNESS_ROOT, adopt, loadManifest } from "./create-harness.mjs";
 import { upgrade as upgradeHarness } from "./harness-upgrade.mjs";
 import { restoreBackup as restoreBackupSnapshot } from "./harness-backup.mjs";
+import { LAYERS } from "./stack-detect.mjs";
 
 const RUNNER = path.join(HARNESS_ROOT, "scripts", "framework-check.mjs");
+
+// Fixtures are generated from HARNESS_ROOT, which in an adopter repo is the
+// adopter's own tree — including its customised package.json. An adopter may
+// legitimately repoint the layer scripts at product tooling (documented
+// customisation point); copied verbatim, those scripts would reference files the
+// throwaway fixture does not contain and every cell would fail. Reset the layer
+// scripts to the canonical harness values so the matrix tests the harness, not
+// the adopter's product wiring. Extra adopter scripts are left untouched.
+export function normalizeFixtureScripts(root) {
+  const pkgPath = path.join(root, "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  pkg.scripts = pkg.scripts ?? {};
+  for (const layer of LAYERS) {
+    pkg.scripts[layer] = `node scripts/framework-check.mjs ${layer}`;
+  }
+  pkg.scripts.check = "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e";
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+}
 
 function buildAdopter(stage, stack) {
   const root = mkdtempSync(path.join(os.tmpdir(), `cw-adopt-${stage}-${stack}-`));
   adopt(root);
+  normalizeFixtureScripts(root);
   fillDocs(root, stack);
   addProduct(root, stack);
   return root;

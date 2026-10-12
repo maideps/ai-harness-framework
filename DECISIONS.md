@@ -299,3 +299,17 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: backup ids are collision-free and ordering is deterministic; the backup tests are no longer flaky (15 of 15 passing runs after the change).
 - Negative: under a burst of backups a `createdAt` can run a few milliseconds ahead of the wall clock — harmless for a local safety net.
+
+### D-022: Adoption-matrix fixtures use canonical layer scripts, not the host repo's customised ones
+
+**Date:** 2026-10-12
+**Status:** accepted
+**Context:** `npm run e2e` runs the adoption matrix in every repo that carries the harness. The matrix generates throwaway adopters with `adopt()`, which copies CORE from `HARNESS_ROOT` — in an adopter repo that is the adopter's own tree, including its customised `package.json`. Customising the layer scripts is a documented, supported point (`lint`, `typecheck`, `test`, `build` pointed at product tooling), yet the moment an adopter did it, every fixture inherited scripts referencing files the fixture does not contain, and the matrix failed in 6 places (all cells plus the upgrade test) although the harness and the product were healthy. Found while adopting the harness in a FastAPI + React project, which appends Python tooling to the layer scripts.
+**Decision:** `buildAdopter()` now calls `normalizeFixtureScripts()` straight after `adopt()`: the six layer scripts and `check` are reset to the canonical harness values (`node scripts/framework-check.mjs <layer>`, and the `npm run` chain). Other adopter scripts are left untouched. The helper is exported and unit-tested. Verified end to end: a copy of the framework with poisoned `lint`/`test` scripts failed 6 matrix checks with the old code and passed all of them with the new code.
+**Alternatives considered:**
+- Skip the matrix (report SKIP) in any repo that is not the framework source — Rejected: needs a reliable "am I the framework?" marker that does not exist, and the matrix is still a useful harness-integrity check for adopters.
+- Ship a pristine `package.json` template and build fixtures from it — Rejected: a second copy of the scripts to keep in sync with the real one; normalising the handful of layer entries is smaller and cannot drift.
+- Tell adopters to replace the `e2e` script with their own — Kept as guidance (docs/USAGE.md) for when they have product e2e tests, but not a fix: the failure appeared with `e2e` left at its default.
+**Consequences:**
+- Positive: customising layer scripts is safe, as documented; the matrix tests the harness regardless of how the host repo is wired.
+- Negative: if the canonical layer-script values ever change, `normalizeFixtureScripts` must change with them (the unit test asserts the current values, so a drift fails loudly).
