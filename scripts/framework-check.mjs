@@ -835,6 +835,7 @@ function verifyFeature(featureId) {
   }
 
   const skippedLayers = [];
+  const layerResults = [];
   for (const layer of feature.layers) {
     console.log(`--- ${layer.label} ---`);
     console.log(`Running: ${layer.cmd}`);
@@ -844,6 +845,7 @@ function verifyFeature(featureId) {
       const output = execSync(layer.cmd, { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"], shell: true });
       const reportedSkip = output.split(/\r?\n/).some((line) => line.includes("[SKIP]"));
       if (reportedSkip) skippedLayers.push(layer.label);
+      layerResults.push({ label: layer.label, result: "PASS", skipReported: reportedSkip });
       console.log("");
       console.log(`  [PASS] ${layer.label}`);
       console.log("");
@@ -865,7 +867,20 @@ function verifyFeature(featureId) {
     console.log(`Note: these layers reported SKIP inside a passing run: ${skippedLayers.join(", ")}`);
   }
   const skipNote = skippedLayers.length > 0 ? ` (SKIP reported in: ${skippedLayers.join(", ")})` : "";
-  const evidence = `All verification layers passed via node scripts/framework-check.mjs verify-feature at ${new Date().toISOString()}${skipNote}`;
+  const commit = tryGit("rev-parse --short HEAD");
+  let dirty = true;
+  try {
+    dirty = execSync("git status --porcelain", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim().length > 0;
+  } catch {
+    // A missing Git repository cannot be confirmed clean.
+  }
+  const evidence = JSON.stringify({
+    summary: `All verification layers passed via node scripts/framework-check.mjs verify-feature${skipNote}`,
+    timestamp: new Date().toISOString(),
+    commit,
+    dirty,
+    layers: layerResults,
+  });
   recordFeaturePass(featureId, evidence);
   console.log(`Evidence recorded in ${featureStatePath(featureId)}`);
 }
