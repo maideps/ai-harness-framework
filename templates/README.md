@@ -48,13 +48,14 @@ Every make target is mirrored 1:1 by an npm script:
 | Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
 | Architecture enforcement | `make check-arch` | `npm run check-arch` |
 | Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
+| Activate a feature | `make activate F=<id>` | `npm run activate -- <id>` |
 | Multi-repo verification | `make verify-all` | `npm run verify-all` |
 | Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
 | List worktree lanes | `make lane-list` | `npm run lane-list` |
 | Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
 | Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
 | Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
-| Add a feature stub | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name>` |
+| Add a feature | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Record session start | `make session-start` | `npm run session-start` |
 | Record session end | `make session-end` | `npm run session-end` |

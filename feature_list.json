@@ -335,6 +335,37 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-014",
+      "name": "Feature lifecycle commands",
+      "behavior": "Configure feature declarations and activate eligible work without manually editing JSON.",
+      "verification": "npm run check and check-arch pass; lifecycle tests verify configured creation, ID validation, dependency checks, and immediate WIP=1 enforcement.",
+      "dependencies": [
+        "feat-013"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Architecture enforcement",
+          "cmd": "npm run check-arch",
+          "repair": "Fix Architecture enforcement failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }
