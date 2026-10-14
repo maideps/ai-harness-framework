@@ -2,43 +2,25 @@ name: ci
 
 on:
   push:
-    branches: [master]
   pull_request:
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: [18, 24]
+    env:
+      CW_SKIP_ADOPTION_MATRIX: "1"
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version-file: .nvmrc
 
-      # Real toolchains so the adoption matrix's python/go/rust cells run
-      # instead of degrading to SKIP.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install and set up project
+        run: npm run setup --if-present
 
-      - name: Install python check tools
-        run: pip install ruff pytest
-
-      - name: Full harness check (includes the adoption matrix)
+      - name: Verify project
         run: npm run check
 
-      - name: Architecture rules
+      - name: Verify architecture
         run: npm run check-arch
-
-      # The Makefile surface delegates to the same runner; prove it on Linux
-      # where make is available (the primary dev machine lacks make).
-      - name: Makefile surface
-        if: matrix.node == '18'
-        run: make check

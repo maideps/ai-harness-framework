@@ -160,10 +160,10 @@ This file records significant architectural decisions, their context, alternativ
 **Date:** 2026-08-19
 **Status:** accepted
 **Context:** The roadmap's multi-repo extension (contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all) had no activation story: where do the files come from, and how do single-repo adopters stay unaffected?
-**Decision:** The component ships as `templates/multi-repo/*` skeletons whose declared destinations land on optional-component markers (accepted by the template destination validation alongside INSTANCE). Activation is copying them into place. A root `scripts/verify-all` (Node, extensionless CJS) runs every `repositories/*/scripts/verify` and aggregates PASS/SKIP/FAIL; `npm run verify-all` / `make verify-all` delegate to a runner mode that SKIPs gracefully when the component is absent. Classification precedence now includes optional markers (a specific optional claim beats the scripts/ directory-level CORE claim). The adoption matrix gained a multi-repo test: component active + git index → check-arch and verify-all pass; a failing subrepo fails verify-all; an unclassified stray file fails arch-005.
+**Decision:** The component ships as `templates/multi-repo/*` skeletons whose declared destinations land on optional-component markers (accepted by the template destination validation alongside INSTANCE). Activation is copying them into place. A root `scripts/verify-all` launcher dynamically imports its `.mjs` implementation so it works whether the adopter uses CommonJS or `"type": "module"`. It runs every `repositories/*/scripts/verify`, `verify.mjs`, or `verify.cjs` and aggregates PASS/SKIP/FAIL; `npm run verify-all` / `make verify-all` delegate to a runner mode that SKIPs gracefully when the component is absent. The optional verify-all gate is part of `check` and skips when the markers are absent. Classification precedence now includes optional markers (a specific optional claim beats the scripts/ directory-level CORE claim). The adoption matrix covers ESM/CommonJS entrypoints and failures; an unclassified stray file still fails arch-005.
 **Alternatives considered:**
 - Bash verify-all — rejected: the harness runtime is Node; bash is not portable to the Windows-first environment.
-- Adding verify-all to `make check` — rejected: single-repo checks would then depend on an optional component; keep the layer chain orthogonal and verify-all explicit.
+- Keeping verify-all outside `make check` — superseded: its runner reports SKIP when optional markers are absent, so single-repo checks remain unaffected while multi-repo projects get the root gate automatically.
 **Consequences:**
 - Positive: multi-repo projects get a one-command gate with honest per-repo tri-state; single-repo behavior is unchanged and covered by the matrix; the component is a first-class, manifest-declared opt-in.
 - Negative: one more surface (verify-all) to mirror across make/npm; the example repository skeleton SKIPs until the adopter adds real checks (documented behavior).
@@ -313,3 +313,28 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: customising layer scripts is safe, as documented; the matrix tests the harness regardless of how the host repo is wired.
 - Negative: if the canonical layer-script values ever change, `normalizeFixtureScripts` must change with them (the unit test asserts the current values, so a drift fails loudly).
+
+### D-023: Adopter CI verifies the project and uses an instance Node pin
+
+**Date:** 2026-10-14
+**Status:** accepted
+**Context:** The CI template installed the framework's Python, Go, and Rust toolchains and ran its adoption matrix, while its CORE `.nvmrc` forced every adopter to use the framework's Node version. This made copied CI test the wrong project configuration and prevented adopters from changing the Node pin without editing CORE.
+**Decision:** The adopter CI template now uses the generated `.nvmrc`, optional setup script, and the project's `check` and `check-arch` commands. It sets `CW_SKIP_ADOPTION_MATRIX` so the default framework e2e entrypoint skips the adoption matrix in adopters; the matrix remains in this repository's own workflow. `.nvmrc` is seeded from a template and classified as INSTANCE, so adopters can change it and upgrades preserve that choice.
+**Alternatives considered:**
+- Keep `.nvmrc` as CORE and ask adopters to change `engines.node` — Rejected: the runtime pin would still be overwritten by harness upgrades and would not support projects that configure Node only through `.nvmrc`.
+**Consequences:**
+- Positive: generated adopters use a modern Node version by default and can select their own version without changing CORE.
+- Negative: adopters that use a different version manager should update `.nvmrc` to match their supported runtime.
+
+### D-024: Adopter LICENSE is copied once and preserved by upgrades
+
+**Date:** 2026-10-14
+**Status:** accepted
+**Context:** `harness-upgrade` treated the root `LICENSE` as an immutable CORE surface and overwrote adopter-specific copyright lines on every upgrade, despite adoption projects needing to name their own copyright holder.
+**Decision:** Ship the MIT starter as `templates/LICENSE` and declare it as a template destination to root `LICENSE`. Classify the root file as INSTANCE and exclude it from the surfaces `harness-upgrade` overwrites or backs up; the source template remains part of the shipped `templates/` tree.
+**Alternatives considered:**
+- Keep LICENSE in CORE and check for the framework notice during upgrade — rejected: the root file remains adopter-owned after creation, and even a validating upgrade need not rewrite or reject its modifications.
+- Store the root LICENSE as a template source — rejected: the same tracked path would be classified as both a template and INSTANCE destination.
+**Consequences:**
+- Positive: adopters receive the MIT notice on first adoption and can preserve their copyright lines across future upgrades; the adoption matrix verifies copy-on-adoption and upgrade survival.
+- Negative: changes to the framework's license starter must be reflected in both `LICENSE` and `templates/LICENSE`.

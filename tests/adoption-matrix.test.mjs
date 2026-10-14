@@ -5,8 +5,40 @@ import os from "node:os";
 import path from "node:path";
 
 import { normalizeFixtureScripts } from "../scripts/adoption-matrix.mjs";
-import { adopt } from "../scripts/create-harness.mjs";
+import { adopt, HARNESS_ROOT, loadManifest } from "../scripts/create-harness.mjs";
 import { upgrade } from "../scripts/harness-upgrade.mjs";
+
+test("adopter scaffold has project CI and an editable Node version", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "cw-adopter-test-"));
+  try {
+    adopt(root);
+    const manifest = loadManifest();
+    const workflow = readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+    assert.ok(!manifest.core.includes(".nvmrc"));
+    assert.ok(manifest.instance.includes(".nvmrc"));
+    assert.doesNotMatch(
+      readFileSync(path.join(root, "docs/PRODUCT.md"), "utf8"),
+      /\[Describe what this system does|\[Primary user flow/,
+    );
+    assert.equal(readFileSync(path.join(HARNESS_ROOT, "templates/nvmrc"), "utf8"), "24\n");
+    assert.equal(
+      readFileSync(path.join(root, ".nvmrc"), "utf8"),
+      readFileSync(path.join(HARNESS_ROOT, "templates/nvmrc"), "utf8"),
+    );
+    assert.match(workflow, /node-version-file: \.nvmrc/);
+    assert.match(workflow, /CW_SKIP_ADOPTION_MATRIX: "1"/);
+    assert.match(workflow, /npm run setup --if-present/);
+    assert.match(workflow, /run: npm run check\b/);
+    assert.match(workflow, /run: npm run check-arch\b/);
+    assert.doesNotMatch(workflow, /matrix:|setup-python|setup-go|rust-toolchain|make check|branches: \[master\]/);
+
+    writeFileSync(path.join(root, ".nvmrc"), "22.14.0\n", "utf8");
+    adopt(root, { skipExisting: true });
+    assert.equal(readFileSync(path.join(root, ".nvmrc"), "utf8"), "22.14.0\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 function fixtureWith(scripts) {
   const root = mkdtempSync(path.join(os.tmpdir(), "cw-matrix-test-"));
@@ -33,7 +65,7 @@ test("normalizeFixtureScripts: resets customised layer scripts to the canonical 
     }
     assert.equal(
       scripts.check,
-      "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e",
+      "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all",
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
