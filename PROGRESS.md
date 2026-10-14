@@ -432,3 +432,17 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs, tests/adoption-matrix.test.mjs, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
+
+### Session 028 — 2026-10-14 — Generated Harness Command Reference
+
+- Goal: Remove the requirement that adopters maintain a large command table in their product README while keeping the command reference tied to actual harness surfaces.
+- Completed:
+  - Added `npm run harness-docs`, which generates `docs/HARNESS.md` from Makefile target declarations and npm scripts. It includes Make targets, matching npm scripts, and npm-only scripts.
+  - Updated lint to require a Markdown README link to `docs/HARNESS.md` and fail when the generated document is missing or stale; removed the README table requirement while retaining AGENTS command mirrors.
+  - New adopters generate the reference as a runtime instance surface. Updated the README skeleton, usage docs, architecture docs, and manifest classification.
+  - Added focused tests for generation, README link enforcement (including README without a command-table heading), and stale-reference detection; adoption-matrix fixtures regenerate after command customizations.
+- Verification run: `bash ./init.sh` passed; focused `node --test tests/harness-docs.test.mjs tests/adoption-matrix.test.mjs` passed; `make check` passed all layers and adoption cells (with toolchain SKIPs reported honestly); `npm run verify-feature -- feat-014` passed all declared layers.
+- Evidence captured: `.harness/state/feat-014.json`.
+- Files or artifacts updated: scripts/harness-docs.mjs, scripts/framework-check.mjs, scripts/create-harness.mjs, scripts/adoption-matrix.mjs, tests/harness-docs.test.mjs, package.json, feature_list.json, .harness/state/feat-014.json, .harness/manifest.json, README.md, templates/README.md, AGENTS.md, docs/HARNESS.md, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, docs/quality-document.md, PROGRESS.md.
+- Known risk or unresolved issue: none identified. Existing adopters with a stale reference should run `npm run harness-docs`; README lint now requires the command-reference link.
+- Next best step: none for this feature.

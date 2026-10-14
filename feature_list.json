@@ -335,6 +335,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-014",
+      "name": "Generated Harness Command Reference",
+      "behavior": "Generate docs/HARNESS.md from the repository's Makefile targets and npm scripts, verify the checked-in reference against those sources, and require README.md to link to it.",
+      "verification": "npm run check passes; focused tests prove command-reference generation, stale-reference detection, and README link enforcement; create-harness generates the reference for adopted repositories.",
+      "dependencies": [
+        "feat-013"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix generated command reference or test failures and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

@@ -4,6 +4,7 @@ import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSy
 import { execSync, spawnSync } from "node:child_process";
 import { EOL } from "node:os";
 import path from "node:path";
+import { renderHarnessDocs } from "./harness-docs.mjs";
 
 import {
   LAYERS,
@@ -436,16 +437,19 @@ function ensureMakeTargets() {
 }
 
 function ensureCommandSurfaces() {
-  // Every make target must be documented: README's Command Targets table and
-  // AGENTS.md's command mirrors. Docs that drift from the actual surface are
-  // the failure mode this harness exists to prevent.
+  // README links to the generated command reference; AGENTS.md keeps its
+  // concise command mirrors. The generated reference is checked against both
+  // command sources so it cannot drift.
   const readme = readText("README.md");
-  if (/## Command Targets/.test(readme)) {
-    for (const target of requiredMakeTargets) {
-      if (!readme.includes(`make ${target}`)) {
-        fail(`README.md Command Targets table does not document the ${target} target`);
-      }
-    }
+  if (!/\[[^\]]+\]\((?:\.\/)?docs\/HARNESS\.md(?:#[^)]*)?\)/.test(readme)) {
+    fail("README.md must link to docs/HARNESS.md");
+  }
+  if (!existsSync("docs/HARNESS.md")) {
+    fail("docs/HARNESS.md is missing — run npm run harness-docs");
+  }
+  const expectedDocs = renderHarnessDocs(readText("Makefile"), readJson("package.json"));
+  if (readText("docs/HARNESS.md") !== expectedDocs) {
+    fail("docs/HARNESS.md is out of date — run npm run harness-docs");
   }
   const agents = readText("AGENTS.md");
   for (const target of requiredMakeTargets) {
@@ -453,7 +457,7 @@ function ensureCommandSurfaces() {
       fail(`AGENTS.md does not mention the ${target} command`);
     }
   }
-  pass("README and AGENTS document every make target");
+  pass("README links to the current command reference and AGENTS documents every make target");
 }
 
 function ensureShellScripts() {
@@ -1549,6 +1553,10 @@ switch (mode) {
   }
   case "lint:progress-log": {
     ensureProgressLog();
+    break;
+  }
+  case "lint:command-surfaces": {
+    ensureCommandSurfaces();
     break;
   }
   case "arch:sharded-state": {
