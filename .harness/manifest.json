@@ -26,6 +26,7 @@
   ],
   "templates": [
     { "from": "templates/README.md", "to": "README.md" },
+    { "from": "templates/gitattributes", "to": ".gitattributes" },
     { "from": "templates/gitignore", "to": ".gitignore" },
     { "from": "templates/progress.md", "to": "PROGRESS.md" },
     { "from": "templates/DECISIONS.md", "to": "DECISIONS.md" },
@@ -57,6 +58,7 @@
     "DECISIONS.md",
     "session-handoff.md",
     "README.md",
+    ".gitattributes",
     ".gitignore",
     "package-lock.json",
     ".claude/settings.json",

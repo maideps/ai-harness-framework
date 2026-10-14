@@ -432,3 +432,17 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs, tests/adoption-matrix.test.mjs, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
+
+### Session 028 — 2026-10-14 — Clean initialization and line endings
+
+- Goal: Prevent `init.sh` from silently rewriting dependency lockfiles and give adopters consistent line endings.
+- Completed:
+  - Node projects with no declared dependencies skip installation; projects with lockfiles use lock-preserving package-manager commands.
+  - `init.sh` reports when a dependency install changes or creates its lockfile.
+  - Added a manifest-backed `.gitattributes` template for LF text files and CRLF Windows command scripts; upgrade tests confirm adopter changes survive.
+  - Added focused install-command and adoption/upgrade tests.
+- Verification run: `make check` passes all 71 tests and the adoption e2e matrix; `./init.sh` passes while skipping install, and `package-lock.json` remains unchanged.
+- Evidence captured: regression tests in `tests/stack-detect.test.mjs` and `tests/adoption-matrix.test.mjs`.
+- Files or artifacts updated: `scripts/stack-detect.mjs`, `init.sh`, `.harness/manifest.json`, `templates/gitattributes`, `tests/stack-detect.test.mjs`, `tests/adoption-matrix.test.mjs`, `docs/ARCHITECTURE.md`, `PROGRESS.md`, `docs/quality-document.md`.
+- Known risk or unresolved issue: none known.
+- Next best step: none.

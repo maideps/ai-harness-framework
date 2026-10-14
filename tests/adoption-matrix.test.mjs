@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { normalizeFixtureScripts } from "../scripts/adoption-matrix.mjs";
+import { adopt } from "../scripts/create-harness.mjs";
+import { upgrade } from "../scripts/harness-upgrade.mjs";
 
 function fixtureWith(scripts) {
   const root = mkdtempSync(path.join(os.tmpdir(), "cw-matrix-test-"));
@@ -56,6 +58,25 @@ test("normalizeFixtureScripts: tolerates a package.json with no scripts block", 
   try {
     normalizeFixtureScripts(root);
     assert.equal(scriptsOf(root).lint, "node scripts/framework-check.mjs lint");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("adopt: installs default line-ending rules and upgrades preserve adopter rules", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "cw-gitattributes-test-"));
+  try {
+    adopt(root, { skipExisting: true });
+    const attributesPath = path.join(root, ".gitattributes");
+    assert.equal(
+      readFileSync(attributesPath, "utf8"),
+      "* text=auto eol=lf\n*.cmd text eol=crlf\n*.bat text eol=crlf\n",
+    );
+
+    const customRules = "*.ps1 text eol=crlf\n";
+    writeFileSync(attributesPath, customRules, "utf8");
+    upgrade(root);
+    assert.equal(readFileSync(attributesPath, "utf8"), customRules);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

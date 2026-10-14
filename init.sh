@@ -23,9 +23,39 @@ echo "=== Detected stack: ${RUNTIME}${PM:+ (package manager: $PM)} ==="
 INSTALL_CMD=$(node scripts/stack-detect.mjs install)
 if [ -n "$INSTALL_CMD" ]; then
   echo "=== Installing dependencies: $INSTALL_CMD ==="
+  INSTALL_LOCKFILE=""
+  INSTALL_LOCKFILE_BACKUP=""
+  if [ "$RUNTIME" = "node" ]; then
+    case "$PM" in
+      npm)
+        if [ -f "npm-shrinkwrap.json" ]; then INSTALL_LOCKFILE="npm-shrinkwrap.json"; else INSTALL_LOCKFILE="package-lock.json"; fi
+        ;;
+      pnpm) INSTALL_LOCKFILE="pnpm-lock.yaml" ;;
+      yarn) INSTALL_LOCKFILE="yarn.lock" ;;
+      bun)
+        if [ -f "bun.lockb" ]; then INSTALL_LOCKFILE="bun.lockb"; else INSTALL_LOCKFILE="bun.lock"; fi
+        ;;
+    esac
+  fi
+  if [ -n "$INSTALL_LOCKFILE" ] && [ -f "$INSTALL_LOCKFILE" ]; then
+    INSTALL_LOCKFILE_BACKUP=$(mktemp)
+    trap 'if [ -n "$INSTALL_LOCKFILE_BACKUP" ]; then rm -f "$INSTALL_LOCKFILE_BACKUP"; fi' EXIT
+    cp "$INSTALL_LOCKFILE" "$INSTALL_LOCKFILE_BACKUP"
+  fi
   eval "$INSTALL_CMD"
+  if [ -n "$INSTALL_LOCKFILE" ]; then
+    if [ -n "$INSTALL_LOCKFILE_BACKUP" ]; then
+      if ! cmp -s "$INSTALL_LOCKFILE_BACKUP" "$INSTALL_LOCKFILE"; then
+        echo "[WARN] $INSTALL_LOCKFILE changed during dependency installation — review the change."
+      fi
+      rm -f "$INSTALL_LOCKFILE_BACKUP"
+      INSTALL_LOCKFILE_BACKUP=""
+    elif [ -f "$INSTALL_LOCKFILE" ]; then
+      echo "[WARN] $INSTALL_LOCKFILE was created during dependency installation — review the change."
+    fi
+  fi
 else
-  echo "=== No dependency manifest found — skipping install ==="
+  echo "=== No dependency install required — skipping install ==="
 fi
 
 # Run the stack's verification chain
