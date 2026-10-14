@@ -122,7 +122,7 @@ function main() {
   console.log("  Existing files were never overwritten.");
   console.log("");
   console.log("  Next steps:");
-  console.log("  1. Fill the skeletons (docs, README, feature list) — lint fails until they are project-specific.");
+  console.log("  1. Review and customize the project docs, README, and feature list.");
   console.log("  2. Declare product directories in .harness/manifest.json productRoots.");
   console.log("  3. Run ./init.sh, then npm run check.");
 }

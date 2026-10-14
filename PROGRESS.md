@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-013 passing — full roadmap and dogfooding feedback round complete)
+- Current active feature: none (feat-001 through feat-016 passing — includes feature lifecycle, adopter CI, and the generated command reference)
 - Current blocker: none
 ## Session Log
 
@@ -446,7 +446,35 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Known risk or unresolved issue: no Git repository reports commit `unknown` and conservatively records `dirty: true`.
 - Next best step: none.
 
-### Session 029 — 2026-10-14 — Generated Harness Command Reference
+### Session 029 — 2026-10-14 — Feature lifecycle commands (#3)
+
+- Goal: remove manual JSON edits from feature declaration and activation, enforce the single-active-feature and dependency gates at activation time, and support optional feature ID conventions.
+- Completed:
+  - `add-feature` now accepts behavior, verification, comma-separated dependencies, and repeated `label=cmd` layers; defaults remain available, custom layers append to the standard chain, and configured dependencies must already be declared.
+  - An optional `.harness/manifest.json` `featureIdPattern` regex is enforced for new feature IDs; this repo uses `^feat-\\d{3}$`.
+  - Added `activate` as npm and Make commands. It refuses a second active feature, unmet dependencies, blocked/passing features, and activation of a different feature from a lane branch before writing the state shard.
+  - Added lifecycle tests, updated the feature workflow and adopter docs, and recorded feat-014 through the new add/activate commands.
+- Verification run: `bash ./init.sh`; `node --test tests/framework-check.test.mjs` (54/54); `npm run verify-feature -- feat-014` (all layers pass); `npm run check` (all layers pass, 75/75 tests and e2e matrix); `npm run check-arch` (6/6 rules pass; expected untracked-state warning before commit).
+- Evidence captured: `.harness/state/feat-014.json`
+- Files or artifacts updated: `scripts/framework-check.mjs`, `tests/framework-check.test.mjs`, `package.json`, `Makefile`, `.harness/manifest.json`, `feature_list.json`, `.harness/state/feat-014.json`, `README.md`, `templates/README.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/USAGE.md`, `templates/docs/USAGE.md`, `skills/feature-cycle/SKILL.md`, `docs/quality-document.md`, `PROGRESS.md`
+- Known risk or unresolved issue: none identified.
+- Next best step: none; feature lifecycle work is complete and the repository is ready for the next session.
+
+### Session 030 — 2026-10-14 — Adopter CI and Node-version seam (D-023)
+
+- Goal: make generated CI verify adopter projects, keep the framework adoption matrix in this repository's CI, and let adopters choose their Node version without editing CORE.
+- Completed:
+  - Replaced the adopter workflow's framework/toolchain matrix with `.nvmrc` setup, optional `npm run setup`, project check, and architecture check on all branches.
+  - Made `.nvmrc` an INSTANCE destination seeded from `templates/nvmrc`; harness upgrades preserve adopter changes.
+  - Skipped the framework adoption matrix from the generated workflow while leaving project-defined e2e scripts runnable; updated generic product docs so a new scaffold passes verification before customization.
+  - Added scaffold, upgrade-preservation, and matrix-opt-out tests; documented the seam and decision in D-023.
+- Verification run: `npm run verify-feature -- feat-015` (ALL LAYERS PASS; expected e2e SKIP retained); 59 focused tests pass after merge; `npm run check` (77/77 tests and adoption matrix pass); `npm run check-arch` (6/6 rules pass); fresh adopter `npm run setup --if-present && npm run check && npm run check-arch` passes with `CW_SKIP_ADOPTION_MATRIX=1`.
+- Evidence captured: `.harness/state/feat-015.json`.
+- Files or artifacts updated: `.harness/manifest.json`, `templates/ci.yml`, `templates/nvmrc`, `templates/docs/PRODUCT.md`, `scripts/framework-check.mjs`, `scripts/create-harness.mjs`, `scripts/harness-upgrade.mjs`, adoption tests, docs, `feature_list.json`, and `PROGRESS.md`.
+- Known risk or unresolved issue: generated `npm run setup` reports a non-fatal ancient-lockfile warning for the harness's empty starter lockfile.
+- Next best step: commit the verified merge, then rerun `npm run clean-check` with a clean working tree.
+
+### Session 031 — 2026-10-14 — Generated Harness Command Reference
 
 - Goal: Remove the requirement that adopters maintain a large command table in their product README while keeping the command reference tied to actual harness surfaces.
 - Completed:
@@ -454,8 +482,10 @@ Session continuity source of truth for this repository. Update at the end of eac
   - Updated lint to require a Markdown README link to `docs/HARNESS.md` and fail when the generated document is missing or stale; removed the README table requirement while retaining AGENTS command mirrors.
   - New adopters generate the reference as a runtime instance surface. Updated the README skeleton, usage docs, architecture docs, and manifest classification.
   - Added focused tests for generation, README link enforcement (including README without a command-table heading), and stale-reference detection; adoption-matrix fixtures regenerate after command customizations.
-- Verification run: `bash ./init.sh` passed; focused `node --test tests/harness-docs.test.mjs tests/adoption-matrix.test.mjs` passed; `make check` passed all layers and adoption cells (with toolchain SKIPs reported honestly); `npm run verify-feature -- feat-014` passed all declared layers.
-- Evidence captured: `.harness/state/feat-014.json`.
-- Files or artifacts updated: scripts/harness-docs.mjs, scripts/framework-check.mjs, scripts/create-harness.mjs, scripts/adoption-matrix.mjs, tests/harness-docs.test.mjs, package.json, feature_list.json, .harness/state/feat-014.json, .harness/manifest.json, README.md, templates/README.md, AGENTS.md, docs/HARNESS.md, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, docs/quality-document.md, PROGRESS.md.
-- Known risk or unresolved issue: none identified. Existing adopters with a stale reference should run `npm run harness-docs`; README lint now requires the command-reference link.
-- Next best step: none for this feature.
+- Merged the latest `master`, preserving feature lifecycle and adopter-CI changes. Renumbered the command-reference feature to `feat-016` to avoid the upstream `feat-014` collision, and regenerated `docs/HARNESS.md` to include `activate`.
+- Verification: `node --test tests/harness-docs.test.mjs tests/framework-check.test.mjs tests/adoption-matrix.test.mjs` (64 passed); `npm run verify-feature -- feat-016` (all configured layers passed; Layer 3 reported SKIP); `make check` (all configured layers passed; Rust/Python missing tools reported SKIP); `make check-arch` (all six rules passed).
+- Next best step: finalize and publish the verified merge, then run `make clean-check` against the committed tree.
+- Evidence captured: `.harness/state/feat-016.json`.
+- Files or artifacts updated: scripts/harness-docs.mjs, scripts/framework-check.mjs, scripts/create-harness.mjs, scripts/adoption-matrix.mjs, tests/harness-docs.test.mjs, package.json, feature_list.json, .harness/state/feat-016.json, .harness/manifest.json, README.md, templates/README.md, AGENTS.md, docs/HARNESS.md, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, docs/quality-document.md, PROGRESS.md.
+- Known risk or unresolved issue: `feat-014` and `feat-015` are used by upstream feature-lifecycle and adopter-CI work, so this PR's feature was renumbered to `feat-016`.
+- Next best step: run `make clean-check` after finalizing the merge commit; no known blockers remain.

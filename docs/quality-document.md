@@ -24,8 +24,9 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 ## Notes
 
-- The runner (`scripts/framework-check.mjs`) has direct unit coverage (`tests/framework-check.test.mjs`, 17 cases spawning the CLI against fixture repos) for `ensureManifest`, the WIP=1 gate in `ensureFeatureGraph`, and `checkArch`'s rule evaluation — the former P1 item is resolved. The file is not modular (`fail()` calls `process.exit` directly, every mode reads relative to `process.cwd()`), so coverage is black-box (spawn + assert on exit code/output) rather than importing internal functions — consistent with how `scripts/adoption-matrix.mjs` already exercises `check-arch`/`verify-feature`.
+- The runner (`scripts/framework-check.mjs`) has direct unit coverage in `tests/framework-check.test.mjs`, spawning the CLI against fixture repos for `ensureManifest`, the WIP=1 gate in `ensureFeatureGraph`, `checkArch` rule evaluation, and feature lifecycle commands. The file is not modular (`fail()` calls `process.exit` directly, every mode reads relative to `process.cwd()`), so coverage is black-box (spawn + assert on exit code/output) rather than importing internal functions — consistent with how `scripts/adoption-matrix.mjs` already exercises `check-arch`/`verify-feature`.
 - State files were converted from templates to real records on 2026-08-17 (dogfooding).
+- 2026-10-14: adopter CI and `.nvmrc` now follow adopter project configuration; the framework matrix is skipped in adopter CI, with scaffold and upgrade coverage added (D-023).
 - Tri-state verification semantics (PASS/SKIP/FAIL) are now the documented contract (D-001).
 - 2026-08-18: bash suite consolidated into the Node runner; the four `scripts/*.sh` files are now thin shims (D-006). Stack detection centralized in `scripts/stack-detect.mjs`; Makefile and npm scripts are 1:1 mirrors. Session-trace round-trip (start → merge end) verified on Windows.
 - 2026-08-18 (session 004): manifest classifies every tracked file (schema v2, arch-005); 7 adopter doc skeletons added under templates/; instance content stripped from reusable docs (D-007). Python verify chain is argv-based and the compileall exclusion matches both path separators — verified empirically on Windows. verify-feature now enforces the dependency gate.
@@ -37,8 +38,9 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-08-19 (session 012): distribution (D-012) — create-harness/harness-upgrade/harness-audit tools read the manifest; the adoption matrix dogfoods them (one adoption implementation); bin entries ready for npx distribution.
 - 2026-08-19 (session 013): sweep and report (D-013) — session digest aggregation and periodic sweep with manifest drift reporting; unit tests for the aggregator. The reusability roadmap is complete (feat-001..007 + 008, 009 all passing).
 - 2026-08-19 (session 017): npm publish prep — package.json is publish-ready (`@maideps/ai-harness-framework` 0.4.0, files whitelist, bin entries, prepublishOnly gate); lockfile regenerated; `npm pack --dry-run` verified 65 files. Actual publish awaits explicit user go-ahead.
-- 2026-10-14 (session 029): generated command reference — Makefile targets and npm scripts produce `docs/HARNESS.md`; lint checks for drift and a README link; adoption creates the generated page.
+- 2026-10-14 (session 031): generated command reference — Makefile targets and npm scripts produce `docs/HARNESS.md`; lint checks for drift and a README link; adoption creates the generated page.
 - 2026-10-14: `verify-feature` evidence now includes the Git commit, dirty flag, and each layer's PASS result and reported-SKIP marker; regression-tested in `tests/framework-check.test.mjs`.
+- 2026-10-14 (session 029): feature lifecycle commands — `add-feature` accepts declaration options and optional manifest ID validation; `activate` guards WIP=1, dependencies, and lane ownership before writing state.
 
 ---
 

@@ -22,7 +22,6 @@ export const MUST_NOT_EDIT_SURFACES = [
   "codex.md",
   "GEMINI.md",
   "LICENSE",
-  ".nvmrc",
   "scripts/",
 ];
 

@@ -19,6 +19,7 @@
 | `make lane-drop` | `npm run lane-drop` |
 | `make migrate-feature-state` | `npm run migrate-feature-state` |
 | `make add-feature` | `npm run add-feature` |
+| `make activate` | `npm run activate` |
 | `make vcr` | `npm run vcr` |
 | `make session-start` | `npm run session-start` |
 | `make session-end` | `npm run session-end` |
