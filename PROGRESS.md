@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-015 passing — includes feature lifecycle and adopter CI)
+- Current active feature: none (feat-001 through feat-016 passing — includes feature lifecycle, adopter CI, and the generated command reference)
 - Current blocker: none
 ## Session Log
 
@@ -473,3 +473,19 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: `.harness/manifest.json`, `templates/ci.yml`, `templates/nvmrc`, `templates/docs/PRODUCT.md`, `scripts/framework-check.mjs`, `scripts/create-harness.mjs`, `scripts/harness-upgrade.mjs`, adoption tests, docs, `feature_list.json`, and `PROGRESS.md`.
 - Known risk or unresolved issue: generated `npm run setup` reports a non-fatal ancient-lockfile warning for the harness's empty starter lockfile.
 - Next best step: commit the verified merge, then rerun `npm run clean-check` with a clean working tree.
+
+### Session 031 — 2026-10-14 — Generated Harness Command Reference
+
+- Goal: Remove the requirement that adopters maintain a large command table in their product README while keeping the command reference tied to actual harness surfaces.
+- Completed:
+  - Added `npm run harness-docs`, which generates `docs/HARNESS.md` from Makefile target declarations and npm scripts. It includes Make targets, matching npm scripts, and npm-only scripts.
+  - Updated lint to require a Markdown README link to `docs/HARNESS.md` and fail when the generated document is missing or stale; removed the README table requirement while retaining AGENTS command mirrors.
+  - New adopters generate the reference as a runtime instance surface. Updated the README skeleton, usage docs, architecture docs, and manifest classification.
+  - Added focused tests for generation, README link enforcement (including README without a command-table heading), and stale-reference detection; adoption-matrix fixtures regenerate after command customizations.
+- Merged the latest `master`, preserving feature lifecycle and adopter-CI changes. Renumbered the command-reference feature to `feat-016` to avoid the upstream `feat-014` collision, and regenerated `docs/HARNESS.md` to include `activate`.
+- Verification: `node --test tests/harness-docs.test.mjs tests/framework-check.test.mjs tests/adoption-matrix.test.mjs` (64 passed); `npm run verify-feature -- feat-016` (all configured layers passed; Layer 3 reported SKIP); `make check` (all configured layers passed; Rust/Python missing tools reported SKIP); `make check-arch` (all six rules passed).
+- Next best step: finalize and publish the verified merge, then run `make clean-check` against the committed tree.
+- Evidence captured: `.harness/state/feat-016.json`.
+- Files or artifacts updated: scripts/harness-docs.mjs, scripts/framework-check.mjs, scripts/create-harness.mjs, scripts/adoption-matrix.mjs, tests/harness-docs.test.mjs, package.json, feature_list.json, .harness/state/feat-016.json, .harness/manifest.json, README.md, templates/README.md, AGENTS.md, docs/HARNESS.md, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, docs/quality-document.md, PROGRESS.md.
+- Known risk or unresolved issue: `feat-014` and `feat-015` are used by upstream feature-lifecycle and adopter-CI work, so this PR's feature was renumbered to `feat-016`.
+- Next best step: run `make clean-check` after finalizing the merge commit; no known blockers remain.

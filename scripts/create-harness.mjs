@@ -19,6 +19,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { generateHarnessDocs } from "./harness-docs.mjs";
 
 export const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -89,6 +90,9 @@ export function createRuntimeSurfaces(root) {
   };
   mkdirSync(path.join(root, ".harness", "trails"), { recursive: true });
   mkdirSync(path.join(root, ".harness", "state"), { recursive: true });
+  if (!existsSync(path.join(root, "docs", "HARNESS.md"))) {
+    generateHarnessDocs(root);
+  }
   write(".harness/traces/.gitkeep", "");
   write(".claude/settings.json", "{}\n");
   write("package-lock.json", "{}\n");

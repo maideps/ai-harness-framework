@@ -102,44 +102,9 @@ These files are the source of truth—not chat history:
 
 The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `.harness/state/`, `PROGRESS.md`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
 
-### Command Targets
+### Harness Commands
 
-Every make target is mirrored 1:1 by an npm script; both delegate to the Node runner and resolve the host project's stack through the shared detection module (`scripts/stack-detect.mjs`).
-
-| Target | Make form | npm form |
-|--------|-----------|----------|
-| Install dependencies | `make setup` | `npm run setup` |
-| Dev server | `make dev` | `npm run dev` |
-| Full verification | `make check` | `npm run check` |
-| Layer 1: static analysis | `make lint` | `npm run lint` |
-| Layer 1b: type checking | `make typecheck` | `npm run typecheck` |
-| Layer 2: runtime tests | `make test` | `npm run test` |
-| Layer 3: build verification | `make build` | `npm run build` |
-| Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
-| Architecture enforcement | `make check-arch` | `npm run check-arch` |
-| Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
-| Activate a feature | `make activate F=<id>` | `npm run activate -- <id>` |
-| Multi-repo verification | `make verify-all` | `npm run verify-all` |
-| Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
-| List worktree lanes | `make lane-list` | `npm run lane-list` |
-| Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
-| Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
-| Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
-| Add a feature | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` |
-| Verify + record trail | `make vcr` | `npm run vcr` |
-| Record session start | `make session-start` | `npm run session-start` |
-| Record session end | `make session-end` | `npm run session-end` |
-| Pre-commit clean state | `make clean-check` | `npm run clean-check` |
-| Generate an adopter repo | `make create-harness D=<dir>` | `npm run create-harness -- <dir>` |
-| Apply a harness upgrade | `make harness-upgrade D=<dir>` | `npm run harness-upgrade -- <dir>` |
-| Local harness audit | `make harness-audit D=<dir>` | `npm run harness-audit -- <dir>` |
-| List upgrade backups | `make backup-list` | `npm run backup-list` |
-| Pin a backup | `make backup-pin F=<id>` | `npm run backup-pin -- <id>` |
-| Unpin a backup | `make backup-unpin F=<id>` | `npm run backup-unpin -- <id>` |
-| Restore a backup | `make backup-restore F=<id\|latest>` | `npm run backup-restore -- <id\|latest>` |
-| Session report | `make report` | `npm run report` |
-| Periodic sweep | `make sweep` | `npm run sweep` |
-| Show all targets | `make help` | `npm run help` |
+The command reference is generated from the Makefile and npm scripts. See [Harness Command Reference](docs/HARNESS.md); regenerate it with `npm run harness-docs`.
 
 ## Definition of Done
 

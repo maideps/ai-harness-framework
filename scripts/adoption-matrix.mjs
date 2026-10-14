@@ -26,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HARNESS_ROOT, adopt, loadManifest } from "./create-harness.mjs";
+import { generateHarnessDocs } from "./harness-docs.mjs";
 import { upgrade as upgradeHarness } from "./harness-upgrade.mjs";
 import { restoreBackup as restoreBackupSnapshot } from "./harness-backup.mjs";
 import { LAYERS } from "./stack-detect.mjs";
@@ -56,6 +57,7 @@ function buildAdopter(stage, stack) {
   normalizeFixtureScripts(root);
   fillDocs(root, stack);
   addProduct(root, stack);
+  generateHarnessDocs(root);
   return root;
 }
 
@@ -66,7 +68,7 @@ function fillDocs(root, stack) {
   };
   write(
     "README.md",
-    `# Adopted Project (${stack})\n\nThrowaway adoption-matrix fixture for the ${stack} cell.\n\n## Quick Start\n\n\`\`\`bash\n./init.sh\nmake check\n\`\`\`\n`,
+    `# Adopted Project (${stack})\n\nThrowaway adoption-matrix fixture for the ${stack} cell.\n\nSee [Harness Command Reference](docs/HARNESS.md).\n\n## Quick Start\n\n\`\`\`bash\n./init.sh\nmake check\n\`\`\`\n`,
   );
   write(
     "docs/PRODUCT.md",
@@ -207,6 +209,7 @@ function runUpgradeTest() {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     pkg.scripts.custom = "echo custom";
     writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+    generateHarnessDocs(root);
     writeFileSync(path.join(root, ".nvmrc"), "22.14.0\n", "utf8");
     write(
       "skills/project-skill/SKILL.md",

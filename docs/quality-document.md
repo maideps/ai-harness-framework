@@ -7,6 +7,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 | Module | Test Coverage | Type Safety | Documentation | Arch Compliance | Performance |
 |---|---|---|---|---|---|
 | scripts/framework-check.mjs | A | C | A | A | A |
+| scripts/harness-docs.mjs | A | C | A | A | A |
 | scripts/stack-detect.mjs | B | C | A | A | A |
 | .harness/manifest.json + arch-rules.json | B | B | B | A | A |
 | templates/ (adopter skeletons) | — | — | A | A | — |
@@ -37,6 +38,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-08-19 (session 012): distribution (D-012) — create-harness/harness-upgrade/harness-audit tools read the manifest; the adoption matrix dogfoods them (one adoption implementation); bin entries ready for npx distribution.
 - 2026-08-19 (session 013): sweep and report (D-013) — session digest aggregation and periodic sweep with manifest drift reporting; unit tests for the aggregator. The reusability roadmap is complete (feat-001..007 + 008, 009 all passing).
 - 2026-08-19 (session 017): npm publish prep — package.json is publish-ready (`@maideps/ai-harness-framework` 0.4.0, files whitelist, bin entries, prepublishOnly gate); lockfile regenerated; `npm pack --dry-run` verified 65 files. Actual publish awaits explicit user go-ahead.
+- 2026-10-14 (session 031): generated command reference — Makefile targets and npm scripts produce `docs/HARNESS.md`; lint checks for drift and a README link; adoption creates the generated page.
 - 2026-10-14: `verify-feature` evidence now includes the Git commit, dirty flag, and each layer's PASS result and reported-SKIP marker; regression-tested in `tests/framework-check.test.mjs`.
 - 2026-10-14 (session 029): feature lifecycle commands — `add-feature` accepts declaration options and optional manifest ID validation; `activate` guards WIP=1, dependencies, and lane ownership before writing state.
 

@@ -21,27 +21,7 @@ For node projects, the package.json script keys are the layer commands (`scripts
 
 ## Command Surface
 
-| Purpose | Make | npm |
-|---|---|---|
-| Full verification | `make check` | `npm run check` |
-| Layer 1: static analysis | `make lint` | `npm run lint` |
-| Layer 1b: type checking | `make typecheck` | `npm run typecheck` |
-| Layer 2: runtime tests | `make test` | `npm run test` |
-| Layer 3: build verification | `make build` | `npm run build` |
-| Layer 3b: end-to-end | `make e2e` | `npm run e2e` |
-| Architecture rules | `make check-arch` | `npm run check-arch` |
-| Feature gate | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
-| Activate a feature | `make activate F=<id>` | `npm run activate -- <id>` |
-| Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
-| List worktree lanes | `make lane-list` | `npm run lane-list` |
-| Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
-| Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
-| Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
-| Add a feature | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` |
-| Verify + record trail | `make vcr` | `npm run vcr` |
-| Session start / end | `make session-start` / `session-end` | `npm run session-start` / `session-end` |
-| Pre-commit clean state | `make clean-check` | `npm run clean-check` |
-| Install dependencies | `make setup` | `npm run setup` |
+The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and npm scripts. Run `npm run harness-docs` to regenerate it after changing either command surface.
 
 ## The Feature Workflow
 
