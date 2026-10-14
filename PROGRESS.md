@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-012 passing — full roadmap plus worktree-lanes/sharded-state/upgrade-backups extensions complete)
+- Current active feature: none (feat-001 through feat-014 passing — full roadmap, dogfooding feedback, and feature lifecycle improvements complete)
 - Current blocker: none
 ## Session Log
 
@@ -433,7 +433,20 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
 
-### Session 028 — 2026-10-14 — Feature lifecycle commands (#3)
+### Session 028 — 2026-10-14 — Structured verify-feature evidence
+
+- Goal: Resolve issue #2 by making passing feature evidence useful for auditing what was verified and against which working tree.
+- Completed:
+  - `verify-feature` now stores JSON text in the existing evidence string, including a timestamp, short Git commit, dirty flag, and a result for each layer. A reported `[SKIP]` is retained separately from the successful layer command result.
+  - Extended the runner regression test to assert clean and dirty tree snapshots, commit capture, and per-layer PASS/SKIP details.
+  - Documented the evidence fields in the sharded-state architecture section and quality notes.
+- Verification run: focused `node --test tests/framework-check.test.mjs` (48 passed); `npm run check` (69 tests pass; lint, typecheck, build, and e2e pass).
+- Evidence captured: regression test checks the serialized evidence written to `.harness/state/feat-001.json` in a fixture repository.
+- Files or artifacts updated: `scripts/framework-check.mjs`, `tests/framework-check.test.mjs`, `docs/ARCHITECTURE.md`, `docs/quality-document.md`, `PROGRESS.md`.
+- Known risk or unresolved issue: no Git repository reports commit `unknown` and conservatively records `dirty: true`.
+- Next best step: none.
+
+### Session 029 — 2026-10-14 — Feature lifecycle commands (#3)
 
 - Goal: remove manual JSON edits from feature declaration and activation, enforce the single-active-feature and dependency gates at activation time, and support optional feature ID conventions.
 - Completed:
