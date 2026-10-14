@@ -856,6 +856,124 @@ test("add-feature: refuses a duplicate feature id", () => {
   }
 });
 
+test("add-feature: accepts configured behavior, verification, dependencies, and extra layers", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    { features: [{ id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }] }] },
+    null,
+    2,
+  )}\n`);
+  write(root, ".harness/manifest.json", JSON.stringify({ featureIdPattern: "^feat-\\d{3}$" }));
+  try {
+    const result = run(root, "add-feature", [
+      "feat-002",
+      "Configured",
+      "Feature",
+      "--behavior",
+      "Describe this behavior",
+      "--verification",
+      "Run all checks",
+      "--depends",
+      "feat-001",
+      "--layer",
+      "Multi-repo verification=npm run verify-all",
+    ]);
+    assert.equal(result.exit, 0, result.output);
+    const added = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features[1];
+    assert.equal(added.name, "Configured Feature");
+    assert.equal(added.behavior, "Describe this behavior");
+    assert.equal(added.verification, "Run all checks");
+    assert.deepEqual(added.dependencies, ["feat-001"]);
+    assert.equal(added.layers.length, 4);
+    assert.deepEqual(added.layers[3], {
+      label: "Multi-repo verification",
+      cmd: "npm run verify-all",
+      repair: "Fix Multi-repo verification failures and rerun the layer command.",
+    });
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("add-feature: enforces an optional manifest feature ID pattern", () => {
+  const root = fixture();
+  write(root, "feature_list.json", '{"features":[]}\n');
+  write(root, ".harness/manifest.json", JSON.stringify({ featureIdPattern: "^feat-\\d{3}$" }));
+  try {
+    const result = run(root, "add-feature", ["polish-portfolio", "Bad Id"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /does not match manifest featureIdPattern/);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features, []);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("add-feature: accepts IDs when the manifest does not define a pattern", () => {
+  const root = fixture();
+  write(root, "feature_list.json", '{"features":[]}\n');
+  try {
+    const result = run(root, "add-feature", ["polish-portfolio", "Flexible ID"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features[0].id, "polish-portfolio");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: writes active state when dependencies pass", () => {
+  const root = featureListFixture([
+    { id: "feat-001", state: "passing", dependencies: [] },
+    { id: "feat-002", state: "planned", dependencies: ["feat-001"] },
+  ]);
+  try {
+    const result = run(root, "activate", ["feat-002"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")), {
+      state: "active",
+      evidence: "",
+    });
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: refuses a second active feature without writing its shard", () => {
+  const root = featureListFixture([
+    { id: "feat-001", state: "active", dependencies: [] },
+    { id: "feat-002", state: "planned", dependencies: [] },
+  ]);
+  try {
+    const result = run(root, "activate", ["feat-002"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /feat-001 is already active/);
+    assert.equal(
+      JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")).state,
+      "planned",
+    );
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: refuses dependencies that are not passing", () => {
+  const root = featureListFixture([
+    { id: "feat-001", state: "planned", dependencies: [] },
+    { id: "feat-002", state: "planned", dependencies: ["feat-001"] },
+  ]);
+  try {
+    const result = run(root, "activate", ["feat-002"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /unmet dependencies: feat-001/);
+    assert.equal(
+      JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")).state,
+      "planned",
+    );
+  } finally {
+    cleanup(root);
+  }
+});
+
 // ---- check-arch: untracked-file warning (dogfooding feedback Tier 1 item 1) -
 
 test("check-arch: warns (does not fail) when untracked files exist", () => {

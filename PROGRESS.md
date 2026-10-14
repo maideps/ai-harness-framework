@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-014 passing)
+- Current active feature: none (feat-001 through feat-015 passing — includes feature lifecycle and adopter CI)
 - Current blocker: none
 ## Session Log
 
@@ -446,7 +446,21 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Known risk or unresolved issue: no Git repository reports commit `unknown` and conservatively records `dirty: true`.
 - Next best step: none.
 
-### Session 029 — 2026-10-14 — Adopter CI and Node-version seam (D-023)
+### Session 029 — 2026-10-14 — Feature lifecycle commands (#3)
+
+- Goal: remove manual JSON edits from feature declaration and activation, enforce the single-active-feature and dependency gates at activation time, and support optional feature ID conventions.
+- Completed:
+  - `add-feature` now accepts behavior, verification, comma-separated dependencies, and repeated `label=cmd` layers; defaults remain available, custom layers append to the standard chain, and configured dependencies must already be declared.
+  - An optional `.harness/manifest.json` `featureIdPattern` regex is enforced for new feature IDs; this repo uses `^feat-\\d{3}$`.
+  - Added `activate` as npm and Make commands. It refuses a second active feature, unmet dependencies, blocked/passing features, and activation of a different feature from a lane branch before writing the state shard.
+  - Added lifecycle tests, updated the feature workflow and adopter docs, and recorded feat-014 through the new add/activate commands.
+- Verification run: `bash ./init.sh`; `node --test tests/framework-check.test.mjs` (54/54); `npm run verify-feature -- feat-014` (all layers pass); `npm run check` (all layers pass, 75/75 tests and e2e matrix); `npm run check-arch` (6/6 rules pass; expected untracked-state warning before commit).
+- Evidence captured: `.harness/state/feat-014.json`
+- Files or artifacts updated: `scripts/framework-check.mjs`, `tests/framework-check.test.mjs`, `package.json`, `Makefile`, `.harness/manifest.json`, `feature_list.json`, `.harness/state/feat-014.json`, `README.md`, `templates/README.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/USAGE.md`, `templates/docs/USAGE.md`, `skills/feature-cycle/SKILL.md`, `docs/quality-document.md`, `PROGRESS.md`
+- Known risk or unresolved issue: none identified.
+- Next best step: none; feature lifecycle work is complete and the repository is ready for the next session.
+
+### Session 030 — 2026-10-14 — Adopter CI and Node-version seam (D-023)
 
 - Goal: make generated CI verify adopter projects, keep the framework adoption matrix in this repository's CI, and let adopters choose their Node version without editing CORE.
 - Completed:
@@ -454,8 +468,8 @@ Session continuity source of truth for this repository. Update at the end of eac
   - Made `.nvmrc` an INSTANCE destination seeded from `templates/nvmrc`; harness upgrades preserve adopter changes.
   - Skipped the framework adoption matrix from the generated workflow while leaving project-defined e2e scripts runnable; updated generic product docs so a new scaffold passes verification before customization.
   - Added scaffold, upgrade-preservation, and matrix-opt-out tests; documented the seam and decision in D-023.
-- Verification run: `npm run verify-feature -- feat-014` (ALL LAYERS PASS; e2e matrix reports toolchain SKIPs honestly); 53 focused tests pass; fresh adopter `npm run setup --if-present && npm run check && npm run check-arch` passes with `CW_SKIP_ADOPTION_MATRIX=1`.
-- Evidence captured: `.harness/state/feat-014.json`.
+- Verification run: `npm run verify-feature -- feat-015` (ALL LAYERS PASS; expected e2e SKIP retained); 59 focused tests pass after merge; `npm run check` (77/77 tests and adoption matrix pass); `npm run check-arch` (6/6 rules pass); fresh adopter `npm run setup --if-present && npm run check && npm run check-arch` passes with `CW_SKIP_ADOPTION_MATRIX=1`.
+- Evidence captured: `.harness/state/feat-015.json`.
 - Files or artifacts updated: `.harness/manifest.json`, `templates/ci.yml`, `templates/nvmrc`, `templates/docs/PRODUCT.md`, `scripts/framework-check.mjs`, `scripts/create-harness.mjs`, `scripts/harness-upgrade.mjs`, adoption tests, docs, `feature_list.json`, and `PROGRESS.md`.
 - Known risk or unresolved issue: generated `npm run setup` reports a non-fatal ancient-lockfile warning for the harness's empty starter lockfile.
-- Next best step: no blocker; continue with the next planned feature.
+- Next best step: commit the verified merge, then rerun `npm run clean-check` with a clean working tree.

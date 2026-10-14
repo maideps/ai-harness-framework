@@ -72,6 +72,8 @@ feat-011 (D-017) closed the gap the first cut of Worktree Lanes left open: `feat
 - **Shape enforcement** — Layer 1b (`npm run typecheck`) rejects any `state`/`status`/`evidence` key left inline in `feature_list.json`, and validates every shard file: valid JSON, an allowed state, a real declared feature id (arch-006, `arch:sharded-state`). A stray shard with no matching declaration fails the same way a stray unclassified file fails arch-005.
 - **Migration** — `npm run migrate-feature-state` moves a repo's inline `state`/`status`/`evidence` into shards and strips those keys from `feature_list.json`; idempotent, skips features that already have a shard.
 
+Feature declarations can be configured with `npm run add-feature -- <id> <name> [--behavior <text>] [--verification <text>] [--depends a,b] [--layer label=cmd]`; repeated `--layer` options append verification layers to the standard three. If `.harness/manifest.json` defines `featureIdPattern` as a regular expression string, `add-feature` validates IDs against it. `npm run activate -- <id>` checks WIP=1, dependency states, and lane ownership before writing that feature's active state shard.
+
 ## Application Dependency Rules
 
 Adopting projects should enforce the following layered rules once product code exists:

@@ -31,12 +31,13 @@ For node projects, the package.json script keys are the layer commands (`scripts
 | Layer 3b: end-to-end | `make e2e` | `npm run e2e` |
 | Architecture rules | `make check-arch` | `npm run check-arch` |
 | Feature gate | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
+| Activate a feature | `make activate F=<id>` | `npm run activate -- <id>` |
 | Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
 | List worktree lanes | `make lane-list` | `npm run lane-list` |
 | Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
 | Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
 | Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
-| Add a feature stub | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name>` |
+| Add a feature | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` |
 | Verify + record trail | `make vcr` | `npm run vcr` |
 | Session start / end | `make session-start` / `session-end` | `npm run session-start` / `session-end` |
 | Pre-commit clean state | `make clean-check` | `npm run clean-check` |
@@ -44,8 +45,8 @@ For node projects, the package.json script keys are the layer commands (`scripts
 
 ## The Feature Workflow
 
-1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name>` appends a correctly-shaped stub (dependencies `[]`, the standard 3-layer chain) so you fill in `behavior`/`verification`/`dependencies` instead of hand-writing the JSON.
-2. Activate it by setting `state` to `"active"` in that feature's `.harness/state/<feature-id>.json` (create the file if it doesn't exist yet: `{"state": "active", "evidence": ""}`). The harness enforces **WIP=1** (at most one active feature) and **dependency order** (an active feature's dependencies must already be `passing`).
+1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` configures the declaration; repeated `--layer` options append custom verification layers to the standard chain. An optional `featureIdPattern` regular expression in `.harness/manifest.json` restricts accepted IDs.
+2. Activate it with `npm run activate -- <feature-id>`. Activation immediately enforces **WIP=1** (at most one active feature) and **dependency order** (every dependency must already be `passing`), then writes the feature's state shard.
 3. Implement the feature. Run `npm run check` before every commit.
 4. Verify through the gate — never mark a feature `passing` by hand:
    ```bash
