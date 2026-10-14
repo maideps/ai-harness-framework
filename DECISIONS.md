@@ -314,7 +314,19 @@ This file records significant architectural decisions, their context, alternativ
 - Positive: customising layer scripts is safe, as documented; the matrix tests the harness regardless of how the host repo is wired.
 - Negative: if the canonical layer-script values ever change, `normalizeFixtureScripts` must change with them (the unit test asserts the current values, so a drift fails loudly).
 
-### D-023: Adopter LICENSE is copied once and preserved by upgrades
+### D-023: Adopter CI verifies the project and uses an instance Node pin
+
+**Date:** 2026-10-14
+**Status:** accepted
+**Context:** The CI template installed the framework's Python, Go, and Rust toolchains and ran its adoption matrix, while its CORE `.nvmrc` forced every adopter to use the framework's Node version. This made copied CI test the wrong project configuration and prevented adopters from changing the Node pin without editing CORE.
+**Decision:** The adopter CI template now uses the generated `.nvmrc`, optional setup script, and the project's `check` and `check-arch` commands. It sets `CW_SKIP_ADOPTION_MATRIX` so the default framework e2e entrypoint skips the adoption matrix in adopters; the matrix remains in this repository's own workflow. `.nvmrc` is seeded from a template and classified as INSTANCE, so adopters can change it and upgrades preserve that choice.
+**Alternatives considered:**
+- Keep `.nvmrc` as CORE and ask adopters to change `engines.node` — Rejected: the runtime pin would still be overwritten by harness upgrades and would not support projects that configure Node only through `.nvmrc`.
+**Consequences:**
+- Positive: generated adopters use a modern Node version by default and can select their own version without changing CORE.
+- Negative: adopters that use a different version manager should update `.nvmrc` to match their supported runtime.
+
+### D-024: Adopter LICENSE is copied once and preserved by upgrades
 
 **Date:** 2026-10-14
 **Status:** accepted

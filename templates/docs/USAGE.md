@@ -21,31 +21,12 @@ For node projects, the package.json script keys are the layer commands (`scripts
 
 ## Command Surface
 
-| Purpose | Make | npm |
-|---|---|---|
-| Full verification | `make check` | `npm run check` |
-| Layer 1: static analysis | `make lint` | `npm run lint` |
-| Layer 1b: type checking | `make typecheck` | `npm run typecheck` |
-| Layer 2: runtime tests | `make test` | `npm run test` |
-| Layer 3: build verification | `make build` | `npm run build` |
-| Layer 3b: end-to-end | `make e2e` | `npm run e2e` |
-| Architecture rules | `make check-arch` | `npm run check-arch` |
-| Feature gate | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
-| Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
-| List worktree lanes | `make lane-list` | `npm run lane-list` |
-| Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
-| Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
-| Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
-| Add a feature stub | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name>` |
-| Verify + record trail | `make vcr` | `npm run vcr` |
-| Session start / end | `make session-start` / `session-end` | `npm run session-start` / `session-end` |
-| Pre-commit clean state | `make clean-check` | `npm run clean-check` |
-| Install dependencies | `make setup` | `npm run setup` |
+The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and npm scripts. Run `npm run harness-docs` to regenerate it after changing either command surface.
 
 ## The Feature Workflow
 
-1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name>` appends a correctly-shaped stub (dependencies `[]`, the standard 3-layer chain) so you fill in `behavior`/`verification`/`dependencies` instead of hand-writing the JSON.
-2. Activate it by setting `state` to `"active"` in that feature's `.harness/state/<feature-id>.json` (create the file if it doesn't exist yet: `{"state": "active", "evidence": ""}`). The harness enforces **WIP=1** (at most one active feature) and **dependency order** (an active feature's dependencies must already be `passing`).
+1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` configures the declaration; repeated `--layer` options append custom verification layers to the standard chain. An optional `featureIdPattern` regular expression in `.harness/manifest.json` restricts accepted IDs.
+2. Activate it with `npm run activate -- <feature-id>`. Activation immediately enforces **WIP=1** (at most one active feature) and **dependency order** (every dependency must already be `passing`), then writes the feature's state shard.
 3. Implement the feature. Run `npm run check` before every commit.
 4. Verify through the gate — never mark a feature `passing` by hand:
    ```bash
@@ -155,9 +136,9 @@ The sweep never touches instance state — it only organizes runtime trace artif
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:
 
-- **CORE** — ships as-is: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `.nvmrc`, `.harness/manifest.json`, `.harness/arch-rules.json`.
-- **TEMPLATES** — skeletons you fill in for your project: `LICENSE` (copied once at adoption), project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
-- **INSTANCE** — your project's own state, never overwritten by harness upgrades: the root `LICENSE` and the files you filled from the templates plus your roadmap, progress, and decisions.
+- **CORE** — ships as-is: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `.harness/manifest.json`, `.harness/arch-rules.json`.
+- **TEMPLATES** — skeletons you fill in for your project: `LICENSE` (copied once at adoption), `.nvmrc`, project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
+- **INSTANCE** — your project's own state, never overwritten by harness upgrades: the root `LICENSE`, `.nvmrc`, and the files you filled from the templates plus your roadmap, progress, and decisions.
 - **PRODUCT-OWNED** — your product code. List its directories in the manifest's `productRoots` so the classification rule (arch-005) exempts them.
 
 Adoption steps:
@@ -167,6 +148,7 @@ Adoption steps:
 
    | Template (from) | Destination (to) |
    |---|---|
+   | templates/nvmrc | .nvmrc |
    | templates/LICENSE | LICENSE (kept by upgrades) |
    | templates/README.md | README.md |
    | templates/gitignore | .gitignore |
@@ -185,9 +167,10 @@ Adoption steps:
    | templates/sprint-contract.md | (keep — reference) |
    | templates/evaluator-rubric.md | (keep — reference) |
    | templates/clean-state-checklist.md | (keep — reference) |
-3. Add your product directories to `productRoots` in `.harness/manifest.json`.
-4. Add project-specific architecture rules to `.harness/arch-rules.json` as your codebase grows.
-5. Run `./init.sh`, then `npm run check` — you are now on the harness.
+3. The generated CI workflow uses your `.nvmrc`, runs `npm run setup --if-present`, then `npm run check` and `npm run check-arch`. Edit `.nvmrc` to choose the Node version for your project. The workflow skips the framework's adoption matrix, which runs in this repository's CI; configure your own e2e script to run project-specific end-to-end tests.
+4. Add your product directories to `productRoots` in `.harness/manifest.json`.
+5. Add project-specific architecture rules to `.harness/arch-rules.json` as your codebase grows.
+6. Run `./init.sh`, then `npm run check` — you are now on the harness.
 
 Customization points (from the manifest):
 

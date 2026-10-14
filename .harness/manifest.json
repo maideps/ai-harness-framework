@@ -7,6 +7,7 @@
     "trace": 1,
     "manifest": 3
   },
+  "featureIdPattern": "^feat-\\d{3}$",
   "core": [
     "AGENTS.md",
     "CLAUDE.md",
@@ -19,12 +20,12 @@
     "tests/",
     "skills/",
     "templates/",
-    ".nvmrc",
     ".harness/manifest.json",
     ".harness/arch-rules.json"
   ],
   "templates": [
     { "from": "templates/LICENSE", "to": "LICENSE" },
+    { "from": "templates/nvmrc", "to": ".nvmrc" },
     { "from": "templates/README.md", "to": "README.md" },
     { "from": "templates/gitignore", "to": ".gitignore" },
     { "from": "templates/progress.md", "to": "PROGRESS.md" },
@@ -59,6 +60,7 @@
     "LICENSE",
     "README.md",
     ".gitignore",
+    ".nvmrc",
     "package-lock.json",
     ".claude/settings.json",
     "docs/PRODUCT.md",
@@ -66,6 +68,7 @@
     "docs/OBSERVABILITY.md",
     "docs/TOOLS.md",
     "docs/USAGE.md",
+    "docs/HARNESS.md",
     "docs/STANDARDS.md",
     "docs/quality-document.md",
     "docs/decisions/",
