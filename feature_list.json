@@ -335,6 +335,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-014",
+      "name": "Generated Progress Dashboard",
+      "behavior": "Store each session's notes in progress/NNN-YYYY-MM-DD.md and generate PROGRESS.md's current state and session index from feature_list.json, .harness/state/, and the session files.",
+      "verification": "npm run check passes; progress-update regenerates current state and the session index, while lint:progress-log rejects stale dashboards, malformed entries, duplicate numbers, and gaps.",
+      "dependencies": [
+        "feat-013"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

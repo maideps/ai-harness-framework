@@ -53,6 +53,7 @@
     "feature_list.json",
     ".harness/state/",
     "PROGRESS.md",
+    "progress/",
     "claude-progress.md",
     "DECISIONS.md",
     "session-handoff.md",

@@ -164,8 +164,9 @@ function runCell(stack) {
   try {
     root = buildAdopter("matrix", stack);
     fillFeatureList(root);
+    const progress = spawnRunner(root, ["progress-update"]);
     const checkArch = spawnRunner(root, ["check-arch"]);
-    const lint = spawnRunner(root, ["run-layer", "lint"]);
+    const lint = progress.exit === 0 ? spawnRunner(root, ["run-layer", "lint"]) : progress;
     const test = spawnRunner(root, ["run-layer", "test"]);
     const featureCycle = spawnRunner(root, ["verify-feature", "feat-001"]);
     const skips = [...skipLines(lint.output), ...skipLines(test.output)];
@@ -198,6 +199,10 @@ function runUpgradeTest() {
     const featureList = JSON.parse(readFileSync(featureListPath, "utf8"));
     featureList.features[0].name = "Customized Feature Name";
     writeFileSync(featureListPath, `${JSON.stringify(featureList, null, 2)}\n`, "utf8");
+    const progress = spawnRunner(root, ["progress-update"]);
+    if (progress.exit !== 0) {
+      throw new Error(`progress dashboard generation failed: ${progress.output}`);
+    }
     const manifestPath = path.join(root, ".harness", "manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     manifest.productRoots = ["src/", "custom/"];

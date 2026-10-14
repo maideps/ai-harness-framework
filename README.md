@@ -14,7 +14,7 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
 - **Concurrent multi-agent lanes**: Multiple agents can work independent features at once, each in its own sibling git worktree on branch `lane/<feature-id>` (`lane-new`/`lane-list`/`lane-land`/`lane-drop`) — git's own branch-checkout exclusivity is the coordination primitive, no lock file needed, and WIP=1 is enforced per lane
 - **Sharded feature state**: `feature_list.json` declares what a feature is and rarely changes; each feature's mutable state (`state`, `evidence`) lives in its own `.harness/state/<id>.json` — two lanes finishing two different features merge without conflict by construction
-- **Durable cross-session continuity**: State files (`PROGRESS.md`, `DECISIONS.md`, `session-handoff.md`) ensure context survives across sessions
+- **Durable cross-session continuity**: Per-session notes in `progress/` and a generated `PROGRESS.md` dashboard keep context concise and in sync with feature state
 - **Architecture enforcement**: Codified layer dependency rules in `.harness/arch-rules.json`, enforced via `make check-arch` / `npm run check-arch`
 - **Skills packs**: Nine reusable capability packs in `skills/` (feature-cycle, verification, review, commit, release, adopt, update-docs, session-handoff, write-skill), validated on every lint run
 - **Proven adoption**: An e2e matrix generates throwaway repos for node/python/go/rust from the seam manifest and runs real feature cycles in each; a customization-survival upgrade test guards the seam contract; CI proves both on Linux with real toolchains
@@ -92,15 +92,16 @@ These files are the source of truth—not chat history:
 |------|---------|
 | `feature_list.json` | Feature declarations — id, behavior, dependencies, verification layers. Rarely changes. |
 | `.harness/state/<id>.json` | That feature's mutable state (`state`, `evidence`) — one file per feature |
-| `PROGRESS.md` | Session continuity starter artifact — current state, blockers, next steps |
+| `PROGRESS.md` | Generated current-state dashboard and index of session notes |
+| `progress/NNN-YYYY-MM-DD.md` | One durable notes file per session |
 | `DECISIONS.md` | Architectural decisions log — why the codebase is structured this way |
 | `session-handoff.md` | Multi-session handoff starter artifact |
 
-`state` values are `planned`, `active`, `blocked`, and `passing`. `verify-feature` writes only the shard for the feature it just verified — `feature_list.json` itself is never rewritten by the gate (see [Sharded Feature State](docs/ARCHITECTURE.md#sharded-feature-state)).
+`state` values are `planned`, `active`, `blocked`, and `passing`. `verify-feature` writes only the shard for the feature it just verified — `feature_list.json` itself is never rewritten by the gate (see [Sharded Feature State](docs/ARCHITECTURE.md#sharded-feature-state)). At session end, add a dated note under `progress/` and run `node scripts/framework-check.mjs progress-update`; lint rejects a stale dashboard or a broken session index.
 
 ### Reusability Contract
 
-The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited), **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `.harness/state/`, `PROGRESS.md`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
+The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited); **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `.harness/state/`, `PROGRESS.md`, `progress/`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
 
 ### Command Targets
 
@@ -149,7 +150,7 @@ A feature is complete only when ALL of the following are true:
 - [ ] Layer 1 (syntax/static checks) passes
 - [ ] Layer 2 (runtime behavior/tests) passes
 - [ ] Layer 3 (system confirmation/e2e) passes when crossing component boundaries
-- [ ] Evidence recorded in `.harness/state/<id>.json` and `PROGRESS.md`
+- [ ] Evidence recorded in `.harness/state/<id>.json` and session notes under `progress/`
 - [ ] Repository remains restartable from `./init.sh`
 
 ## Feature Roadmap

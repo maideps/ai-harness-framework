@@ -53,7 +53,7 @@ For node projects, the package.json script keys are the layer commands (`scripts
    ```
    The gate runs the feature's own verification layers, refuses to pass a feature whose dependencies are not `passing`, and records evidence in `.harness/state/<feature-id>.json` — `feature_list.json` itself is never rewritten (feat-011, D-017).
 5. Record durable evidence of a full run with `npm run vcr` (writes a trail to `.harness/trails/`).
-6. End the session: update `PROGRESS.md`, `session-handoff.md`, and `docs/quality-document.md`, then run `npm run clean-check` and commit.
+6. End the session: add `progress/NNN-YYYY-MM-DD.md`, regenerate `PROGRESS.md` with `node scripts/framework-check.mjs progress-update`, update `session-handoff.md` and `docs/quality-document.md`, then run `npm run clean-check` and commit.
 
 ## Session Lifecycle
 
@@ -63,7 +63,7 @@ npm run session-start   # record start time, git state, active feature
 npm run session-end     # merge end state, files modified, decisions, verification into the trace
 ```
 
-Traces are JSON files in `.harness/traces/`. They are runtime records, not evidence — keep the durable story in `PROGRESS.md`, `DECISIONS.md`, and `feature_list.json`.
+Traces are JSON files in `.harness/traces/`. They are runtime records, not evidence — keep durable session notes in `progress/`, decisions in `DECISIONS.md`, and feature state in `.harness/state/`. `PROGRESS.md` is a generated dashboard/index.
 
 ## Skills
 
@@ -163,7 +163,7 @@ The seam contract in `.harness/manifest.json` states exactly what ships and what
 Adoption steps:
 
 1. Copy CORE files and `templates/` into your repository.
-2. Copy each template to its declared destination and fill it in. The manifest's `templates` entries carry the mapping machine-readably: `{ "from": "templates/progress.md", "to": "PROGRESS.md" }` means copy that skeleton to `PROGRESS.md` and replace the placeholder content; entries with `"keep": true` stay under `templates/` as reference material.
+2. Copy each template to its declared destination and fill it in. The manifest's `templates` entries carry the mapping machine-readably: `{ "from": "templates/progress.md", "to": "PROGRESS.md" }` means copy that dashboard skeleton to `PROGRESS.md`; regenerate its generated block after changing feature declarations or adding session notes. Entries with `"keep": true` stay under `templates/` as reference material.
 
    | Template (from) | Destination (to) |
    |---|---|
@@ -206,4 +206,4 @@ Customization points (from the manifest):
 Two more checks worth knowing about, neither a numbered arch rule:
 
 - **`check-arch` warns (does not fail) on untracked files.** Coverage rules like arch-005 only see what `git ls-files` already tracks — a brand-new file silently passes coverage until it's `git add`ed, then fails once it is. `check-arch` prints a heads-up (`[WARN] N untracked file(s) exist…`) before evaluating rules, so a rule result you're about to read isn't misread as covering a file it can't see yet.
-- **`npm run lint` fails on a broken `PROGRESS.md` session log.** Parses every `### Session N` header and fails on a duplicate or a gap in the numeric *set* (not file order — a legitimate out-of-order write, e.g. a same-day hotfix session logged after a later-numbered one, is not a bug).
+- **`npm run lint` checks the generated `PROGRESS.md` dashboard and `progress/` archive.** The dashboard must match feature declarations/state shards and the dated session files; filenames/headings must agree, and session numbers must be unique and contiguous (file creation order does not matter). Run `node scripts/framework-check.mjs progress-update` to regenerate it.

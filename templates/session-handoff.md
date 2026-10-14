@@ -33,7 +33,7 @@ Fill this at session end for large sessions; keep it current otherwise.
 ## Next Session Startup
 
 1. Read `AGENTS.md`.
-2. Read `feature_list.json` and `PROGRESS.md`.
+2. Read `feature_list.json`, `PROGRESS.md`, and the latest note under `progress/`.
 3. Review this handoff.
 4. Run the standard verification command before editing.
 
