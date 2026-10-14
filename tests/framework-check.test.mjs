@@ -736,13 +736,21 @@ test("verify-feature: records passing evidence in the shard, never rewrites feat
           behavior: "b",
           verification: "v",
           dependencies: [],
-          layers: [{ label: "L", cmd: `${NODE} -e "process.exit(0)"`, repair: "r" }],
+          layers: [
+            { label: "L", cmd: `${NODE} -e "process.exit(0)"`, repair: "r" },
+            { label: "Optional", cmd: `${NODE} -e "console.log('[SKIP] optional')"`, repair: "r" },
+          ],
         },
       ],
     },
     null,
     2,
   )}\n`);
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["config", "user.name", "Test"], { cwd: root });
+  spawnSync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+  spawnSync("git", ["add", "feature_list.json"], { cwd: root });
+  spawnSync("git", ["commit", "-qm", "fixture"], { cwd: root });
   const declarationsBefore = readFileSync(path.join(root, "feature_list.json"), "utf8");
   try {
     const result = run(root, "verify-feature", ["feat-001"]);
@@ -750,7 +758,20 @@ test("verify-feature: records passing evidence in the shard, never rewrites feat
     assert.equal(readFileSync(path.join(root, "feature_list.json"), "utf8"), declarationsBefore, "feature_list.json must be byte-identical after verify-feature");
     const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
     assert.equal(shard.state, "passing");
-    assert.match(shard.evidence, /All verification layers passed/);
+    const cleanEvidence = JSON.parse(shard.evidence);
+    assert.match(cleanEvidence.summary, /All verification layers passed/);
+    assert.equal(cleanEvidence.commit, spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim());
+    assert.equal(cleanEvidence.dirty, false);
+    assert.deepEqual(cleanEvidence.layers, [
+      { label: "L", result: "PASS", skipReported: false },
+      { label: "Optional", result: "PASS", skipReported: true },
+    ]);
+
+    write(root, "dirty-marker.txt", "dirty\n");
+    const dirtyResult = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(dirtyResult.exit, 0, dirtyResult.output);
+    const dirtyShard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(JSON.parse(dirtyShard.evidence).dirty, true);
   } finally {
     cleanup(root);
   }

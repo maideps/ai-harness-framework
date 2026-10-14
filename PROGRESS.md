@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-013 passing — roadmap and extensions complete)
+- Current active feature: none (feat-001 through feat-013 passing — full roadmap and dogfooding feedback round complete)
 - Current blocker: none
 ## Session Log
 
@@ -435,14 +435,18 @@ Session continuity source of truth for this repository. Update at the end of eac
 
 ---
 
-### Session 028 — 2026-10-14 — Multi-repo ESM verification and check integration
+### Session 028 — 2026-10-14 — Verification hardening
 
-- Goal: Fix multi-repo verification in `"type": "module"` repositories, run verify-all from the optional full-check layer, and scope clean-state debug scans to manifest `productRoots`.
+- Goal: Improve the reliability and auditability of repository verification across feature gates and multi-repository adopters.
 - Completed:
-  - Replaced CommonJS verifier implementations with extensionless dynamic-import launchers and `.mjs` implementations; verify-all accepts per-repository `verify`, `verify.mjs`, and `verify.cjs`.
+  - Replaced CommonJS multi-repo verifier implementations with extensionless dynamic-import launchers and `.mjs` implementations; verify-all accepts per-repository `verify`, `verify.mjs`, and `verify.cjs`.
   - Added optional verify-all after e2e in Make and npm check chains; it SKIPs when the component is absent.
-  - Derived clean-state scan directories from manifest `productRoots`, with `DEBUG_SCAN_PATHS` retaining precedence.
-  - Added unit and adoption coverage for ESM roots, all supported repository script extensions, absent scripts/components, and product-root scan scope; aligned docs and D-011.
-- Verification run: `make check` (PASS; 72 unit tests, adoption matrix PASS; toolchain SKIPs reported honestly) and `npm run check-arch` (PASS).
-- Current state: no active feature, blockers, or unresolved risks; feat-013 state remains unchanged.
+  - Derived clean-state debug scan directories from manifest `productRoots`, with `DEBUG_SCAN_PATHS` retaining precedence.
+  - Added unit and adoption coverage for ESM roots, supported repository script extensions, absent components/scripts, and product-root scan scope.
+  - `verify-feature` stores structured evidence including timestamp, short Git commit, dirty flag, and each layer's PASS/SKIP result; regression tests cover clean and dirty trees, commit capture, and layer status.
+- Verification run: `make check` and `npm run check-arch` pass; the adoption matrix passes, and the focused verify-feature regression tests pass. Missing Python/Rust tools report SKIP honestly.
+- Evidence captured: runner and adoption tests verify the new behaviors, including serialized feature evidence.
+- Known risk or unresolved issue: when the current directory is not a Git repository, verify-feature records commit `unknown` and conservatively marks the tree dirty.
+- Current state: no active feature or blockers; feat-013 state remains unchanged.
+- Next best step: none.
 - Next best step: none.
