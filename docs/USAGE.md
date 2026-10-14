@@ -6,7 +6,7 @@ This guide covers running the harness day-to-day and adopting it in a new projec
 
 ```bash
 ./init.sh        # check prerequisites, detect the project stack, install deps, run verification
-make check       # full verification: lint → typecheck → test → build → e2e
+make check       # full verification: lint → typecheck → test → build → e2e → optional verify-all
 make help        # list all available commands
 ```
 
@@ -88,11 +88,11 @@ Upgrading a repository from the older inline-state schema (or hand-migrating one
 
 Projects that span multiple repositories can activate the multi-repo component:
 
-1. Copy the `templates/multi-repo/*` skeletons to their declared destinations (`scripts/verify-all`, `contracts/`, `tasks/`, `repositories/`).
-2. Give every subrepository a `scripts/verify` that exits non-zero on failure.
-3. Run the root gate: `npm run verify-all` (or `make verify-all`) — it runs every repository's verify and aggregates the results.
+1. Copy the `templates/multi-repo/*` skeletons to their declared destinations (`scripts/verify-all`, `scripts/verify-all.mjs`, `contracts/`, `tasks/`, `repositories/`).
+2. Give every subrepository a `scripts/verify`, `scripts/verify.mjs`, or `scripts/verify.cjs` that exits non-zero on failure.
+3. Run the root gate: `npm run verify-all` (or `make verify-all`) — it runs every repository's verify script and aggregates the results. `make check` includes this optional layer.
 
-Single-repo projects never need the component: `check` passes without it, and `verify-all` reports SKIP when the markers are absent. Repositories without a `scripts/verify` are SKIPped, not passed.
+Single-repo projects never need the component: `check` passes without it, and `verify-all` reports SKIP when the markers are absent. Repositories without any supported verify script are SKIPped, not passed.
 
 ## Distribution
 

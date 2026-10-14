@@ -64,7 +64,7 @@ test("normalizeFixtureScripts: resets customised layer scripts to the canonical 
     }
     assert.equal(
       scripts.check,
-      "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e",
+      "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all",
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

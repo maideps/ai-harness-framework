@@ -80,7 +80,7 @@ Every feature passes through these layers, grouped into three gates (static chec
 | 3 | Build Verification | `make build` / `npm run build` | Production build succeeds |
 | 3b | End-to-End | `make e2e` / `npm run e2e` | Full system integration |
 
-Run all layers with `make check` (lint → typecheck → test → build → e2e); `npm run check` is the make-free equivalent. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
+Run all layers with `make check` (lint → typecheck → test → build → e2e → optional verify-all); `npm run check` is the make-free equivalent. The verify-all layer SKIPs when multi-repo markers are absent. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
 
 Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 
@@ -104,7 +104,7 @@ The framework's reusable surfaces are classified in `.harness/manifest.json`: **
 
 ### Harness Commands
 
-The command reference is generated from the Makefile and npm scripts. See [Harness Command Reference](docs/HARNESS.md); regenerate it with `npm run harness-docs`.
+The generated [Harness Command Reference](docs/HARNESS.md) lists Makefile targets and npm scripts. Run `npm run harness-docs` to regenerate it after changing either command surface.
 
 ## Definition of Done
 

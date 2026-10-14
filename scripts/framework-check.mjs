@@ -1463,7 +1463,15 @@ function cleanStateCheck() {
   console.log("");
   console.log("--- Debug Artifacts ---");
   const envScanPaths = (process.env.DEBUG_SCAN_PATHS ?? "").split(/\s+/).filter(Boolean);
-  const candidates = ["src", "app", "apps", "lib", "packages", "services", "backend", "frontend"];
+  const productRoots = existsSync(".harness/manifest.json")
+    ? readJson(".harness/manifest.json").productRoots
+    : [];
+  const candidates = Array.isArray(productRoots)
+    ? [...new Set(productRoots.filter((root) => typeof root === "string").map((root) => {
+        if (existsSync(root) && statSync(root).isDirectory()) return root;
+        return path.dirname(root);
+      }).filter((dir) => dir !== "." && existsSync(dir) && statSync(dir).isDirectory()))]
+    : [];
   const scanPaths = envScanPaths.length > 0
     ? envScanPaths
     : candidates.filter((dir) => existsSync(dir) && statSync(dir).isDirectory());
@@ -1529,9 +1537,9 @@ function runSetup() {
 }
 
 function runVerifyAll() {
-  const script = "scripts/verify-all";
-  if (!existsSync(script)) {
-    console.log("[SKIP] Multi-repo component not activated (scripts/verify-all absent)");
+  const script = ["scripts/verify-all", "scripts/verify-all.mjs", "scripts/verify-all.cjs"].find(existsSync);
+  if (!script) {
+    console.log("[SKIP] Multi-repo component not activated (verify-all script absent)");
     console.log("  Activate it by copying the templates/multi-repo skeletons to their declared destinations.");
     return;
   }

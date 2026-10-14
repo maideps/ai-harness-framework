@@ -6,7 +6,7 @@
 
 ## Full verification — all layers in order.
 ## Layers that are not configured report SKIP and do not count as verified.
-check: lint typecheck test build e2e
+check: lint typecheck test build e2e verify-all
 	@echo "=== make check: complete ==="
 	@echo "  Any layer that reported SKIP was not configured and does not count as verified."
 
