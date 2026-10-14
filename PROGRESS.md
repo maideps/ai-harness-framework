@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-012 passing — full roadmap plus worktree-lanes/sharded-state/upgrade-backups extensions complete)
+- Current active feature: none (feat-001 through feat-014 passing)
 - Current blocker: none
 ## Session Log
 
@@ -432,3 +432,17 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs, tests/adoption-matrix.test.mjs, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
+
+### Session 028 — 2026-10-14 — Adopter CI and Node-version seam (D-023)
+
+- Goal: make generated CI verify adopter projects, keep the framework adoption matrix in this repository's CI, and let adopters choose their Node version without editing CORE.
+- Completed:
+  - Replaced the adopter workflow's framework/toolchain matrix with `.nvmrc` setup, optional `npm run setup`, project check, and architecture check on all branches.
+  - Made `.nvmrc` an INSTANCE destination seeded from `templates/nvmrc`; harness upgrades preserve adopter changes.
+  - Skipped the framework adoption matrix from the generated workflow while leaving project-defined e2e scripts runnable; updated generic product docs so a new scaffold passes verification before customization.
+  - Added scaffold, upgrade-preservation, and matrix-opt-out tests; documented the seam and decision in D-023.
+- Verification run: `npm run verify-feature -- feat-014` (ALL LAYERS PASS; e2e matrix reports toolchain SKIPs honestly); 53 focused tests pass; fresh adopter `npm run setup --if-present && npm run check && npm run check-arch` passes with `CW_SKIP_ADOPTION_MATRIX=1`.
+- Evidence captured: `.harness/state/feat-014.json`.
+- Files or artifacts updated: `.harness/manifest.json`, `templates/ci.yml`, `templates/nvmrc`, `templates/docs/PRODUCT.md`, `scripts/framework-check.mjs`, `scripts/create-harness.mjs`, `scripts/harness-upgrade.mjs`, adoption tests, docs, `feature_list.json`, and `PROGRESS.md`.
+- Known risk or unresolved issue: generated `npm run setup` reports a non-fatal ancient-lockfile warning for the harness's empty starter lockfile.
+- Next best step: no blocker; continue with the next planned feature.

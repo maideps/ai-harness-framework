@@ -155,8 +155,8 @@ The sweep never touches instance state — it only organizes runtime trace artif
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:
 
-- **CORE** — ships as-is, must not be edited: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `LICENSE`, `.nvmrc`, `.harness/manifest.json`, `.harness/arch-rules.json`.
-- **TEMPLATES** — skeletons you fill in for your project: project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
+- **CORE** — ships as-is, must not be edited: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `LICENSE`, `.harness/manifest.json`, `.harness/arch-rules.json`.
+- **TEMPLATES** — skeletons you fill in for your project: `.nvmrc`, project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
 - **INSTANCE** — your project's own state, never overwritten by harness upgrades: the files you filled from the templates plus your roadmap, progress, and decisions.
 - **PRODUCT-OWNED** — your product code. List its directories in the manifest's `productRoots` so the classification rule (arch-005) exempts them.
 
@@ -167,6 +167,7 @@ Adoption steps:
 
    | Template (from) | Destination (to) |
    |---|---|
+   | templates/nvmrc | .nvmrc |
    | templates/README.md | README.md |
    | templates/gitignore | .gitignore |
    | templates/progress.md | PROGRESS.md |
@@ -184,9 +185,10 @@ Adoption steps:
    | templates/sprint-contract.md | (keep — reference) |
    | templates/evaluator-rubric.md | (keep — reference) |
    | templates/clean-state-checklist.md | (keep — reference) |
-3. Add your product directories to `productRoots` in `.harness/manifest.json`.
-4. Add project-specific architecture rules to `.harness/arch-rules.json` as your codebase grows.
-5. Run `./init.sh`, then `npm run check` — you are now on the harness.
+3. The generated CI workflow uses your `.nvmrc`, runs `npm run setup --if-present`, then `npm run check` and `npm run check-arch`. Edit `.nvmrc` to choose the Node version for your project. The workflow skips the framework's adoption matrix, which runs in this repository's CI; configure your own e2e script to run project-specific end-to-end tests.
+4. Add your product directories to `productRoots` in `.harness/manifest.json`.
+5. Add project-specific architecture rules to `.harness/arch-rules.json` as your codebase grows.
+6. Run `./init.sh`, then `npm run check` — you are now on the harness.
 
 Customization points (from the manifest):
 
