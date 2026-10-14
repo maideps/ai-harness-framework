@@ -433,7 +433,20 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
 
-### Session 028 — 2026-10-14 — Adopter CI and Node-version seam (D-023)
+### Session 028 — 2026-10-14 — Structured verify-feature evidence
+
+- Goal: Resolve issue #2 by making passing feature evidence useful for auditing what was verified and against which working tree.
+- Completed:
+  - `verify-feature` now stores JSON text in the existing evidence string, including a timestamp, short Git commit, dirty flag, and a result for each layer. A reported `[SKIP]` is retained separately from the successful layer command result.
+  - Extended the runner regression test to assert clean and dirty tree snapshots, commit capture, and per-layer PASS/SKIP details.
+  - Documented the evidence fields in the sharded-state architecture section and quality notes.
+- Verification run: focused `node --test tests/framework-check.test.mjs` (48 passed); `npm run check` (69 tests pass; lint, typecheck, build, and e2e pass).
+- Evidence captured: regression test checks the serialized evidence written to `.harness/state/feat-001.json` in a fixture repository.
+- Files or artifacts updated: `scripts/framework-check.mjs`, `tests/framework-check.test.mjs`, `docs/ARCHITECTURE.md`, `docs/quality-document.md`, `PROGRESS.md`.
+- Known risk or unresolved issue: no Git repository reports commit `unknown` and conservatively records `dirty: true`.
+- Next best step: none.
+
+### Session 029 — 2026-10-14 — Adopter CI and Node-version seam (D-023)
 
 - Goal: make generated CI verify adopter projects, keep the framework adoption matrix in this repository's CI, and let adopters choose their Node version without editing CORE.
 - Completed:
