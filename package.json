@@ -22,7 +22,6 @@
     "templates/",
     "docs/",
     "LICENSE",
-    ".nvmrc",
     ".harness/manifest.json",
     ".harness/arch-rules.json",
     "README.md"

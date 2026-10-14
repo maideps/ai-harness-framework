@@ -21,11 +21,11 @@
     "skills/",
     "templates/",
     "LICENSE",
-    ".nvmrc",
     ".harness/manifest.json",
     ".harness/arch-rules.json"
   ],
   "templates": [
+    { "from": "templates/nvmrc", "to": ".nvmrc" },
     { "from": "templates/README.md", "to": "README.md" },
     { "from": "templates/gitignore", "to": ".gitignore" },
     { "from": "templates/progress.md", "to": "PROGRESS.md" },
@@ -59,6 +59,7 @@
     "session-handoff.md",
     "README.md",
     ".gitignore",
+    ".nvmrc",
     "package-lock.json",
     ".claude/settings.json",
     "docs/PRODUCT.md",

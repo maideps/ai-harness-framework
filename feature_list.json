@@ -366,6 +366,32 @@
           "repair": "Fix Architecture enforcement failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-015",
+      "name": "Adopter CI template and Node version",
+      "behavior": "Generate an adopter CI workflow that installs the project's configured Node version, optionally runs setup, and verifies the project without the framework's adoption matrix; provide an editable adopter .nvmrc that survives harness upgrades.",
+      "verification": "The scaffold tests prove generated CI runs optional setup, project verification, and architecture verification on any branch, uses the adopter .nvmrc, skips the framework matrix, and preserves customized .nvmrc through upgrades.",
+      "dependencies": [
+        "feat-006"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

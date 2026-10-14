@@ -741,6 +741,10 @@ function isDirectorySafe(path) {
 function reportE2eStatus() {
   // The adoption matrix is the real e2e layer (feat-004). It generates
   // throwaway adopter repos from the manifest and runs the harness in each.
+  if (process.env.CW_SKIP_ADOPTION_MATRIX === "1") {
+    console.log("[SKIP] Adoption matrix is reserved for framework repository CI");
+    return;
+  }
   if (process.env.CW_ADOPTION_CELL === "1") {
     console.log("[SKIP] e2e skipped inside an adoption cell (matrix recursion guard)");
     return;

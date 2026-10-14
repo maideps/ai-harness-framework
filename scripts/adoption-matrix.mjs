@@ -207,6 +207,7 @@ function runUpgradeTest() {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     pkg.scripts.custom = "echo custom";
     writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+    writeFileSync(path.join(root, ".nvmrc"), "22.14.0\n", "utf8");
     write(
       "skills/project-skill/SKILL.md",
       "---\nname: project-skill\ndescription: An adopter-owned project skill that must survive upgrades.\n---\n# Project Skill\n\n## When to Use\n\n- Project-specific work\n",
@@ -242,6 +243,7 @@ function runUpgradeTest() {
     check(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots.join(",") === "src/,custom/", "manifest productRoots survived");
     check(readFileSync(path.join(root, "Makefile"), "utf8").includes("## Custom target"), "extra Makefile target survived");
     check(JSON.parse(readFileSync(pkgPath, "utf8")).scripts.custom === "echo custom", "extra package.json script survived");
+    check(readFileSync(path.join(root, ".nvmrc"), "utf8") === "22.14.0\n", ".nvmrc customization survived");
     check(existsSync(path.join(root, "skills", "project-skill", "SKILL.md")), "project skill survived");
     check(existsSync(path.join(root, "src", "main.js")), "product code survived");
     check(existsSync(path.join(root, "custom", "note.txt")), "productRoots content survived");

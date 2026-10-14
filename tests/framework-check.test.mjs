@@ -25,11 +25,12 @@ function write(root, rel, content) {
   writeFileSync(dest, content, "utf8");
 }
 
-function run(root, mode, args = []) {
+function run(root, mode, args = [], env = {}) {
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
     encoding: "utf8",
     timeout: 30000,
+    env: { ...process.env, ...env },
   });
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";
@@ -40,6 +41,17 @@ function run(root, mode, args = []) {
 function cleanup(root) {
   rmSync(root, { recursive: true, force: true });
 }
+
+test("e2e: adopter CI skips the framework adoption matrix", () => {
+  const root = fixture();
+  try {
+    const result = run(root, "e2e", [], { CW_SKIP_ADOPTION_MATRIX: "1" });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] Adoption matrix is reserved for framework repository CI/);
+  } finally {
+    cleanup(root);
+  }
+});
 
 // ---- ensureManifest (mode: "manifest") -------------------------------------
 
