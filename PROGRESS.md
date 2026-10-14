@@ -489,3 +489,16 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/harness-docs.mjs, scripts/framework-check.mjs, scripts/create-harness.mjs, scripts/adoption-matrix.mjs, tests/harness-docs.test.mjs, package.json, feature_list.json, .harness/state/feat-016.json, .harness/manifest.json, README.md, templates/README.md, AGENTS.md, docs/HARNESS.md, docs/ARCHITECTURE.md, docs/USAGE.md, templates/docs/USAGE.md, docs/quality-document.md, PROGRESS.md.
 - Known risk or unresolved issue: `feat-014` and `feat-015` are used by upstream feature-lifecycle and adopter-CI work, so this PR's feature was renumbered to `feat-016`.
 - Next best step: run `make clean-check` after finalizing the merge commit; no known blockers remain.
+
+### Session 032 — 2026-10-14 — Preserve adopter LICENSE during upgrades (D-024)
+
+- Goal: Resolve issue #6: prevent `harness-upgrade` from replacing adopter-specific copyright lines in `LICENSE`.
+- Completed:
+  - Kept root `LICENSE` as an INSTANCE destination populated at adoption from `templates/LICENSE`; excluded it from upgrade overwrite and backup surfaces.
+  - Extended the adoption-matrix upgrade test to verify the initial copy and preserve edited license content through repeated upgrades.
+  - Updated the manifest seam documentation, usage guides, adoption skill, quality document, and D-024.
+- Verification run: merged-tree `npm run check` passed (82/82 tests, build and e2e); `npm run check-arch` and focused adoption/command-reference tests passed.
+- Evidence captured: `.harness/state/feat-006.json`.
+- Files or artifacts updated: `.harness/manifest.json`, `templates/LICENSE`, `scripts/harness-upgrade.mjs`, `scripts/adoption-matrix.mjs`, docs, `skills/adopt/SKILL.md`, `DECISIONS.md`, and `PROGRESS.md`.
+- Known risk or unresolved issue: none identified.
+- Next best step: complete merged-tree verification.

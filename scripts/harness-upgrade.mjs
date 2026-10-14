@@ -21,7 +21,6 @@ export const MUST_NOT_EDIT_SURFACES = [
   "CLAUDE.md",
   "codex.md",
   "GEMINI.md",
-  "LICENSE",
   "scripts/",
 ];
 

@@ -20,11 +20,11 @@
     "tests/",
     "skills/",
     "templates/",
-    "LICENSE",
     ".harness/manifest.json",
     ".harness/arch-rules.json"
   ],
   "templates": [
+    { "from": "templates/LICENSE", "to": "LICENSE" },
     { "from": "templates/nvmrc", "to": ".nvmrc" },
     { "from": "templates/README.md", "to": "README.md" },
     { "from": "templates/gitignore", "to": ".gitignore" },
@@ -57,6 +57,7 @@
     "claude-progress.md",
     "DECISIONS.md",
     "session-handoff.md",
+    "LICENSE",
     "README.md",
     ".gitignore",
     ".nvmrc",
