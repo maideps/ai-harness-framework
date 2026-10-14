@@ -432,3 +432,11 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs, tests/adoption-matrix.test.mjs, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
+
+### Session 028 — 2026-10-14 — Default product ownership for docs (issue #7)
+
+- Goal: let adopters add project docs without editing `productRoots` for every new file.
+- Completed: unlisted tracked files under `docs/` now default to product-owned after explicit classifications; added regression coverage for new docs, nested image assets, and explicitly declared CORE/INSTANCE/TEMPLATE docs; updated seam documentation.
+- Verification: `node --test tests/framework-check.test.mjs`; `npm run check`.
+- Blockers: none.
+- Next step: none.
