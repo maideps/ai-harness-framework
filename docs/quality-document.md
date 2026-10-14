@@ -8,6 +8,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 |---|---|---|---|---|---|
 | scripts/framework-check.mjs | A | C | A | A | A |
 | scripts/stack-detect.mjs | B | C | A | A | A |
+| scripts/harness-upgrade.mjs | B | — | A | A | A |
 | .harness/manifest.json + arch-rules.json | B | B | B | A | A |
 | templates/ (adopter skeletons) | — | — | A | A | — |
 | Makefile | B | — | A | A | A |

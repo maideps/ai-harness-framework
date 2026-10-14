@@ -14,8 +14,9 @@ Bringing the harness into a new or existing project.
 
 ## Workflow
 
-1. Copy the CORE files and `templates/` into the repository. CORE ships as-is (`AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `skills/`, `templates/`, `LICENSE`, `.nvmrc`, `.harness/`).
+1. Copy the CORE files and `templates/` into the repository. CORE ships as-is (`AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `skills/`, `templates/`, `.nvmrc`, `.harness/`).
 2. Place each template at its declared destination — the manifest's `templates` entries carry the mapping machine-readably:
+   - `{ "from": "templates/LICENSE", "to": "LICENSE" }` → copy the MIT starter once; the adopter's `LICENSE` is preserved by upgrades.
    - `{ "from": "templates/progress.md", "to": "PROGRESS.md" }` → copy there and fill in.
    - `{ "from": "templates/sprint-contract.md", "keep": true }` → stays under `templates/` as reference material.
 3. Fill the skeletons: replace placeholder content with this project's real description, architecture, and standards. The lint layer fails while placeholder text remains — that is intentional.

@@ -155,9 +155,9 @@ The sweep never touches instance state — it only organizes runtime trace artif
 
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:
 
-- **CORE** — ships as-is, must not be edited: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `LICENSE`, `.nvmrc`, `.harness/manifest.json`, `.harness/arch-rules.json`.
-- **TEMPLATES** — skeletons you fill in for your project: project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
-- **INSTANCE** — your project's own state, never overwritten by harness upgrades: the files you filled from the templates plus your roadmap, progress, and decisions.
+- **CORE** — ships as-is: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `.nvmrc`, `.harness/manifest.json`, `.harness/arch-rules.json`.
+- **TEMPLATES** — skeletons you fill in for your project: `LICENSE` (copied once at adoption), project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
+- **INSTANCE** — your project's own state, never overwritten by harness upgrades: the root `LICENSE` and the files you filled from the templates plus your roadmap, progress, and decisions.
 - **PRODUCT-OWNED** — your product code. List its directories in the manifest's `productRoots` so the classification rule (arch-005) exempts them.
 
 Adoption steps:
@@ -167,6 +167,7 @@ Adoption steps:
 
    | Template (from) | Destination (to) |
    |---|---|
+   | templates/LICENSE | LICENSE (kept by upgrades) |
    | templates/README.md | README.md |
    | templates/gitignore | .gitignore |
    | templates/progress.md | PROGRESS.md |

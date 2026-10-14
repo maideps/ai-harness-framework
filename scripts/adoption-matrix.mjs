@@ -213,6 +213,11 @@ function runUpgradeTest() {
     );
     write("src/main.js", "// adopter product code\n");
     write("custom/note.txt", "adopter-owned\n");
+    const licensePath = path.join(root, "LICENSE");
+    const licenseTemplate = readFileSync(path.join(HARNESS_ROOT, "templates", "LICENSE"), "utf8");
+    const licenseCustomization = "\nCopyright (c) 2026 Adopter Project\n";
+    const licenseWasCopied = readFileSync(licensePath, "utf8") === licenseTemplate;
+    appendFileSync(licensePath, licenseCustomization, "utf8");
     // Corrupt a mustNotEdit surface so the upgrade must visibly restore it
     appendFileSync(path.join(root, "scripts", "framework-check.mjs"), "\n// CORRUPTED BY ADOPTER EDIT\n", "utf8");
 
@@ -220,9 +225,12 @@ function runUpgradeTest() {
     const assertions = [];
     const check = (ok, message) => assertions.push({ ok, message });
 
+    check(licenseWasCopied, "create-harness copied the license template to the adopter's root");
     // Simulated upgrade: the real distribution tool (dogfooding feat-006)
     const report = upgradeHarness(root);
     check(report.overwritten.length > 0, `upgrade overwrote ${report.overwritten.length} mustNotEdit surface(s)`);
+    check(!report.overwritten.includes("LICENSE"), "upgrade leaves the adopter's LICENSE out of overwritten surfaces");
+    check(readFileSync(licensePath, "utf8") === licenseTemplate + licenseCustomization, "LICENSE customization survived upgrade");
     check(!readFileSync(path.join(root, "scripts", "framework-check.mjs"), "utf8").includes("CORRUPTED BY ADOPTER EDIT"), "upgrade restored the corrupted runner");
     // The upgrade backs up what it's about to overwrite before touching it
     // (feat-012, dogfooding harness-backup.mjs) — the corrupted runner must
@@ -237,6 +245,7 @@ function runUpgradeTest() {
     check(restored.restored > 0, `backup restore reported ${restored.restored} file(s) restored`);
     // Put the repo back in its post-upgrade (fixed) state for the checks below.
     upgradeHarness(root);
+    check(readFileSync(licensePath, "utf8") === licenseTemplate + licenseCustomization, "LICENSE customization survived re-upgrade");
     check(readFileSync(path.join(root, "README.md"), "utf8").includes("PROJECT-SPECIFIC LINE"), "README customization survived");
     check(JSON.parse(readFileSync(featureListPath, "utf8")).features[0].name === "Customized Feature Name", "feature content survived");
     check(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots.join(",") === "src/,custom/", "manifest productRoots survived");

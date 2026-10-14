@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-012 passing — full roadmap plus worktree-lanes/sharded-state/upgrade-backups extensions complete)
+- Current active feature: none (feat-001 through feat-013 passing — full roadmap plus worktree-lanes/sharded-state/upgrade-backups extensions complete)
 - Current blocker: none
 ## Session Log
 
@@ -432,3 +432,16 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs, tests/adoption-matrix.test.mjs, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
+
+### Session 028 — 2026-10-14 — Preserve adopter LICENSE during upgrades (D-023)
+
+- Goal: Resolve issue #6: prevent `harness-upgrade` from replacing adopter-specific copyright lines in `LICENSE`.
+- Completed:
+  - Moved root `LICENSE` from CORE to an INSTANCE destination populated at adoption from `templates/LICENSE`; removed it from upgrade overwrite and backup surfaces.
+  - Extended the adoption-matrix upgrade test to verify the initial copy and preserve edited LICENSE content through repeated upgrades.
+  - Updated the manifest seam documentation, usage guides, adoption skill, quality document, and D-023.
+- Verification run: `npm run e2e`, `npm run check-arch`, `npm run check`, and `npm run verify-feature -- feat-006` passed. `check-arch` reports its expected warning for the newly added untracked `templates/LICENSE`; the commit will make it tracked.
+- Evidence captured: `.harness/state/feat-006.json` (refreshed by `verify-feature`).
+- Files or artifacts updated: `.harness/manifest.json`, `templates/LICENSE`, `scripts/harness-upgrade.mjs`, `scripts/adoption-matrix.mjs`, `docs/ARCHITECTURE.md`, `docs/USAGE.md`, `templates/docs/USAGE.md`, `skills/adopt/SKILL.md`, `docs/quality-document.md`, `DECISIONS.md`, `PROGRESS.md`, `.harness/state/feat-006.json`.
+- Known risk or unresolved issue: direct `./init.sh` invocation reports permission denied because the checked-in shim is not executable; `bash init.sh` passes. This pre-existing file mode is outside the issue scope.
+- Next best step: none for this issue.

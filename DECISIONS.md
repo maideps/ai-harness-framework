@@ -313,3 +313,16 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: customising layer scripts is safe, as documented; the matrix tests the harness regardless of how the host repo is wired.
 - Negative: if the canonical layer-script values ever change, `normalizeFixtureScripts` must change with them (the unit test asserts the current values, so a drift fails loudly).
+
+### D-023: Adopter LICENSE is copied once and preserved by upgrades
+
+**Date:** 2026-10-14
+**Status:** accepted
+**Context:** `harness-upgrade` treated the root `LICENSE` as an immutable CORE surface and overwrote adopter-specific copyright lines on every upgrade, despite adoption projects needing to name their own copyright holder.
+**Decision:** Ship the MIT starter as `templates/LICENSE` and declare it as a template destination to root `LICENSE`. Classify the root file as INSTANCE and exclude it from the surfaces `harness-upgrade` overwrites or backs up; the source template remains part of the shipped `templates/` tree.
+**Alternatives considered:**
+- Keep LICENSE in CORE and check for the framework notice during upgrade — rejected: the root file remains adopter-owned after creation, and even a validating upgrade need not rewrite or reject its modifications.
+- Store the root LICENSE as a template source — rejected: the same tracked path would be classified as both a template and INSTANCE destination.
+**Consequences:**
+- Positive: adopters receive the MIT notice on first adoption and can preserve their copyright lines across future upgrades; the adoption matrix verifies copy-on-adoption and upgrade survival.
+- Negative: changes to the framework's license starter must be reflected in both `LICENSE` and `templates/LICENSE`.
