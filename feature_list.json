@@ -335,6 +335,89 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-014",
+      "name": "Feature lifecycle commands",
+      "behavior": "Configure feature declarations and activate eligible work without manually editing JSON.",
+      "verification": "npm run check and check-arch pass; lifecycle tests verify configured creation, ID validation, dependency checks, and immediate WIP=1 enforcement.",
+      "dependencies": [
+        "feat-013"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Architecture enforcement",
+          "cmd": "npm run check-arch",
+          "repair": "Fix Architecture enforcement failures and rerun the layer command."
+        }
+      ]
+    },
+    {
+      "id": "feat-015",
+      "name": "Adopter CI template and Node version",
+      "behavior": "Generate an adopter CI workflow that installs the project's configured Node version, optionally runs setup, and verifies the project without the framework's adoption matrix; provide an editable adopter .nvmrc that survives harness upgrades.",
+      "verification": "The scaffold tests prove generated CI runs optional setup, project verification, and architecture verification on any branch, uses the adopter .nvmrc, skips the framework matrix, and preserves customized .nvmrc through upgrades.",
+      "dependencies": [
+        "feat-006"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-016",
+      "name": "Generated Harness Command Reference",
+      "behavior": "Generate docs/HARNESS.md from the repository's Makefile targets and npm scripts, verify the checked-in reference against those sources, and require README.md to link to it.",
+      "verification": "npm run check passes; focused tests prove command-reference generation, stale-reference detection, and README link enforcement; create-harness generates the reference for adopted repositories.",
+      "dependencies": [
+        "feat-015"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix generated command reference or test failures and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
