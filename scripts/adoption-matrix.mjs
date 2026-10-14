@@ -46,7 +46,7 @@ export function normalizeFixtureScripts(root) {
   for (const layer of LAYERS) {
     pkg.scripts[layer] = `node scripts/framework-check.mjs ${layer}`;
   }
-  pkg.scripts.check = "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e";
+  pkg.scripts.check = "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all";
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
@@ -278,15 +278,21 @@ function runMultiRepoTest() {
       mkdirSync(path.dirname(dest), { recursive: true });
       copyFileSync(src, dest);
     }
-    // Two working subrepos with real checks
-    const verifyScript = "#!/usr/bin/env node\nconst { spawnSync } = require(\"node:child_process\");\nconst path = require(\"node:path\");\nconst result = spawnSync(process.execPath, [path.join(__dirname, \"check.js\")], { stdio: \"inherit\" });\nprocess.exit(result.error ? 1 : (result.status ?? 1));\n";
-    const goodCheck = "const ok = 1 + 1 === 2;\nif (!ok) { console.log(\"[FAIL] arithmetic\"); process.exit(1); }\nconsole.log(\"[PASS] check\");\n";
-    for (const repo of ["app", "lib"]) {
-      const dir = path.join(root, "repositories", repo);
-      mkdirSync(path.join(dir, "scripts"), { recursive: true });
-      writeFileSync(path.join(dir, "scripts", "verify"), verifyScript, "utf8");
-      writeFileSync(path.join(dir, "scripts", "check.js"), goodCheck, "utf8");
-    }
+    // Exercise extensionless, ESM, and CommonJS entrypoints within a module-typed root.
+    const packagePath = path.join(root, "package.json");
+    const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+    packageJson.type = "module";
+    writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
+    const example = path.join(root, "repositories", "example", "scripts");
+    writeFileSync(path.join(example, "check.js"), "console.log('[PASS] extensionless template');\n", "utf8");
+    const app = path.join(root, "repositories", "app", "scripts");
+    mkdirSync(app, { recursive: true });
+    writeFileSync(path.join(app, "verify.mjs"), "console.log('[PASS] ESM entrypoint');\n", "utf8");
+    const lib = path.join(root, "repositories", "lib", "scripts");
+    mkdirSync(lib, { recursive: true });
+    writeFileSync(path.join(lib, "verify.cjs"), "console.log('[PASS] CommonJS entrypoint');\n", "utf8");
+    const empty = path.join(root, "repositories", "empty");
+    mkdirSync(empty, { recursive: true });
     // Git index so the classification coverage check actually runs
     const gitInit = spawnSync("git", ["init", "-q"], { cwd: root });
     const gitAdd = () => spawnSync("git", ["add", "-A"], { cwd: root });
@@ -299,12 +305,16 @@ function runMultiRepoTest() {
     check(checkArch.exit === 0, `check-arch passes with the component active (exit ${checkArch.exit})`);
     const verifyAll = spawnRunner(root, ["verify-all"]);
     check(verifyAll.exit === 0, `verify-all passes all subrepos (exit ${verifyAll.exit})`);
+    check(verifyAll.output.includes("[PASS] app"), "verify-all accepts verify.mjs");
+    check(verifyAll.output.includes("[PASS] lib"), "verify-all accepts verify.cjs");
+    check(verifyAll.output.includes("[PASS] example"), "verify-all accepts extensionless ESM launchers");
+    check(verifyAll.output.includes("[SKIP] empty"), "verify-all skips repositories without a verify script");
 
     // Negative: a failing subrepo fails verify-all
-    writeFileSync(path.join(root, "repositories", "lib", "scripts", "check.js"), "process.exit(1);\n", "utf8");
+    writeFileSync(path.join(lib, "verify.cjs"), "process.exit(1);\n", "utf8");
     const verifyAllFail = spawnRunner(root, ["verify-all"]);
     check(verifyAllFail.exit === 1, `verify-all fails when a subrepo fails (exit ${verifyAllFail.exit})`);
-    writeFileSync(path.join(root, "repositories", "lib", "scripts", "check.js"), goodCheck, "utf8");
+    writeFileSync(path.join(lib, "verify.cjs"), "console.log('[PASS] CommonJS entrypoint');\n", "utf8");
 
     // Negative: an unclassified file fails arch-005 coverage
     writeFileSync(path.join(root, "stray.txt"), "unclassified\n", "utf8");

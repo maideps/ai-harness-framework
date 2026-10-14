@@ -25,11 +25,12 @@ function write(root, rel, content) {
   writeFileSync(dest, content, "utf8");
 }
 
-function run(root, mode, args = []) {
+function run(root, mode, args = [], env = process.env) {
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
     encoding: "utf8",
     timeout: 30000,
+    env,
   });
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";
@@ -40,6 +41,44 @@ function run(root, mode, args = []) {
 function cleanup(root) {
   rmSync(root, { recursive: true, force: true });
 }
+
+test("clean-state-check: scans the directories derived from productRoots, not hardcoded roots", () => {
+  const root = fixture();
+  try {
+    write(root, ".harness/manifest.json", `${JSON.stringify(baseManifest({ productRoots: ["repositories/"] }))}\n`);
+    write(root, "repositories/app/debug.js", "debugger;\n");
+    write(root, "src/unrelated.js", "debugger;\n");
+    const result = run(root, "clean-state-check", [], { ...process.env, DEBUG_SCAN_PATHS: "" });
+    assert.match(result.output, /repositories[\\/]app[\\/]debug\.js:1: debugger;/);
+    assert.doesNotMatch(result.output, /src[\\/]unrelated\.js/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-all: skips cleanly when the optional component is absent", () => {
+  const root = fixture();
+  try {
+    const result = run(root, "verify-all");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] Multi-repo component not activated/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-all: accepts an ESM root script in a module-typed adopter", () => {
+  const root = fixture();
+  try {
+    write(root, "package.json", JSON.stringify({ type: "module" }));
+    write(root, "scripts/verify-all.mjs", "console.log('ESM root script');\n");
+    const result = run(root, "verify-all");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /ESM root script/);
+  } finally {
+    cleanup(root);
+  }
+});
 
 // ---- ensureManifest (mode: "manifest") -------------------------------------
 

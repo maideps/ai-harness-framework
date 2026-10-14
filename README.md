@@ -80,7 +80,7 @@ Every feature passes through these layers, grouped into three gates (static chec
 | 3 | Build Verification | `make build` / `npm run build` | Production build succeeds |
 | 3b | End-to-End | `make e2e` / `npm run e2e` | Full system integration |
 
-Run all layers with `make check` (lint → typecheck → test → build → e2e); `npm run check` is the make-free equivalent. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
+Run all layers with `make check` (lint → typecheck → test → build → e2e → optional verify-all); `npm run check` is the make-free equivalent. The verify-all layer SKIPs when multi-repo markers are absent. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
 
 Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 
@@ -118,7 +118,7 @@ Every make target is mirrored 1:1 by an npm script; both delegate to the Node ru
 | Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
 | Architecture enforcement | `make check-arch` | `npm run check-arch` |
 | Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
-| Multi-repo verification | `make verify-all` | `npm run verify-all` |
+| Optional multi-repo verification | `make verify-all` | `npm run verify-all` |
 | Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
 | List worktree lanes | `make lane-list` | `npm run lane-list` |
 | Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |

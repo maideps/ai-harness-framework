@@ -28,7 +28,7 @@
     "README.md"
   ],
   "scripts": {
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all",
     "lint": "node scripts/framework-check.mjs lint",
     "typecheck": "node scripts/framework-check.mjs typecheck",
     "test": "node scripts/framework-check.mjs test",

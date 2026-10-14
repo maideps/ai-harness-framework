@@ -7,7 +7,7 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Project root: this repository (ai-harness-framework)
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check` — both delegate to the Node runner)
-- Current active feature: none (feat-001 through feat-012 passing — full roadmap plus worktree-lanes/sharded-state/upgrade-backups extensions complete)
+- Current active feature: none (feat-001 through feat-013 passing — roadmap and extensions complete)
 - Current blocker: none
 ## Session Log
 
@@ -432,3 +432,17 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: scripts/adoption-matrix.mjs, tests/adoption-matrix.test.mjs, docs/USAGE.md, templates/docs/USAGE.md, DECISIONS.md, PROGRESS.md
 - Known risk or unresolved issue: adopters receive the fix through `harness-upgrade` (scripts/ is CORE); tests/ is not overwritten by upgrade, so the new test file reaches existing adopters only on a fresh adoption.
 - Next best step: run `harness-upgrade` in adopter repos; later consider a manifest-level "framework self-test" marker if more cases like this appear.
+
+---
+
+### Session 028 — 2026-10-14 — Multi-repo ESM verification and check integration
+
+- Goal: Fix multi-repo verification in `"type": "module"` repositories, run verify-all from the optional full-check layer, and scope clean-state debug scans to manifest `productRoots`.
+- Completed:
+  - Replaced CommonJS verifier implementations with extensionless dynamic-import launchers and `.mjs` implementations; verify-all accepts per-repository `verify`, `verify.mjs`, and `verify.cjs`.
+  - Added optional verify-all after e2e in Make and npm check chains; it SKIPs when the component is absent.
+  - Derived clean-state scan directories from manifest `productRoots`, with `DEBUG_SCAN_PATHS` retaining precedence.
+  - Added unit and adoption coverage for ESM roots, all supported repository script extensions, absent scripts/components, and product-root scan scope; aligned docs and D-011.
+- Verification run: `make check` (PASS; 72 unit tests, adoption matrix PASS; toolchain SKIPs reported honestly) and `npm run check-arch` (PASS).
+- Current state: no active feature, blockers, or unresolved risks; feat-013 state remains unchanged.
+- Next best step: none.
