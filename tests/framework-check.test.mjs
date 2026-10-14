@@ -864,63 +864,157 @@ test("check-arch: no warning (and no crash) outside a git repository", () => {
   }
 });
 
-// ---- PROGRESS.md session-number consistency (dogfooding feedback Tier 1 item 3) -
+// ---- Generated progress state and per-session index -------------------------
 
-function progressFixture(content) {
+function progressFixture(sessions = [], features = [], { generate = true } = {}) {
   const root = fixture();
-  write(root, "PROGRESS.md", content);
+  write(root, "PROGRESS.md", "# Progress Log\n\n<!-- BEGIN GENERATED PROGRESS -->\n<!-- END GENERATED PROGRESS -->\n");
+  write(root, "feature_list.json", `${JSON.stringify({
+    features: features.map(({ state, evidence, ...feature }) => feature),
+  }, null, 2)}\n`);
+  for (const feature of features) {
+    if ("state" in feature || "evidence" in feature) {
+      write(root, `.harness/state/${feature.id}.json`, `${JSON.stringify({
+        state: feature.state ?? "planned",
+        evidence: feature.evidence ?? "",
+      }, null, 2)}\n`);
+    }
+  }
+  for (const session of sessions) {
+    const number = String(session.number).padStart(3, "0");
+    const date = session.date ?? "2026-10-01";
+    const heading = session.heading ?? `### Session ${number} — ${date} — Session ${number}`;
+    write(root, `progress/${number}-${date}.md`, `${heading}\n\n- Session notes.\n`);
+  }
+  if (generate) {
+    const result = run(root, "progress-update");
+    assert.equal(result.exit, 0, result.output);
+  }
   return root;
 }
 
-test("lint:progress-log: passes on strictly sequential session numbers", () => {
-  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 003 — c\n");
+test("lint:progress-log: checks a generated dashboard and contiguous session index", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 2, date: "2026-10-02" },
+  ], [
+    { id: "feat-001", name: "First", state: "passing", evidence: "verified at 2026-10-01T10:00:00Z" },
+    { id: "feat-002", name: "Second", state: "active", evidence: "started" },
+    { id: "feat-003", name: "Third", state: "blocked" },
+  ]);
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 0, result.output);
-    assert.match(result.stdout, /unique and contiguous \(3 sessions\)/);
+    assert.match(result.stdout, /dashboard is current \(2 sessions\)/);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.match(dashboard, /Active feature: feat-002 — Second/);
+    assert.match(dashboard, /Passing features \(1\): feat-001 — First/);
+    assert.match(dashboard, /Failing\/blocked features: feat-003 — Third/);
+    assert.match(dashboard, /Last evidence: feat-001 — First — verified at 2026-10-01T10:00:00Z/);
+    assert.match(dashboard, /\[Session 002 — 2026-10-02 — Session 002\]\(progress\/002-2026-10-02\.md\)/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: passes when sessions are logged out of file order (legitimate hotfix insertion)", () => {
-  // Mirrors this repo's own real history: Session 020 was written before 019.
-  const root = progressFixture("### Session 001 — a\n\n### Session 003 — c\n\n### Session 002 — b\n");
+test("lint:progress-log: allows session files created out of order", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 3, date: "2026-10-03" },
+    { number: 2, date: "2026-10-02" },
+  ]);
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 0, result.output);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.ok(dashboard.indexOf("Session 002") < dashboard.indexOf("Session 003"));
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: fails on a duplicate session number", () => {
-  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 002 — b again\n");
+test("lint:progress-log: fails when two files use the same session number", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 1, date: "2026-10-02" },
+  ], [], { generate: false });
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 1);
-    assert.match(result.stderr, /duplicate session number: Session 2/);
+    assert.match(result.stderr, /duplicate session number: Session 1/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: fails on a gap in the session numbers", () => {
-  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 004 — d\n");
+test("lint:progress-log: fails on a gap in the session files", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 3, date: "2026-10-03" },
+  ], [], { generate: false });
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 1);
-    assert.match(result.stderr, /missing Session 3/);
+    assert.match(result.stderr, /missing Session 2/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: passes when PROGRESS.md has no numbered sessions yet", () => {
-  const root = progressFixture("# Progress Log\n\nNothing logged yet.\n");
+test("lint:progress-log: passes with no session files yet", () => {
+  const root = progressFixture();
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 0, result.output);
+    assert.match(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), /No sessions recorded yet/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails when the state shards change without regenerating the dashboard", () => {
+  const root = progressFixture([], [
+    { id: "feat-001", name: "First", state: "planned" },
+  ]);
+  try {
+    write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "passing", evidence: "new evidence" }, null, 2)}\n`);
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /is out of date/);
+    assert.match(result.stderr, /progress-update/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("progress-update: regenerates feature state and session index from their sources", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+  ], [
+    { id: "feat-001", name: "First", state: "passing", evidence: "verified" },
+  ]);
+  try {
+    write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "blocked", evidence: "blocked evidence" }, null, 2)}\n`);
+    const update = run(root, "progress-update");
+    assert.equal(update.exit, 0, update.output);
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.match(dashboard, /Failing\/blocked features: feat-001 — First/);
+    assert.match(dashboard, /Last evidence: feat-001 — First — blocked evidence/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails when the session filename and heading disagree", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01", heading: "### Session 001 — 2026-10-02 — Wrong date" },
+  ], [], { generate: false });
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /must start with a matching/);
   } finally {
     cleanup(root);
   }
