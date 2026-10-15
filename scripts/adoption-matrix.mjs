@@ -26,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HARNESS_ROOT, adopt, loadManifest } from "./create-harness.mjs";
+import { generateHarnessDocs } from "./harness-docs.mjs";
 import { upgrade as upgradeHarness } from "./harness-upgrade.mjs";
 import { restoreBackup as restoreBackupSnapshot } from "./harness-backup.mjs";
 import { LAYERS } from "./stack-detect.mjs";
@@ -46,7 +47,7 @@ export function normalizeFixtureScripts(root) {
   for (const layer of LAYERS) {
     pkg.scripts[layer] = `node scripts/framework-check.mjs ${layer}`;
   }
-  pkg.scripts.check = "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e";
+  pkg.scripts.check = "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all";
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
@@ -56,6 +57,7 @@ function buildAdopter(stage, stack) {
   normalizeFixtureScripts(root);
   fillDocs(root, stack);
   addProduct(root, stack);
+  generateHarnessDocs(root);
   return root;
 }
 
@@ -66,7 +68,7 @@ function fillDocs(root, stack) {
   };
   write(
     "README.md",
-    `# Adopted Project (${stack})\n\nThrowaway adoption-matrix fixture for the ${stack} cell.\n\n## Quick Start\n\n\`\`\`bash\n./init.sh\nmake check\n\`\`\`\n`,
+    `# Adopted Project (${stack})\n\nThrowaway adoption-matrix fixture for the ${stack} cell.\n\nSee [Harness Command Reference](docs/HARNESS.md).\n\n## Quick Start\n\n\`\`\`bash\n./init.sh\nmake check\n\`\`\`\n`,
   );
   write(
     "docs/PRODUCT.md",
@@ -212,12 +214,19 @@ function runUpgradeTest() {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     pkg.scripts.custom = "echo custom";
     writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+    generateHarnessDocs(root);
+    writeFileSync(path.join(root, ".nvmrc"), "22.14.0\n", "utf8");
     write(
       "skills/project-skill/SKILL.md",
       "---\nname: project-skill\ndescription: An adopter-owned project skill that must survive upgrades.\n---\n# Project Skill\n\n## When to Use\n\n- Project-specific work\n",
     );
     write("src/main.js", "// adopter product code\n");
     write("custom/note.txt", "adopter-owned\n");
+    const licensePath = path.join(root, "LICENSE");
+    const licenseTemplate = readFileSync(path.join(HARNESS_ROOT, "templates", "LICENSE"), "utf8");
+    const licenseCustomization = "\nCopyright (c) 2026 Adopter Project\n";
+    const licenseWasCopied = readFileSync(licensePath, "utf8") === licenseTemplate;
+    appendFileSync(licensePath, licenseCustomization, "utf8");
     // Corrupt a mustNotEdit surface so the upgrade must visibly restore it
     appendFileSync(path.join(root, "scripts", "framework-check.mjs"), "\n// CORRUPTED BY ADOPTER EDIT\n", "utf8");
 
@@ -225,9 +234,12 @@ function runUpgradeTest() {
     const assertions = [];
     const check = (ok, message) => assertions.push({ ok, message });
 
+    check(licenseWasCopied, "create-harness copied the license template to the adopter's root");
     // Simulated upgrade: the real distribution tool (dogfooding feat-006)
     const report = upgradeHarness(root);
     check(report.overwritten.length > 0, `upgrade overwrote ${report.overwritten.length} mustNotEdit surface(s)`);
+    check(!report.overwritten.includes("LICENSE"), "upgrade leaves the adopter's LICENSE out of overwritten surfaces");
+    check(readFileSync(licensePath, "utf8") === licenseTemplate + licenseCustomization, "LICENSE customization survived upgrade");
     check(!readFileSync(path.join(root, "scripts", "framework-check.mjs"), "utf8").includes("CORRUPTED BY ADOPTER EDIT"), "upgrade restored the corrupted runner");
     // The upgrade backs up what it's about to overwrite before touching it
     // (feat-012, dogfooding harness-backup.mjs) — the corrupted runner must
@@ -242,11 +254,13 @@ function runUpgradeTest() {
     check(restored.restored > 0, `backup restore reported ${restored.restored} file(s) restored`);
     // Put the repo back in its post-upgrade (fixed) state for the checks below.
     upgradeHarness(root);
+    check(readFileSync(licensePath, "utf8") === licenseTemplate + licenseCustomization, "LICENSE customization survived re-upgrade");
     check(readFileSync(path.join(root, "README.md"), "utf8").includes("PROJECT-SPECIFIC LINE"), "README customization survived");
     check(JSON.parse(readFileSync(featureListPath, "utf8")).features[0].name === "Customized Feature Name", "feature content survived");
     check(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots.join(",") === "src/,custom/", "manifest productRoots survived");
     check(readFileSync(path.join(root, "Makefile"), "utf8").includes("## Custom target"), "extra Makefile target survived");
     check(JSON.parse(readFileSync(pkgPath, "utf8")).scripts.custom === "echo custom", "extra package.json script survived");
+    check(readFileSync(path.join(root, ".nvmrc"), "utf8") === "22.14.0\n", ".nvmrc customization survived");
     check(existsSync(path.join(root, "skills", "project-skill", "SKILL.md")), "project skill survived");
     check(existsSync(path.join(root, "src", "main.js")), "product code survived");
     check(existsSync(path.join(root, "custom", "note.txt")), "productRoots content survived");
@@ -283,15 +297,21 @@ function runMultiRepoTest() {
       mkdirSync(path.dirname(dest), { recursive: true });
       copyFileSync(src, dest);
     }
-    // Two working subrepos with real checks
-    const verifyScript = "#!/usr/bin/env node\nconst { spawnSync } = require(\"node:child_process\");\nconst path = require(\"node:path\");\nconst result = spawnSync(process.execPath, [path.join(__dirname, \"check.js\")], { stdio: \"inherit\" });\nprocess.exit(result.error ? 1 : (result.status ?? 1));\n";
-    const goodCheck = "const ok = 1 + 1 === 2;\nif (!ok) { console.log(\"[FAIL] arithmetic\"); process.exit(1); }\nconsole.log(\"[PASS] check\");\n";
-    for (const repo of ["app", "lib"]) {
-      const dir = path.join(root, "repositories", repo);
-      mkdirSync(path.join(dir, "scripts"), { recursive: true });
-      writeFileSync(path.join(dir, "scripts", "verify"), verifyScript, "utf8");
-      writeFileSync(path.join(dir, "scripts", "check.js"), goodCheck, "utf8");
-    }
+    // Exercise extensionless, ESM, and CommonJS entrypoints within a module-typed root.
+    const packagePath = path.join(root, "package.json");
+    const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+    packageJson.type = "module";
+    writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
+    const example = path.join(root, "repositories", "example", "scripts");
+    writeFileSync(path.join(example, "check.js"), "console.log('[PASS] extensionless template');\n", "utf8");
+    const app = path.join(root, "repositories", "app", "scripts");
+    mkdirSync(app, { recursive: true });
+    writeFileSync(path.join(app, "verify.mjs"), "console.log('[PASS] ESM entrypoint');\n", "utf8");
+    const lib = path.join(root, "repositories", "lib", "scripts");
+    mkdirSync(lib, { recursive: true });
+    writeFileSync(path.join(lib, "verify.cjs"), "console.log('[PASS] CommonJS entrypoint');\n", "utf8");
+    const empty = path.join(root, "repositories", "empty");
+    mkdirSync(empty, { recursive: true });
     // Git index so the classification coverage check actually runs
     const gitInit = spawnSync("git", ["init", "-q"], { cwd: root });
     const gitAdd = () => spawnSync("git", ["add", "-A"], { cwd: root });
@@ -304,12 +324,16 @@ function runMultiRepoTest() {
     check(checkArch.exit === 0, `check-arch passes with the component active (exit ${checkArch.exit})`);
     const verifyAll = spawnRunner(root, ["verify-all"]);
     check(verifyAll.exit === 0, `verify-all passes all subrepos (exit ${verifyAll.exit})`);
+    check(verifyAll.output.includes("[PASS] app"), "verify-all accepts verify.mjs");
+    check(verifyAll.output.includes("[PASS] lib"), "verify-all accepts verify.cjs");
+    check(verifyAll.output.includes("[PASS] example"), "verify-all accepts extensionless ESM launchers");
+    check(verifyAll.output.includes("[SKIP] empty"), "verify-all skips repositories without a verify script");
 
     // Negative: a failing subrepo fails verify-all
-    writeFileSync(path.join(root, "repositories", "lib", "scripts", "check.js"), "process.exit(1);\n", "utf8");
+    writeFileSync(path.join(lib, "verify.cjs"), "process.exit(1);\n", "utf8");
     const verifyAllFail = spawnRunner(root, ["verify-all"]);
     check(verifyAllFail.exit === 1, `verify-all fails when a subrepo fails (exit ${verifyAllFail.exit})`);
-    writeFileSync(path.join(root, "repositories", "lib", "scripts", "check.js"), goodCheck, "utf8");
+    writeFileSync(path.join(lib, "verify.cjs"), "console.log('[PASS] CommonJS entrypoint');\n", "utf8");
 
     // Negative: an unclassified file fails arch-005 coverage
     writeFileSync(path.join(root, "stray.txt"), "unclassified\n", "utf8");

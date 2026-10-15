@@ -11,10 +11,10 @@ After adding or updating a session note, regenerate this file with `node scripts
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check`)
 - Active feature: none
-- Passing features (14): feat-001 — Core Scaffold, feat-002 — Seams and Manifest, feat-003 — Node Runner Consolidation, feat-004 — Assurance Suite, feat-005 — Multi-repo Extension, feat-006 — Distribution, feat-007 — Sweep and Report, feat-008 — Skills Packs, feat-009 — Portability Extensions, feat-010 — Worktree Lanes, feat-011 — Sharded Feature State, feat-012 — Upgrade Backups, feat-013 — Dogfooding Feedback Round 1, feat-014 — Generated Progress Dashboard
+- Passing features (17): feat-001 — Core Scaffold, feat-002 — Seams and Manifest, feat-003 — Node Runner Consolidation, feat-004 — Assurance Suite, feat-005 — Multi-repo Extension, feat-006 — Distribution, feat-007 — Sweep and Report, feat-008 — Skills Packs, feat-009 — Portability Extensions, feat-010 — Worktree Lanes, feat-011 — Sharded Feature State, feat-012 — Upgrade Backups, feat-013 — Dogfooding Feedback Round 1, feat-014 — Feature lifecycle commands, feat-015 — Adopter CI template and Node version, feat-016 — Generated Harness Command Reference, feat-017 — Generated Progress Dashboard
 - Failing/blocked features: none
 - Planned features (0): none
-- Last evidence: feat-014 — Generated Progress Dashboard — All verification layers passed via node scripts/framework-check.mjs verify-feature at 2026-10-14T19:36:00.255Z (SKIP reported in: Layer 3: System confirmation)
+- Last evidence: feat-016 — Generated Harness Command Reference — All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 3: System confirmation) (2026-10-14T21:01:02.562Z)
 
 ## Session Index
 
@@ -45,5 +45,13 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 025 — 2026-09-15 — feat-013 Dogfooding Feedback Round 1](progress/025-2026-09-15.md)
 - [Session 026 — 2026-10-12 — Fix flaky backup ids (D-021)](progress/026-2026-10-12.md)
 - [Session 027 — 2026-10-12 — Hermetic adoption-matrix fixtures (D-022)](progress/027-2026-10-12.md)
-- [Session 028 — 2026-10-14 — Generated Progress Dashboard](progress/028-2026-10-14.md)
+- [Session 028 — 2026-10-14 — Verification hardening](progress/028-2026-10-14.md)
+- [Session 029 — 2026-10-14 — Feature lifecycle commands (#3)](progress/029-2026-10-14.md)
+- [Session 030 — 2026-10-14 — Adopter CI and Node-version seam (D-023)](progress/030-2026-10-14.md)
+- [Session 031 — 2026-10-14 — Generated Harness Command Reference](progress/031-2026-10-14.md)
+- [Session 032 — 2026-10-14 — Preserve adopter LICENSE during upgrades (D-024)](progress/032-2026-10-14.md)
+- [Session 033 — 2026-10-14 — Clean initialization and line endings](progress/033-2026-10-14.md)
+- [Session 034 — 2026-10-14 — Merge current master](progress/034-2026-10-14.md)
+- [Session 035 — 2026-10-14 — Generated Progress Dashboard](progress/035-2026-10-14.md)
+- [Session 036 — 2026-10-15 — Resolve updated master conflicts](progress/036-2026-10-15.md)
 <!-- END GENERATED PROGRESS -->

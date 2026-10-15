@@ -4,6 +4,7 @@ import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSy
 import { execSync, spawnSync } from "node:child_process";
 import { EOL } from "node:os";
 import path from "node:path";
+import { renderHarnessDocs } from "./harness-docs.mjs";
 
 import {
   LAYERS,
@@ -52,6 +53,7 @@ const requiredMakeTargets = [
   "lane-drop",
   "migrate-feature-state",
   "add-feature",
+  "activate",
   "create-harness",
   "harness-upgrade",
   "harness-audit",
@@ -176,9 +178,25 @@ function progressSessions() {
 function latestFeatureEvidence(features) {
   return features
     .map((feature, index) => {
-      const evidence = typeof feature.evidence === "string" ? feature.evidence.trim().replace(/\s+/g, " ") : "";
-      const stamp = evidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/);
-      return { feature, evidence, index, timestamp: stamp ? Date.parse(stamp[0]) : Number.NEGATIVE_INFINITY };
+      const rawEvidence = typeof feature.evidence === "string" ? feature.evidence.trim() : "";
+      let evidence = rawEvidence.replace(/\s+/g, " ");
+      let evidenceTimestamp;
+      try {
+        const parsed = JSON.parse(rawEvidence);
+        if (parsed && typeof parsed === "object" && typeof parsed.summary === "string") {
+          evidence = parsed.summary.trim().replace(/\s+/g, " ");
+          evidenceTimestamp = typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
+        }
+      } catch {
+        // Older evidence is stored as a plain string.
+      }
+      const stamp = evidenceTimestamp ?? evidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/)?.[0];
+      return {
+        feature,
+        evidence: evidenceTimestamp ? `${evidence} (${evidenceTimestamp})` : evidence,
+        index,
+        timestamp: stamp ? Date.parse(stamp) : Number.NEGATIVE_INFINITY,
+      };
     })
     .filter((item) => item.evidence)
     .sort((a, b) => b.timestamp - a.timestamp || b.index - a.index)[0];
@@ -439,32 +457,148 @@ function ensureShardedStateShape(declaredIds) {
 // the JSON object — repetitive, and one typo away from a malformed
 // feature_list.json. Appends a correctly-shaped, declaration-only stub
 // (feat-011's schema — no inline state/evidence) with the standard 3-layer
-// verification chain; behavior/verification/dependencies are left as TODOs
-// for the operator to fill in.
-function addFeature(featureId, name) {
-  if (!featureId || !name) {
-    fail("usage: node scripts/framework-check.mjs add-feature <id> <name>");
+// verification chain; options can configure these declaration fields while
+// omitted behavior and verification retain their TODO defaults.
+function parseAddFeatureArgs(args) {
+  const options = { layers: [] };
+  const nameParts = [];
+  const seenOptions = new Set();
+  const valueOptions = new Set(["--behavior", "--verification", "--depends", "--layer"]);
+  let parsingOptions = false;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (!parsingOptions && !arg.startsWith("--")) {
+      nameParts.push(arg);
+      continue;
+    }
+    parsingOptions = true;
+    if (!valueOptions.has(arg)) {
+      fail(`unknown add-feature option ${arg}`);
+    }
+    const value = args[++i];
+    if (!value || value.startsWith("--")) {
+      fail(`add-feature option ${arg} requires a value`);
+    }
+    if (arg === "--layer") {
+      const separator = value.indexOf("=");
+      if (separator < 1 || separator === value.length - 1) {
+        fail('add-feature --layer must use "label=cmd"');
+      }
+      const label = value.slice(0, separator);
+      options.layers.push({
+        label,
+        cmd: value.slice(separator + 1),
+        repair: `Fix ${label} failures and rerun the layer command.`,
+      });
+      continue;
+    }
+    if (seenOptions.has(arg)) {
+      fail(`add-feature option ${arg} may only be specified once`);
+    }
+    seenOptions.add(arg);
+    if (arg === "--depends") {
+      const dependencies = value.split(",").map((dependency) => dependency.trim());
+      if (dependencies.some((dependency) => !dependency)) {
+        fail("add-feature --depends requires comma-separated feature ids");
+      }
+      options.dependencies = dependencies;
+    } else {
+      options[arg.slice(2)] = value;
+    }
   }
+  return { name: nameParts.join(" "), options };
+}
+
+function validateFeatureId(featureId) {
+  if (!existsSync(".harness/manifest.json")) {
+    return;
+  }
+  const manifest = readJson(".harness/manifest.json");
+  if (manifest.featureIdPattern === undefined) {
+    return;
+  }
+  if (typeof manifest.featureIdPattern !== "string") {
+    fail(".harness/manifest.json featureIdPattern must be a regular expression string");
+  }
+  let pattern;
+  try {
+    pattern = new RegExp(manifest.featureIdPattern);
+  } catch {
+    fail(`.harness/manifest.json featureIdPattern is not a valid regular expression: ${manifest.featureIdPattern}`);
+  }
+  if (!pattern.test(featureId)) {
+    fail(`feature id ${featureId} does not match manifest featureIdPattern ${manifest.featureIdPattern}`);
+  }
+}
+
+function addFeature(featureId, featureArgs) {
+  const { name, options } = parseAddFeatureArgs(featureArgs);
+  if (!featureId || !name.trim()) {
+    fail("usage: node scripts/framework-check.mjs add-feature <id> <name> [--behavior <text>] [--verification <text>] [--depends a,b] [--layer label=cmd]");
+  }
+  validateFeatureId(featureId);
   const data = loadFeatures();
   if (data.features.some((feature) => feature.id === featureId)) {
     fail(`feature ${featureId} already exists in feature_list.json`);
   }
+  for (const dependency of options.dependencies ?? []) {
+    if (!data.features.some((feature) => feature.id === dependency)) {
+      fail(`feature ${featureId} depends on unknown feature ${dependency}`);
+    }
+  }
   data.features.push({
     id: featureId,
     name,
-    behavior: "TODO: describe the single target behavior this feature implements.",
-    verification: "TODO: describe how completion is verified end-to-end.",
-    dependencies: [],
+    behavior: options.behavior ?? "TODO: describe the single target behavior this feature implements.",
+    verification: options.verification ?? "TODO: describe how completion is verified end-to-end.",
+    dependencies: options.dependencies ?? [],
     layers: [
       { label: "Layer 1: Static checks", cmd: "npm run lint", repair: "Fix static-analysis issues and rerun the layer command." },
       { label: "Layer 2: Runtime tests", cmd: "npm run test", repair: "Fix failing tests and rerun the layer command." },
       { label: "Layer 3: System confirmation", cmd: "npm run check", repair: "Resolve cross-layer issues and rerun full verification." },
+      ...options.layers,
     ],
   });
   writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
-  pass(
-    `Added ${featureId} to feature_list.json — fill in behavior/verification/dependencies, then activate by creating .harness/state/${featureId}.json with {"state": "active", "evidence": ""}`,
-  );
+  pass(`Added ${featureId} to feature_list.json`);
+}
+
+function activateFeature(featureId) {
+  if (!featureId) {
+    fail("usage: node scripts/framework-check.mjs activate <feature-id>");
+  }
+  const { features } = loadFeaturesWithState();
+  const feature = features.find((item) => item.id === featureId);
+  if (!feature) {
+    fail(`feature ${featureId} not found in feature_list.json`);
+  }
+  const otherActive = features.find((item) => item.state === "active" && item.id !== featureId);
+  if (otherActive) {
+    fail(`cannot activate ${featureId}: feature ${otherActive.id} is already active`);
+  }
+  if (feature.state === "active") {
+    pass(`Feature ${featureId} is already active`);
+    return;
+  }
+  if (feature.state === "passing" || feature.state === "blocked") {
+    fail(`feature ${featureId} is ${feature.state} — it cannot be activated`);
+  }
+  if (feature.state !== "planned") {
+    fail(`feature ${featureId} has unsupported state ${feature.state}`);
+  }
+  const unmet = getFeatureDependencies(feature).filter((dependencyId) => {
+    const dependency = features.find((item) => item.id === dependencyId);
+    return !dependency || dependency.state !== "passing";
+  });
+  if (unmet.length > 0) {
+    fail(`feature ${featureId} has unmet dependencies: ${unmet.join(", ")} — complete those first`);
+  }
+  const laneFeatureId = laneFeatureIdFromBranch(getCurrentBranch());
+  if (laneFeatureId && laneFeatureId !== featureId) {
+    fail(`lane branch lane/${laneFeatureId} may only activate feature ${laneFeatureId}`);
+  }
+  writeFeatureState(featureId, { state: "active", evidence: "" });
+  pass(`Activated ${featureId}`);
 }
 
 function migrateFeatureState() {
@@ -543,16 +677,19 @@ function ensureMakeTargets() {
 }
 
 function ensureCommandSurfaces() {
-  // Every make target must be documented: README's Command Targets table and
-  // AGENTS.md's command mirrors. Docs that drift from the actual surface are
-  // the failure mode this harness exists to prevent.
+  // README links to the generated command reference; AGENTS.md keeps its
+  // concise command mirrors. The generated reference is checked against both
+  // command sources so it cannot drift.
   const readme = readText("README.md");
-  if (/## Command Targets/.test(readme)) {
-    for (const target of requiredMakeTargets) {
-      if (!readme.includes(`make ${target}`)) {
-        fail(`README.md Command Targets table does not document the ${target} target`);
-      }
-    }
+  if (!/\[[^\]]+\]\((?:\.\/)?docs\/HARNESS\.md(?:#[^)]*)?\)/.test(readme)) {
+    fail("README.md must link to docs/HARNESS.md");
+  }
+  if (!existsSync("docs/HARNESS.md")) {
+    fail("docs/HARNESS.md is missing — run npm run harness-docs");
+  }
+  const expectedDocs = renderHarnessDocs(readText("Makefile"), readJson("package.json"));
+  if (readText("docs/HARNESS.md") !== expectedDocs) {
+    fail("docs/HARNESS.md is out of date — run npm run harness-docs");
   }
   const agents = readText("AGENTS.md");
   for (const target of requiredMakeTargets) {
@@ -560,7 +697,7 @@ function ensureCommandSurfaces() {
       fail(`AGENTS.md does not mention the ${target} command`);
     }
   }
-  pass("README and AGENTS document every make target");
+  pass("README links to the current command reference and AGENTS documents every make target");
 }
 
 function ensureShellScripts() {
@@ -731,6 +868,10 @@ function isDirectorySafe(path) {
 function reportE2eStatus() {
   // The adoption matrix is the real e2e layer (feat-004). It generates
   // throwaway adopter repos from the manifest and runs the harness in each.
+  if (process.env.CW_SKIP_ADOPTION_MATRIX === "1") {
+    console.log("[SKIP] Adoption matrix is reserved for framework repository CI");
+    return;
+  }
   if (process.env.CW_ADOPTION_CELL === "1") {
     console.log("[SKIP] e2e skipped inside an adoption cell (matrix recursion guard)");
     return;
@@ -1445,7 +1586,15 @@ function cleanStateCheck() {
   console.log("");
   console.log("--- Debug Artifacts ---");
   const envScanPaths = (process.env.DEBUG_SCAN_PATHS ?? "").split(/\s+/).filter(Boolean);
-  const candidates = ["src", "app", "apps", "lib", "packages", "services", "backend", "frontend"];
+  const productRoots = existsSync(".harness/manifest.json")
+    ? readJson(".harness/manifest.json").productRoots
+    : [];
+  const candidates = Array.isArray(productRoots)
+    ? [...new Set(productRoots.filter((root) => typeof root === "string").map((root) => {
+        if (existsSync(root) && statSync(root).isDirectory()) return root;
+        return path.dirname(root);
+      }).filter((dir) => dir !== "." && existsSync(dir) && statSync(dir).isDirectory()))]
+    : [];
   const scanPaths = envScanPaths.length > 0
     ? envScanPaths
     : candidates.filter((dir) => existsSync(dir) && statSync(dir).isDirectory());
@@ -1511,9 +1660,9 @@ function runSetup() {
 }
 
 function runVerifyAll() {
-  const script = "scripts/verify-all";
-  if (!existsSync(script)) {
-    console.log("[SKIP] Multi-repo component not activated (scripts/verify-all absent)");
+  const script = ["scripts/verify-all", "scripts/verify-all.mjs", "scripts/verify-all.cjs"].find(existsSync);
+  if (!script) {
+    console.log("[SKIP] Multi-repo component not activated (verify-all script absent)");
     console.log("  Activate it by copying the templates/multi-repo skeletons to their declared destinations.");
     return;
   }
@@ -1574,6 +1723,7 @@ function printHelp() {
   console.log("  e2e            Layer 3b: end-to-end tests");
   console.log("  check-arch     Architecture constraint enforcement");
   console.log("  verify-feature F=<id>  Run all verification layers for a feature");
+  console.log("  activate F=<id>        Activate a feature when dependencies allow");
   console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
@@ -1678,6 +1828,10 @@ switch (mode) {
     updateProgress();
     break;
   }
+  case "lint:command-surfaces": {
+    ensureCommandSurfaces();
+    break;
+  }
   case "arch:sharded-state": {
     ensureFeatureShape();
     console.log("PASS");
@@ -1756,7 +1910,11 @@ switch (mode) {
     break;
   }
   case "add-feature": {
-    addFeature(args[0], args.slice(1).join(" "));
+    addFeature(args[0], args.slice(1));
+    break;
+  }
+  case "activate": {
+    activateFeature(args[0]);
     break;
   }
   case "verify-chain": {

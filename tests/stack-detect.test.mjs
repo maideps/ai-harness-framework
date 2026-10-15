@@ -8,6 +8,7 @@ import {
   PY_COMPILE_EXCLUDE,
   detectRuntime,
   detectPackageManager,
+  getInstallCommand,
   resolveLayer,
 } from "../scripts/stack-detect.mjs";
 
@@ -63,6 +64,27 @@ test("detectPackageManager: lockfiles win, npm is the default", () => {
   const empty = fixture({});
   assert.equal(detectPackageManager(empty), "");
   rmSync(empty, { recursive: true, force: true });
+});
+
+test("getInstallCommand: skips empty node projects and uses lock-preserving installs", () => {
+  const empty = fixture({ "package.json": JSON.stringify({}) });
+  assert.equal(getInstallCommand(empty), "");
+  rmSync(empty, { recursive: true, force: true });
+
+  const invalid = fixture({ "package.json": "{invalid" });
+  assert.equal(getInstallCommand(invalid), "npm install");
+  rmSync(invalid, { recursive: true, force: true });
+
+  const locked = fixture({
+    "package.json": JSON.stringify({ dependencies: { example: "^1.0.0" } }),
+    "package-lock.json": "{}",
+  });
+  assert.equal(getInstallCommand(locked), "npm ci");
+  rmSync(locked, { recursive: true, force: true });
+
+  const unlocked = fixture({ "package.json": JSON.stringify({ devDependencies: { example: "^1.0.0" } }) });
+  assert.equal(getInstallCommand(unlocked), "npm install");
+  rmSync(unlocked, { recursive: true, force: true });
 });
 
 test("PY_COMPILE_EXCLUDE matches both path separators", () => {

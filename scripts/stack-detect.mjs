@@ -43,6 +43,16 @@ export function detectPackageManager(cwd = ".") {
   return "npm";
 }
 
+function hasNodeDependencies(cwd = ".") {
+  try {
+    const manifest = JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8"));
+    return ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]
+      .some((key) => Object.keys(manifest[key] ?? {}).length > 0);
+  } catch {
+    return true;
+  }
+}
+
 function toolAvailable(probe) {
   try {
     // The probe is the complete command — callers pass the full version probe
@@ -166,9 +176,24 @@ function resolveDev(runtime, cwd = ".") {
 
 // One-time dependency installation command for the detected stack, or "" when
 // the stack has no declarative install step.
-export function getInstallCommand() {
-  switch (detectRuntime()) {
-    case "node": return `${detectPackageManager()} install`;
+export function getInstallCommand(cwd = ".") {
+  switch (detectRuntime(cwd)) {
+    case "node": {
+      if (!hasNodeDependencies(cwd)) return "";
+      const at = (rel) => existsSync(path.join(cwd, rel));
+      switch (detectPackageManager(cwd)) {
+        case "npm":
+          return at("package-lock.json") || at("npm-shrinkwrap.json") ? "npm ci" : "npm install";
+        case "pnpm":
+          return at("pnpm-lock.yaml") ? "pnpm install --frozen-lockfile" : "pnpm install";
+        case "yarn":
+          return at("yarn.lock") ? "yarn install --frozen-lockfile" : "yarn install";
+        case "bun":
+          return at("bun.lock") || at("bun.lockb") ? "bun install --frozen-lockfile" : "bun install";
+        default:
+          return "";
+      }
+    }
     case "python": return `pip install -e ".[dev]"`;
     case "go": return "go mod download";
     case "rust": return "cargo fetch";
