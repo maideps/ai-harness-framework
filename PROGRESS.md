@@ -449,7 +449,6 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Known risk or unresolved issue: when the current directory is not a Git repository, verify-feature records commit `unknown` and conservatively marks the tree dirty.
 - Current state: no active feature or blockers; feat-013 state remains unchanged.
 - Next best step: none.
-- Next best step: none.
 
 ### Session 029 — 2026-10-14 — Feature lifecycle commands (#3)
 
@@ -507,3 +506,30 @@ Session continuity source of truth for this repository. Update at the end of eac
 - Files or artifacts updated: `.harness/manifest.json`, `templates/LICENSE`, `scripts/harness-upgrade.mjs`, `scripts/adoption-matrix.mjs`, docs, `skills/adopt/SKILL.md`, `DECISIONS.md`, and `PROGRESS.md`.
 - Known risk or unresolved issue: none identified.
 - Next best step: complete merged-tree verification.
+
+### Session 033 — 2026-10-14 — Clean initialization and line endings
+
+- Goal: Prevent `init.sh` from silently rewriting dependency lockfiles and give adopters consistent line endings.
+- Completed:
+ - Node projects with no declared dependencies skip installation; projects with lockfiles use lock-preserving package-manager commands.
+ - `init.sh` reports when a dependency install changes or creates its lockfile.
+ - Added a manifest-backed `.gitattributes` template for LF text files and CRLF Windows command scripts; upgrade tests confirm adopter changes survive.
+ - Added focused install-command and adoption/upgrade tests.
+- Verification run: `make check` passes all 71 tests and the adoption e2e matrix; `./init.sh` passes while skipping install, and `package-lock.json` remains unchanged.
+- Evidence captured: regression tests in `tests/stack-detect.test.mjs` and `tests/adoption-matrix.test.mjs`.
+- Files or artifacts updated: `scripts/stack-detect.mjs`, `init.sh`, `.harness/manifest.json`, `templates/gitattributes`, `tests/stack-detect.test.mjs`, `tests/adoption-matrix.test.mjs`, `docs/ARCHITECTURE.md`, `PROGRESS.md`, `docs/quality-document.md`.
+- Known risk or unresolved issue: none known.
+- Next best step: none.
+
+### Session 034 — 2026-10-14 — Merge current master
+
+- Goal: Resolve the updated pull request conflicts while retaining the initialization/line-ending fix and newly landed framework improvements.
+- Completed:
+  - Merged current `master`, retaining its feature lifecycle, adopter CI, generated command-reference, license-preservation, and verification-hardening changes.
+  - Resolved overlapping progress, architecture, quality, and adoption-test edits; kept both adoption tests and documented `.gitattributes` as an adopter-owned instance surface.
+  - Restored the root `.gitattributes` file because the merged manifest classifies it as INSTANCE.
+- Verification run: focused merged tests pass (75 tests before final check); `make check` passes all 87 tests and e2e adoption checks; `check-arch` passes all six rules.
+- Evidence captured: successful merged-tree verification output.
+- Files or artifacts updated: merge includes changes across the harness; conflict resolutions in `PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/quality-document.md`, and `tests/adoption-matrix.test.mjs`.
+- Known risk or unresolved issue: none known.
+- Next best step: finalize and publish the verified merge.

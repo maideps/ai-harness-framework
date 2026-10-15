@@ -40,9 +40,12 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-08-19 (session 013): sweep and report (D-013) — session digest aggregation and periodic sweep with manifest drift reporting; unit tests for the aggregator. The reusability roadmap is complete (feat-001..007 + 008, 009 all passing).
 - 2026-08-19 (session 017): npm publish prep — package.json is publish-ready (`@maideps/ai-harness-framework` 0.4.0, files whitelist, bin entries, prepublishOnly gate); lockfile regenerated; `npm pack --dry-run` verified 65 files. Actual publish awaits explicit user go-ahead.
 - 2026-10-14 (session 028): multi-repo verification now supports ESM and CommonJS scripts, runs as an optional check layer, and clean-state scans use manifest `productRoots`; unit and adoption coverage added.
-- 2026-10-14 (session 031): generated command reference — Makefile targets and npm scripts produce `docs/HARNESS.md`; lint checks for drift and a README link; adoption creates the generated page.
 - 2026-10-14: `verify-feature` evidence now includes the Git commit, dirty flag, and each layer's PASS result and reported-SKIP marker; regression-tested in `tests/framework-check.test.mjs`.
 - 2026-10-14 (session 029): feature lifecycle commands — `add-feature` accepts declaration options and optional manifest ID validation; `activate` guards WIP=1, dependencies, and lane ownership before writing state.
+- 2026-10-14 (session 030): adopter CI now uses the project-owned Node version pin and runs project setup, checks, and architecture validation; root `LICENSE` is copied once and preserved through upgrades.
+- 2026-10-14 (session 031): generated command reference — Makefile targets and npm scripts produce `docs/HARNESS.md`; lint checks for drift and a README link; adoption creates the generated page.
+- 2026-10-14 (session 033): initialization skips empty Node installs and selects lock-preserving package-manager commands; a manifest-backed `.gitattributes` template establishes consistent line endings and survives upgrades.
+- 2026-10-14 (session 034): current master merged with the lockfile and line-ending changes intact; conflict resolution verified by the full 87-test check and architecture rules.
 
 ---
 
