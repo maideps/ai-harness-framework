@@ -813,6 +813,7 @@ function ensureManifest() {
       if (inOptional) return "optional";
       if (inCore) return "core";
       if (inProduct) return "product";
+      if (matchesEntry(file, "docs/")) return "product";
       return "unclassified";
     };
     for (const file of tracked) {

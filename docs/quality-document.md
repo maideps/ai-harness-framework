@@ -25,7 +25,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 ## Notes
 
-- The runner (`scripts/framework-check.mjs`) has black-box unit coverage for manifest validation, feature-state rules, architecture checks, lifecycle commands, and the generated progress dashboard/archive.
+- The runner (`scripts/framework-check.mjs`) has black-box unit coverage for manifest validation, including the default product ownership of unlisted `docs/` files and precedence for explicit docs classifications, feature-state rules, architecture checks, lifecycle commands, and the generated progress dashboard/archive.
 - State files were converted from templates to real records on 2026-08-17 (dogfooding).
 - 2026-10-14: adopter CI and `.nvmrc` now follow adopter project configuration; the framework matrix is skipped in adopter CI, with scaffold and upgrade coverage added (D-023).
 - Tri-state verification semantics (PASS/SKIP/FAIL) are now the documented contract (D-001).

@@ -54,4 +54,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 034 — 2026-10-14 — Merge current master](progress/034-2026-10-14.md)
 - [Session 035 — 2026-10-14 — Generated Progress Dashboard](progress/035-2026-10-14.md)
 - [Session 036 — 2026-10-15 — Resolve updated master conflicts](progress/036-2026-10-15.md)
+- [Session 037 — 2026-10-15 — Default product ownership for docs](progress/037-2026-10-15.md)
 <!-- END GENERATED PROGRESS -->

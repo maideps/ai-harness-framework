@@ -101,7 +101,7 @@ These files are the source of truth—not chat history:
 
 ### Reusability Contract
 
-The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited); **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `.harness/state/`, `PROGRESS.md`, `progress/`, `DECISIONS.md`, `README.md`, `docs/`, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Adopters exempt their own product code with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
+The framework's reusable surfaces are classified in `.harness/manifest.json`: **CORE** files ship as-is (must not be edited); **TEMPLATE** skeletons in `templates/` are what adopters receive to fill in, and **INSTANCE** files (`feature_list.json`, `.harness/state/`, `PROGRESS.md`, `progress/`, `DECISIONS.md`, `README.md`, explicitly declared `docs/` surfaces, …) are this repo's own state and never ship to adopters. Every tracked file is classified — `make check-arch` (rules arch-004 and arch-005) fails on any unclassified file, so distribution can always answer exactly what ships. Unlisted files under `docs/` default to product-owned; declare product code elsewhere with the manifest's `productRoots` key. Any repository layout change must update the manifest and `docs/ARCHITECTURE.md` in the same commit.
 
 ### Harness Commands
 

@@ -41,9 +41,9 @@
       "description": "Every tracked file is classified by the seam manifest (or exempted as product-owned)",
       "check": "node scripts/framework-check.mjs manifest",
       "expect": "PASS",
-      "what": "A tracked file is not declared as CORE, INSTANCE, TEMPLATE, or product-owned (productRoots) in the manifest, or is declared twice.",
+      "what": "A tracked file is not declared as CORE, INSTANCE, TEMPLATE, or product-owned (productRoots or the docs/ default) in the manifest, or is declared twice.",
       "why": "Reusability requires that distribution can answer, for every file, whether it ships as-is, ships as a skeleton, never ships, or belongs to the adopting project. Unclassified files get silently dropped or silently leaked — both break the seam contract.",
-      "fix": "Classify the file in .harness/manifest.json (core / instance / templates), or add its parent directory to productRoots if it is product-owned."
+      "fix": "Classify the file in .harness/manifest.json (core / instance / templates), or add its parent directory to productRoots if it is product-owned outside docs/."
     },
     {
       "id": "arch-006",

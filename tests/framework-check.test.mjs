@@ -179,6 +179,43 @@ test("ensureManifest: fails when a git-tracked file is not classified by the man
   }
 });
 
+test("ensureManifest: defaults unlisted docs files to product-owned", () => {
+  const root = manifestFixture(baseManifest(), {
+    extraTrackedFiles: {
+      "docs/INSTALL.md": "product docs\n",
+      "docs/images/logo.svg": "<svg />\n",
+    },
+  });
+  try {
+    const result = run(root, "manifest");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("ensureManifest: explicit docs classifications take precedence over the product default", () => {
+  const manifest = baseManifest({
+    core: [".harness/manifest.json", ".harness/arch-rules.json", "core-file.txt", "docs/core.md"],
+    instance: ["instance-file.txt", "docs/instance.md", "docs/template-output.md"],
+    templates: [{ from: "template-source.md", to: "docs/template-output.md" }],
+  });
+  const root = manifestFixture(manifest, {
+    extraTrackedFiles: {
+      "docs/core.md": "core docs\n",
+      "docs/instance.md": "instance docs\n",
+      "docs/template-output.md": "generated docs\n",
+      "template-source.md": "template skeleton\n",
+    },
+  });
+  try {
+    const result = run(root, "manifest");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("ensureManifest: fails when a file is claimed as both instance and template", () => {
   const manifest = baseManifest({
     instance: ["instance-file.txt", "dual.txt"],
