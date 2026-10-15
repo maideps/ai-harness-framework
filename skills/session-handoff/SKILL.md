@@ -14,7 +14,7 @@ How to end a session so the next one can pick up without confusion.
 
 ## Workflow
 
-1. Update `PROGRESS.md` — current verified state, what this session completed, blockers, next best step. It is the canonical continuity log.
+1. Add this session's notes to `progress/NNN-YYYY-MM-DD.md`, then regenerate the current state and index with `node scripts/framework-check.mjs progress-update`. `PROGRESS.md` is generated; do not edit its block by hand.
 2. Update `session-handoff.md` — current objective, completed items, verification evidence, files changed, decisions, risks, recommended next step.
 3. Record decisions in `DECISIONS.md` (template at the top of the file); expand long records into `docs/decisions/`.
 4. Update `docs/quality-document.md` for every module touched (A/B/C/D per dimension).
@@ -25,12 +25,12 @@ How to end a session so the next one can pick up without confusion.
 ## Rules
 
 - State files are the source of truth, not chat history.
-- If running low on context: do NOT rush — update `PROGRESS.md` and commit a clean checkpoint.
+- If running low on context: do NOT rush — add a concise note under `progress/`, regenerate `PROGRESS.md`, and commit a clean checkpoint.
 - Leave the repo clean enough that the next session can run `./init.sh` immediately.
 
 ## Quick Reference
 
-- [ ] PROGRESS.md updated (state, blockers, next step)
+- [ ] Session note added and `PROGRESS.md` regenerated
 - [ ] session-handoff.md updated
 - [ ] DECISIONS.md updated if decisions were made
 - [ ] docs/quality-document.md updated for touched modules

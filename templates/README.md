@@ -40,7 +40,8 @@ The complete command list is generated from the Makefile and npm scripts. See [H
 
 - `feature_list.json` — feature declarations: id, behavior, dependencies, verification layers
 - `.harness/state/<id>.json` — that feature's mutable state (`state`, `evidence`); one file per feature
-- `PROGRESS.md` — session continuity log
+- `PROGRESS.md` — generated current-state dashboard and session index
+- `progress/NNN-YYYY-MM-DD.md` — one session's notes
 - `DECISIONS.md` — architectural decisions log
 - `session-handoff.md` — multi-session handoff notes
 

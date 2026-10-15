@@ -1,28 +1,22 @@
 # Progress Log
 
-Session continuity source of truth for this project. Update at the end of each session with verified state, blockers, and next steps.
+Generated current-state dashboard and index of the per-session notes in `progress/`.
 
-Keep the "Current Verified State" block current at all times; the session log below it is append-only.
+After adding or updating a session note, regenerate this file with `node scripts/framework-check.mjs progress-update`.
 
+<!-- BEGIN GENERATED PROGRESS -->
 ## Current Verified State
 
-- Project root:
-- Primary startup command:
-- Primary verification command:
-- Current active feature (or none):
-- Current blocker (or none):
+- Project root: this repository
+- Primary startup command: `./init.sh`
+- Primary verification command: `make check` (make-free equivalent: `npm run check`)
+- Active feature: none
+- Passing features (0): none
+- Failing/blocked features: none
+- Planned features (1): feat-001 — Example Feature
+- Last evidence: none
 
-## Session Log
+## Session Index
 
-<!-- Append one session entry per session. Example fields below. -->
-
-### Session 001 — YYYY-MM-DD
-
-- Goal:
-- Completed:
-- Verification run:
-- Evidence captured:
-- Commits:
-- Files or artifacts updated:
-- Known risk or unresolved issue:
-- Next best step:
+- No sessions recorded yet.
+<!-- END GENERATED PROGRESS -->

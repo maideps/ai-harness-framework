@@ -90,6 +90,7 @@ export function createRuntimeSurfaces(root) {
   };
   mkdirSync(path.join(root, ".harness", "trails"), { recursive: true });
   mkdirSync(path.join(root, ".harness", "state"), { recursive: true });
+  mkdirSync(path.join(root, "progress"), { recursive: true });
   if (!existsSync(path.join(root, "docs", "HARNESS.md"))) {
     generateHarnessDocs(root);
   }
@@ -124,7 +125,8 @@ function main() {
   console.log("  Next steps:");
   console.log("  1. Review and customize the project docs, README, and feature list.");
   console.log("  2. Declare product directories in .harness/manifest.json productRoots.");
-  console.log("  3. Run ./init.sh, then npm run check.");
+  console.log("  3. Run node scripts/framework-check.mjs progress-update after customizing feature declarations.");
+  console.log("  4. Run ./init.sh, then npm run check.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -25,7 +25,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 ## Notes
 
-- The runner (`scripts/framework-check.mjs`) has direct unit coverage in `tests/framework-check.test.mjs`, spawning the CLI against fixture repos for `ensureManifest`, the WIP=1 gate in `ensureFeatureGraph`, `checkArch` rule evaluation, and feature lifecycle commands. The file is not modular (`fail()` calls `process.exit` directly, every mode reads relative to `process.cwd()`), so coverage is black-box (spawn + assert on exit code/output) rather than importing internal functions — consistent with how `scripts/adoption-matrix.mjs` already exercises `check-arch`/`verify-feature`.
+- The runner (`scripts/framework-check.mjs`) has black-box unit coverage for manifest validation, feature-state rules, architecture checks, lifecycle commands, and the generated progress dashboard/archive.
 - State files were converted from templates to real records on 2026-08-17 (dogfooding).
 - 2026-10-14: adopter CI and `.nvmrc` now follow adopter project configuration; the framework matrix is skipped in adopter CI, with scaffold and upgrade coverage added (D-023).
 - Tri-state verification semantics (PASS/SKIP/FAIL) are now the documented contract (D-001).

@@ -26,7 +26,7 @@ Single source of truth for this repository's engineering standards. This is the 
 
 ## Naming and Structure
 
-- State files: `feature_list.json`, `PROGRESS.md`, `DECISIONS.md`, `session-handoff.md` (canonical names).
+- State files: `feature_list.json`, `.harness/state/`, `PROGRESS.md`, `progress/`, `DECISIONS.md`, `session-handoff.md` (canonical names).
 - CORE files ship as-is; INSTANCE files hold project state; TEMPLATES are adopter skeletons with `{from, to}` destinations.
 - Every tracked file is classified by `.harness/manifest.json` (arch-005).
 
