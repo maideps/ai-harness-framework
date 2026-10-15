@@ -4,6 +4,7 @@ import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSy
 import { execSync, spawnSync } from "node:child_process";
 import { EOL } from "node:os";
 import path from "node:path";
+import { renderHarnessDocs } from "./harness-docs.mjs";
 
 import {
   LAYERS,
@@ -52,6 +53,7 @@ const requiredMakeTargets = [
   "lane-drop",
   "migrate-feature-state",
   "add-feature",
+  "activate",
   "create-harness",
   "harness-upgrade",
   "harness-audit",
@@ -122,35 +124,158 @@ function getFeatureDependencies(feature) {
   return Array.isArray(feature.dependencies) ? feature.dependencies : [];
 }
 
-// Dogfooding feedback Tier 1 item 3: nothing caught a duplicate "### Session
-// 016" entry across many sessions of re-reading PROGRESS.md for context.
-// Checks the *set* of session numbers, not file order — a legitimate
-// out-of-order insertion (a same-day hotfix session written up after a
-// later-numbered one) is not a bug, only a duplicate or a gap is.
-function ensureProgressLog() {
-  const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
-  if (!progressFile) {
-    return; // ensureProgressArtifact already requires one to exist; nothing to lint yet
+const generatedProgressStart = "<!-- BEGIN GENERATED PROGRESS -->";
+const generatedProgressEnd = "<!-- END GENERATED PROGRESS -->";
+
+function progressSessions() {
+  const directory = "progress";
+  if (!existsSync(directory)) {
+    return [];
   }
-  const numbers = [...readText(progressFile).matchAll(/^###\s+Session\s+(\d+)\b/gm)].map((match) => Number(match[1]));
-  if (numbers.length === 0) {
-    return; // no numbered sessions logged yet
+  if (!statSync(directory).isDirectory()) {
+    fail("progress must be a directory containing one file per session");
+  }
+
+  const sessions = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const match = entry.name.match(/^(\d{3,})-(\d{4}-\d{2}-\d{2})\.md$/);
+    if (!entry.isFile() || !match) {
+      fail(`unexpected entry in progress/: ${entry.name} (expected NNN-YYYY-MM-DD.md)`);
+    }
+    const [, numberText, date] = match;
+    const number = Number(numberText);
+    if (number < 1 || String(number).padStart(3, "0") !== numberText) {
+      fail(`progress/${entry.name} has a non-canonical session number`);
+    }
+    const dateValue = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(dateValue.getTime()) || dateValue.toISOString().slice(0, 10) !== date) {
+      fail(`progress/${entry.name} has an invalid session date`);
+    }
+    const heading = readText(path.join(directory, entry.name)).split(/\r?\n/, 1)[0];
+    const headingMatch = heading.match(/^### Session (\d{3,}) — (\d{4}-\d{2}-\d{2})(?: — .*)?$/);
+    if (!headingMatch || Number(headingMatch[1]) !== number || headingMatch[2] !== date) {
+      fail(`progress/${entry.name} must start with a matching "### Session ${numberText} — ${date}" heading`);
+    }
+    sessions.push({ number, date, heading, filename: entry.name });
   }
 
   const seen = new Set();
-  for (const number of numbers) {
-    if (seen.has(number)) {
-      fail(`${progressFile} has a duplicate session number: Session ${number} appears more than once`);
+  for (const session of sessions) {
+    if (seen.has(session.number)) {
+      fail(`progress/ has a duplicate session number: Session ${session.number} appears more than once`);
     }
-    seen.add(number);
+    seen.add(session.number);
   }
-  const sorted = [...seen].sort((a, b) => a - b);
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) {
-      fail(`${progressFile} is missing Session ${sorted[i - 1] + 1} — session numbers jump from ${sorted[i - 1]} to ${sorted[i]}`);
+  sessions.sort((a, b) => a.number - b.number);
+  for (let i = 0; i < sessions.length; i++) {
+    if (sessions[i].number !== i + 1) {
+      fail(`progress/ is missing Session ${i + 1}`);
     }
   }
-  pass(`Progress log session numbers are unique and contiguous (${sorted.length} sessions)`);
+  return sessions;
+}
+
+function latestFeatureEvidence(features) {
+  return features
+    .map((feature, index) => {
+      const rawEvidence = typeof feature.evidence === "string" ? feature.evidence.trim() : "";
+      let evidence = rawEvidence.replace(/\s+/g, " ");
+      let evidenceTimestamp;
+      try {
+        const parsed = JSON.parse(rawEvidence);
+        if (parsed && typeof parsed === "object" && typeof parsed.summary === "string") {
+          evidence = parsed.summary.trim().replace(/\s+/g, " ");
+          evidenceTimestamp = typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
+        }
+      } catch {
+        // Older evidence is stored as a plain string.
+      }
+      const stamp = evidenceTimestamp ?? evidence.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/)?.[0];
+      return {
+        feature,
+        evidence: evidenceTimestamp ? `${evidence} (${evidenceTimestamp})` : evidence,
+        index,
+        timestamp: stamp ? Date.parse(stamp) : Number.NEGATIVE_INFINITY,
+      };
+    })
+    .filter((item) => item.evidence)
+    .sort((a, b) => b.timestamp - a.timestamp || b.index - a.index)[0];
+}
+
+function generatedProgressContent() {
+  const { features } = loadFeaturesWithState();
+  const active = features.filter((feature) => getFeatureState(feature) === "active");
+  const passing = features.filter((feature) => getFeatureState(feature) === "passing");
+  const blocked = features.filter((feature) => getFeatureState(feature) === "blocked");
+  const planned = features.filter((feature) => getFeatureState(feature) === "planned");
+  const label = (feature) => `${feature.id} — ${feature.name}`;
+  const latest = latestFeatureEvidence(features);
+  const sessions = progressSessions();
+  const list = (items) => items.length ? items.map(label).join(", ") : "none";
+
+  return [
+    "## Current Verified State",
+    "",
+    "- Project root: this repository",
+    "- Primary startup command: `./init.sh`",
+    "- Primary verification command: `make check` (make-free equivalent: `npm run check`)",
+    `- Active feature: ${list(active)}`,
+    `- Passing features (${passing.length}): ${list(passing)}`,
+    `- Failing/blocked features: ${list(blocked)}`,
+    `- Planned features (${planned.length}): ${list(planned)}`,
+    `- Last evidence: ${latest ? `${label(latest.feature)} — ${latest.evidence}` : "none"}`,
+    "",
+    "## Session Index",
+    "",
+    ...(sessions.length
+      ? sessions.map((session) => `- [${session.heading.slice(4)}](progress/${session.filename})`)
+      : ["- No sessions recorded yet."]),
+  ].join("\n");
+}
+
+function replaceGeneratedProgress(content, progressFile) {
+  const startCount = content.split(generatedProgressStart).length - 1;
+  const endCount = content.split(generatedProgressEnd).length - 1;
+  if (startCount !== 1 || endCount !== 1) {
+    fail(`${progressFile} must contain exactly one generated progress block`);
+  }
+  const start = content.indexOf(generatedProgressStart);
+  const end = content.indexOf(generatedProgressEnd);
+  if (end < start) {
+    fail(`${progressFile} has generated progress markers in the wrong order`);
+  }
+  const prefix = content.slice(0, start + generatedProgressStart.length);
+  const suffix = content.slice(end);
+  return `${prefix}\n${generatedProgressContent()}\n${suffix}`;
+}
+
+function updateProgress() {
+  const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
+  if (!progressFile) {
+    fail("missing PROGRESS.md — create it from templates/progress.md");
+  }
+  const current = readText(progressFile);
+  const updated = replaceGeneratedProgress(current, progressFile);
+  if (updated !== current) {
+    writeFileSync(progressFile, updated, "utf8");
+  }
+  pass(`Generated current state and session index in ${progressFile}`);
+}
+
+// Validate one dated file per session and make the dashboard an exact rendering
+// of feature shards plus the session files, so neither source can silently drift.
+function ensureProgressLog() {
+  const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
+  if (!progressFile) {
+    return;
+  }
+  const sessions = progressSessions();
+  const current = readText(progressFile);
+  const expected = replaceGeneratedProgress(current, progressFile);
+  if (current !== expected) {
+    fail(`${progressFile} is out of date; run "node scripts/framework-check.mjs progress-update"`);
+  }
+  pass(`Progress dashboard is current (${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
 }
 
 function ensureNoPlaceholders() {
@@ -332,32 +457,148 @@ function ensureShardedStateShape(declaredIds) {
 // the JSON object — repetitive, and one typo away from a malformed
 // feature_list.json. Appends a correctly-shaped, declaration-only stub
 // (feat-011's schema — no inline state/evidence) with the standard 3-layer
-// verification chain; behavior/verification/dependencies are left as TODOs
-// for the operator to fill in.
-function addFeature(featureId, name) {
-  if (!featureId || !name) {
-    fail("usage: node scripts/framework-check.mjs add-feature <id> <name>");
+// verification chain; options can configure these declaration fields while
+// omitted behavior and verification retain their TODO defaults.
+function parseAddFeatureArgs(args) {
+  const options = { layers: [] };
+  const nameParts = [];
+  const seenOptions = new Set();
+  const valueOptions = new Set(["--behavior", "--verification", "--depends", "--layer"]);
+  let parsingOptions = false;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (!parsingOptions && !arg.startsWith("--")) {
+      nameParts.push(arg);
+      continue;
+    }
+    parsingOptions = true;
+    if (!valueOptions.has(arg)) {
+      fail(`unknown add-feature option ${arg}`);
+    }
+    const value = args[++i];
+    if (!value || value.startsWith("--")) {
+      fail(`add-feature option ${arg} requires a value`);
+    }
+    if (arg === "--layer") {
+      const separator = value.indexOf("=");
+      if (separator < 1 || separator === value.length - 1) {
+        fail('add-feature --layer must use "label=cmd"');
+      }
+      const label = value.slice(0, separator);
+      options.layers.push({
+        label,
+        cmd: value.slice(separator + 1),
+        repair: `Fix ${label} failures and rerun the layer command.`,
+      });
+      continue;
+    }
+    if (seenOptions.has(arg)) {
+      fail(`add-feature option ${arg} may only be specified once`);
+    }
+    seenOptions.add(arg);
+    if (arg === "--depends") {
+      const dependencies = value.split(",").map((dependency) => dependency.trim());
+      if (dependencies.some((dependency) => !dependency)) {
+        fail("add-feature --depends requires comma-separated feature ids");
+      }
+      options.dependencies = dependencies;
+    } else {
+      options[arg.slice(2)] = value;
+    }
   }
+  return { name: nameParts.join(" "), options };
+}
+
+function validateFeatureId(featureId) {
+  if (!existsSync(".harness/manifest.json")) {
+    return;
+  }
+  const manifest = readJson(".harness/manifest.json");
+  if (manifest.featureIdPattern === undefined) {
+    return;
+  }
+  if (typeof manifest.featureIdPattern !== "string") {
+    fail(".harness/manifest.json featureIdPattern must be a regular expression string");
+  }
+  let pattern;
+  try {
+    pattern = new RegExp(manifest.featureIdPattern);
+  } catch {
+    fail(`.harness/manifest.json featureIdPattern is not a valid regular expression: ${manifest.featureIdPattern}`);
+  }
+  if (!pattern.test(featureId)) {
+    fail(`feature id ${featureId} does not match manifest featureIdPattern ${manifest.featureIdPattern}`);
+  }
+}
+
+function addFeature(featureId, featureArgs) {
+  const { name, options } = parseAddFeatureArgs(featureArgs);
+  if (!featureId || !name.trim()) {
+    fail("usage: node scripts/framework-check.mjs add-feature <id> <name> [--behavior <text>] [--verification <text>] [--depends a,b] [--layer label=cmd]");
+  }
+  validateFeatureId(featureId);
   const data = loadFeatures();
   if (data.features.some((feature) => feature.id === featureId)) {
     fail(`feature ${featureId} already exists in feature_list.json`);
   }
+  for (const dependency of options.dependencies ?? []) {
+    if (!data.features.some((feature) => feature.id === dependency)) {
+      fail(`feature ${featureId} depends on unknown feature ${dependency}`);
+    }
+  }
   data.features.push({
     id: featureId,
     name,
-    behavior: "TODO: describe the single target behavior this feature implements.",
-    verification: "TODO: describe how completion is verified end-to-end.",
-    dependencies: [],
+    behavior: options.behavior ?? "TODO: describe the single target behavior this feature implements.",
+    verification: options.verification ?? "TODO: describe how completion is verified end-to-end.",
+    dependencies: options.dependencies ?? [],
     layers: [
       { label: "Layer 1: Static checks", cmd: "npm run lint", repair: "Fix static-analysis issues and rerun the layer command." },
       { label: "Layer 2: Runtime tests", cmd: "npm run test", repair: "Fix failing tests and rerun the layer command." },
       { label: "Layer 3: System confirmation", cmd: "npm run check", repair: "Resolve cross-layer issues and rerun full verification." },
+      ...options.layers,
     ],
   });
   writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
-  pass(
-    `Added ${featureId} to feature_list.json — fill in behavior/verification/dependencies, then activate by creating .harness/state/${featureId}.json with {"state": "active", "evidence": ""}`,
-  );
+  pass(`Added ${featureId} to feature_list.json`);
+}
+
+function activateFeature(featureId) {
+  if (!featureId) {
+    fail("usage: node scripts/framework-check.mjs activate <feature-id>");
+  }
+  const { features } = loadFeaturesWithState();
+  const feature = features.find((item) => item.id === featureId);
+  if (!feature) {
+    fail(`feature ${featureId} not found in feature_list.json`);
+  }
+  const otherActive = features.find((item) => item.state === "active" && item.id !== featureId);
+  if (otherActive) {
+    fail(`cannot activate ${featureId}: feature ${otherActive.id} is already active`);
+  }
+  if (feature.state === "active") {
+    pass(`Feature ${featureId} is already active`);
+    return;
+  }
+  if (feature.state === "passing" || feature.state === "blocked") {
+    fail(`feature ${featureId} is ${feature.state} — it cannot be activated`);
+  }
+  if (feature.state !== "planned") {
+    fail(`feature ${featureId} has unsupported state ${feature.state}`);
+  }
+  const unmet = getFeatureDependencies(feature).filter((dependencyId) => {
+    const dependency = features.find((item) => item.id === dependencyId);
+    return !dependency || dependency.state !== "passing";
+  });
+  if (unmet.length > 0) {
+    fail(`feature ${featureId} has unmet dependencies: ${unmet.join(", ")} — complete those first`);
+  }
+  const laneFeatureId = laneFeatureIdFromBranch(getCurrentBranch());
+  if (laneFeatureId && laneFeatureId !== featureId) {
+    fail(`lane branch lane/${laneFeatureId} may only activate feature ${laneFeatureId}`);
+  }
+  writeFeatureState(featureId, { state: "active", evidence: "" });
+  pass(`Activated ${featureId}`);
 }
 
 function migrateFeatureState() {
@@ -436,16 +677,19 @@ function ensureMakeTargets() {
 }
 
 function ensureCommandSurfaces() {
-  // Every make target must be documented: README's Command Targets table and
-  // AGENTS.md's command mirrors. Docs that drift from the actual surface are
-  // the failure mode this harness exists to prevent.
+  // README links to the generated command reference; AGENTS.md keeps its
+  // concise command mirrors. The generated reference is checked against both
+  // command sources so it cannot drift.
   const readme = readText("README.md");
-  if (/## Command Targets/.test(readme)) {
-    for (const target of requiredMakeTargets) {
-      if (!readme.includes(`make ${target}`)) {
-        fail(`README.md Command Targets table does not document the ${target} target`);
-      }
-    }
+  if (!/\[[^\]]+\]\((?:\.\/)?docs\/HARNESS\.md(?:#[^)]*)?\)/.test(readme)) {
+    fail("README.md must link to docs/HARNESS.md");
+  }
+  if (!existsSync("docs/HARNESS.md")) {
+    fail("docs/HARNESS.md is missing — run npm run harness-docs");
+  }
+  const expectedDocs = renderHarnessDocs(readText("Makefile"), readJson("package.json"));
+  if (readText("docs/HARNESS.md") !== expectedDocs) {
+    fail("docs/HARNESS.md is out of date — run npm run harness-docs");
   }
   const agents = readText("AGENTS.md");
   for (const target of requiredMakeTargets) {
@@ -453,7 +697,7 @@ function ensureCommandSurfaces() {
       fail(`AGENTS.md does not mention the ${target} command`);
     }
   }
-  pass("README and AGENTS document every make target");
+  pass("README links to the current command reference and AGENTS documents every make target");
 }
 
 function ensureShellScripts() {
@@ -625,6 +869,10 @@ function isDirectorySafe(path) {
 function reportE2eStatus() {
   // The adoption matrix is the real e2e layer (feat-004). It generates
   // throwaway adopter repos from the manifest and runs the harness in each.
+  if (process.env.CW_SKIP_ADOPTION_MATRIX === "1") {
+    console.log("[SKIP] Adoption matrix is reserved for framework repository CI");
+    return;
+  }
   if (process.env.CW_ADOPTION_CELL === "1") {
     console.log("[SKIP] e2e skipped inside an adoption cell (matrix recursion guard)");
     return;
@@ -1339,7 +1587,15 @@ function cleanStateCheck() {
   console.log("");
   console.log("--- Debug Artifacts ---");
   const envScanPaths = (process.env.DEBUG_SCAN_PATHS ?? "").split(/\s+/).filter(Boolean);
-  const candidates = ["src", "app", "apps", "lib", "packages", "services", "backend", "frontend"];
+  const productRoots = existsSync(".harness/manifest.json")
+    ? readJson(".harness/manifest.json").productRoots
+    : [];
+  const candidates = Array.isArray(productRoots)
+    ? [...new Set(productRoots.filter((root) => typeof root === "string").map((root) => {
+        if (existsSync(root) && statSync(root).isDirectory()) return root;
+        return path.dirname(root);
+      }).filter((dir) => dir !== "." && existsSync(dir) && statSync(dir).isDirectory()))]
+    : [];
   const scanPaths = envScanPaths.length > 0
     ? envScanPaths
     : candidates.filter((dir) => existsSync(dir) && statSync(dir).isDirectory());
@@ -1405,9 +1661,9 @@ function runSetup() {
 }
 
 function runVerifyAll() {
-  const script = "scripts/verify-all";
-  if (!existsSync(script)) {
-    console.log("[SKIP] Multi-repo component not activated (scripts/verify-all absent)");
+  const script = ["scripts/verify-all", "scripts/verify-all.mjs", "scripts/verify-all.cjs"].find(existsSync);
+  if (!script) {
+    console.log("[SKIP] Multi-repo component not activated (verify-all script absent)");
     console.log("  Activate it by copying the templates/multi-repo skeletons to their declared destinations.");
     return;
   }
@@ -1468,6 +1724,7 @@ function printHelp() {
   console.log("  e2e            Layer 3b: end-to-end tests");
   console.log("  check-arch     Architecture constraint enforcement");
   console.log("  verify-feature F=<id>  Run all verification layers for a feature");
+  console.log("  activate F=<id>        Activate a feature when dependencies allow");
   console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
@@ -1477,6 +1734,7 @@ function printHelp() {
   console.log("  vcr            verify + check-arch + record trail");
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
+  console.log("  progress-update  Regenerate the progress state and session index");
   console.log("  clean-check    Pre-commit clean state verification");
   console.log("  help           Show this help");
   console.log("");
@@ -1567,6 +1825,14 @@ switch (mode) {
     ensureProgressLog();
     break;
   }
+  case "progress-update": {
+    updateProgress();
+    break;
+  }
+  case "lint:command-surfaces": {
+    ensureCommandSurfaces();
+    break;
+  }
   case "arch:sharded-state": {
     ensureFeatureShape();
     console.log("PASS");
@@ -1645,7 +1911,11 @@ switch (mode) {
     break;
   }
   case "add-feature": {
-    addFeature(args[0], args.slice(1).join(" "));
+    addFeature(args[0], args.slice(1));
+    break;
+  }
+  case "activate": {
+    activateFeature(args[0]);
     break;
   }
   case "verify-chain": {

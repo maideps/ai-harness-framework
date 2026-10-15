@@ -183,7 +183,7 @@
     {
       "id": "feat-008",
       "name": "Skills Packs",
-      "behavior": "Introduce a skills/ directory of reusable capability packs — one folder per skill with a SKILL.md (frontmatter name/description, When to Use, workflow, quick reference). Ship framework-native skills (feature-cycle, verification, session-handoff, adopt, release, write-skill), validate skill structure in the runner, and register skills/ in the manifest.",
+      "behavior": "Introduce a skills/ directory of reusable capability packs \u2014 one folder per skill with a SKILL.md (frontmatter name/description, When to Use, workflow, quick reference). Ship framework-native skills (feature-cycle, verification, session-handoff, adopt, release, write-skill), validate skill structure in the runner, and register skills/ in the manifest.",
       "verification": "npm run check passes with skills validation active; every shipped skill loads (frontmatter name matches its folder, description and When to Use present).",
       "dependencies": [
         "feat-003"
@@ -287,7 +287,7 @@
     {
       "id": "feat-012",
       "name": "Upgrade Backups",
-      "behavior": "Before harness-upgrade overwrites mustNotEdit CORE surfaces, snapshot the current on-disk state of every file about to be touched: checksum-deduped (skip a redundant backup when nothing changed), gzip-compressed per file, stored in .harness/backups/<id>/ (gitignored — a local safety net, not durable evidence). Retention keeps the 5 most recent unpinned backups; pinned backups are never pruned. backup-list/backup-pin/backup-unpin/backup-restore (restore accepts an id or \"latest\") round out the command surface. Restore is per file: existed=true writes the snapshotted content back, existed=false removes a file the operation newly created.",
+      "behavior": "Before harness-upgrade overwrites mustNotEdit CORE surfaces, snapshot the current on-disk state of every file about to be touched: checksum-deduped (skip a redundant backup when nothing changed), gzip-compressed per file, stored in .harness/backups/<id>/ (gitignored \u2014 a local safety net, not durable evidence). Retention keeps the 5 most recent unpinned backups; pinned backups are never pruned. backup-list/backup-pin/backup-unpin/backup-restore (restore accepts an id or \"latest\") round out the command surface. Restore is per file: existed=true writes the snapshotted content back, existed=false removes a file the operation newly created.",
       "verification": "npm run check passes; unit tests cover snapshot creation (including existed=false files), dedup, restore fidelity (including the existed=false removal case), and prune/pin interaction; the adoption matrix's upgrade test asserts a real upgrade() call creates a backup and that restoring it reproduces the pre-upgrade (corrupted) state before re-upgrading to leave the repo fixed.",
       "dependencies": [
         "feat-006"
@@ -313,7 +313,7 @@
     {
       "id": "feat-013",
       "name": "Dogfooding Feedback Round 1",
-      "behavior": "Three quick, low-risk fixes from real-world adopter feedback (DOGFOODING-FEEDBACK-payroll.md Tier 1), each tied to an incident that actually happened: (1) check-arch warns (does not fail) when untracked-but-not-gitignored files exist, since coverage rules like arch-005 only see git-tracked files and this caused two real CI breaks in an adopter project; (2) a new add-feature <id> <name> command appends a correctly-shaped, declaration-only feature stub, replacing the hand-rolled node -e JSON construction the adopter repeated 11+ times; (3) the lint layer fails on a duplicate or missing session number in PROGRESS.md's ### Session N headers (checked as a set, not file order, so a legitimate out-of-order hotfix write is not flagged) — the adopter's log accumulated a real duplicate session number that nothing ever caught.",
+      "behavior": "Three quick, low-risk fixes from real-world adopter feedback (DOGFOODING-FEEDBACK-payroll.md Tier 1), each tied to an incident that actually happened: (1) check-arch warns (does not fail) when untracked-but-not-gitignored files exist, since coverage rules like arch-005 only see git-tracked files and this caused two real CI breaks in an adopter project; (2) a new add-feature <id> <name> command appends a correctly-shaped, declaration-only feature stub, replacing the hand-rolled node -e JSON construction the adopter repeated 11+ times; (3) the lint layer fails on a duplicate or missing session number in PROGRESS.md's ### Session N headers (checked as a set, not file order, so a legitimate out-of-order hotfix write is not flagged) \u2014 the adopter's log accumulated a real duplicate session number that nothing ever caught.",
       "verification": "npm run check passes; unit tests cover the untracked-file warning (present/absent/no-git-repo), add-feature (stub shape, duplicate-id rejection, multi-word name handling), and the progress-log check (sequential, out-of-order-but-valid, duplicate, gap, no-sessions-yet cases).",
       "dependencies": [
         "feat-011"
@@ -328,6 +328,115 @@
           "label": "Layer 2: Runtime tests",
           "cmd": "npm run test",
           "repair": "Fix the warning/add-feature/progress-log logic and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-014",
+      "name": "Feature lifecycle commands",
+      "behavior": "Configure feature declarations and activate eligible work without manually editing JSON.",
+      "verification": "npm run check and check-arch pass; lifecycle tests verify configured creation, ID validation, dependency checks, and immediate WIP=1 enforcement.",
+      "dependencies": [
+        "feat-013"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Architecture enforcement",
+          "cmd": "npm run check-arch",
+          "repair": "Fix Architecture enforcement failures and rerun the layer command."
+        }
+      ]
+    },
+    {
+      "id": "feat-015",
+      "name": "Adopter CI template and Node version",
+      "behavior": "Generate an adopter CI workflow that installs the project's configured Node version, optionally runs setup, and verifies the project without the framework's adoption matrix; provide an editable adopter .nvmrc that survives harness upgrades.",
+      "verification": "The scaffold tests prove generated CI runs optional setup, project verification, and architecture verification on any branch, uses the adopter .nvmrc, skips the framework matrix, and preserves customized .nvmrc through upgrades.",
+      "dependencies": [
+        "feat-006"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-016",
+      "name": "Generated Harness Command Reference",
+      "behavior": "Generate docs/HARNESS.md from the repository's Makefile targets and npm scripts, verify the checked-in reference against those sources, and require README.md to link to it.",
+      "verification": "npm run check passes; focused tests prove command-reference generation, stale-reference detection, and README link enforcement; create-harness generates the reference for adopted repositories.",
+      "dependencies": [
+        "feat-015"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix generated command reference or test failures and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-017",
+      "name": "Generated Progress Dashboard",
+      "behavior": "Store each session's notes in progress/NNN-YYYY-MM-DD.md and generate PROGRESS.md's current state and session index from feature_list.json, .harness/state/, and the session files.",
+      "verification": "npm run check passes; progress-update regenerates current state and the session index, while lint:progress-log rejects stale dashboards, malformed entries, duplicate numbers, and gaps.",
+      "dependencies": [
+        "feat-016"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
         },
         {
           "label": "Layer 3: System confirmation",

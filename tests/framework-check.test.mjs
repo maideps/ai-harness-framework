@@ -25,11 +25,12 @@ function write(root, rel, content) {
   writeFileSync(dest, content, "utf8");
 }
 
-function run(root, mode, args = []) {
+function run(root, mode, args = [], env = {}) {
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
     encoding: "utf8",
     timeout: 30000,
+    env: { ...process.env, ...env },
   });
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";
@@ -40,6 +41,55 @@ function run(root, mode, args = []) {
 function cleanup(root) {
   rmSync(root, { recursive: true, force: true });
 }
+
+test("clean-state-check: scans the directories derived from productRoots, not hardcoded roots", () => {
+  const root = fixture();
+  try {
+    write(root, ".harness/manifest.json", `${JSON.stringify(baseManifest({ productRoots: ["repositories/"] }))}\n`);
+    write(root, "repositories/app/debug.js", "debugger;\n");
+    write(root, "src/unrelated.js", "debugger;\n");
+    const result = run(root, "clean-state-check", [], { DEBUG_SCAN_PATHS: "" });
+    assert.match(result.output, /repositories[\/]app[\/]debug\.js:1: debugger;/);
+    assert.doesNotMatch(result.output, /src[\/]unrelated\.js/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-all: skips cleanly when the optional component is absent", () => {
+  const root = fixture();
+  try {
+    const result = run(root, "verify-all");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] Multi-repo component not activated/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-all: accepts an ESM root script in a module-typed adopter", () => {
+  const root = fixture();
+  try {
+    write(root, "package.json", JSON.stringify({ type: "module" }));
+    write(root, "scripts/verify-all.mjs", "console.log('ESM root script');\n");
+    const result = run(root, "verify-all");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /ESM root script/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("e2e: adopter CI skips the framework adoption matrix", () => {
+  const root = fixture();
+  try {
+    const result = run(root, "e2e", [], { CW_SKIP_ADOPTION_MATRIX: "1" });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] Adoption matrix is reserved for framework repository CI/);
+  } finally {
+    cleanup(root);
+  }
+});
 
 // ---- ensureManifest (mode: "manifest") -------------------------------------
 
@@ -881,6 +931,124 @@ test("add-feature: refuses a duplicate feature id", () => {
   }
 });
 
+test("add-feature: accepts configured behavior, verification, dependencies, and extra layers", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    { features: [{ id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }] }] },
+    null,
+    2,
+  )}\n`);
+  write(root, ".harness/manifest.json", JSON.stringify({ featureIdPattern: "^feat-\\d{3}$" }));
+  try {
+    const result = run(root, "add-feature", [
+      "feat-002",
+      "Configured",
+      "Feature",
+      "--behavior",
+      "Describe this behavior",
+      "--verification",
+      "Run all checks",
+      "--depends",
+      "feat-001",
+      "--layer",
+      "Multi-repo verification=npm run verify-all",
+    ]);
+    assert.equal(result.exit, 0, result.output);
+    const added = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features[1];
+    assert.equal(added.name, "Configured Feature");
+    assert.equal(added.behavior, "Describe this behavior");
+    assert.equal(added.verification, "Run all checks");
+    assert.deepEqual(added.dependencies, ["feat-001"]);
+    assert.equal(added.layers.length, 4);
+    assert.deepEqual(added.layers[3], {
+      label: "Multi-repo verification",
+      cmd: "npm run verify-all",
+      repair: "Fix Multi-repo verification failures and rerun the layer command.",
+    });
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("add-feature: enforces an optional manifest feature ID pattern", () => {
+  const root = fixture();
+  write(root, "feature_list.json", '{"features":[]}\n');
+  write(root, ".harness/manifest.json", JSON.stringify({ featureIdPattern: "^feat-\\d{3}$" }));
+  try {
+    const result = run(root, "add-feature", ["polish-portfolio", "Bad Id"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /does not match manifest featureIdPattern/);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features, []);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("add-feature: accepts IDs when the manifest does not define a pattern", () => {
+  const root = fixture();
+  write(root, "feature_list.json", '{"features":[]}\n');
+  try {
+    const result = run(root, "add-feature", ["polish-portfolio", "Flexible ID"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features[0].id, "polish-portfolio");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: writes active state when dependencies pass", () => {
+  const root = featureListFixture([
+    { id: "feat-001", state: "passing", dependencies: [] },
+    { id: "feat-002", state: "planned", dependencies: ["feat-001"] },
+  ]);
+  try {
+    const result = run(root, "activate", ["feat-002"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")), {
+      state: "active",
+      evidence: "",
+    });
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: refuses a second active feature without writing its shard", () => {
+  const root = featureListFixture([
+    { id: "feat-001", state: "active", dependencies: [] },
+    { id: "feat-002", state: "planned", dependencies: [] },
+  ]);
+  try {
+    const result = run(root, "activate", ["feat-002"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /feat-001 is already active/);
+    assert.equal(
+      JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")).state,
+      "planned",
+    );
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: refuses dependencies that are not passing", () => {
+  const root = featureListFixture([
+    { id: "feat-001", state: "planned", dependencies: [] },
+    { id: "feat-002", state: "planned", dependencies: ["feat-001"] },
+  ]);
+  try {
+    const result = run(root, "activate", ["feat-002"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /unmet dependencies: feat-001/);
+    assert.equal(
+      JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")).state,
+      "planned",
+    );
+  } finally {
+    cleanup(root);
+  }
+});
+
 // ---- check-arch: untracked-file warning (dogfooding feedback Tier 1 item 1) -
 
 test("check-arch: warns (does not fail) when untracked files exist", () => {
@@ -922,63 +1090,181 @@ test("check-arch: no warning (and no crash) outside a git repository", () => {
   }
 });
 
-// ---- PROGRESS.md session-number consistency (dogfooding feedback Tier 1 item 3) -
+// ---- Generated progress state and per-session index -------------------------
 
-function progressFixture(content) {
+function progressFixture(sessions = [], features = [], { generate = true } = {}) {
   const root = fixture();
-  write(root, "PROGRESS.md", content);
+  write(root, "PROGRESS.md", "# Progress Log\n\n<!-- BEGIN GENERATED PROGRESS -->\n<!-- END GENERATED PROGRESS -->\n");
+  write(root, "feature_list.json", `${JSON.stringify({
+    features: features.map(({ state, evidence, ...feature }) => feature),
+  }, null, 2)}\n`);
+  for (const feature of features) {
+    if ("state" in feature || "evidence" in feature) {
+      write(root, `.harness/state/${feature.id}.json`, `${JSON.stringify({
+        state: feature.state ?? "planned",
+        evidence: feature.evidence ?? "",
+      }, null, 2)}\n`);
+    }
+  }
+  for (const session of sessions) {
+    const number = String(session.number).padStart(3, "0");
+    const date = session.date ?? "2026-10-01";
+    const heading = session.heading ?? `### Session ${number} — ${date} — Session ${number}`;
+    write(root, `progress/${number}-${date}.md`, `${heading}\n\n- Session notes.\n`);
+  }
+  if (generate) {
+    const result = run(root, "progress-update");
+    assert.equal(result.exit, 0, result.output);
+  }
   return root;
 }
 
-test("lint:progress-log: passes on strictly sequential session numbers", () => {
-  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 003 — c\n");
+test("lint:progress-log: checks a generated dashboard and contiguous session index", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 2, date: "2026-10-02" },
+  ], [
+    { id: "feat-001", name: "First", state: "passing", evidence: "verified at 2026-10-01T10:00:00Z" },
+    { id: "feat-002", name: "Second", state: "active", evidence: "started" },
+    { id: "feat-003", name: "Third", state: "blocked" },
+  ]);
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 0, result.output);
-    assert.match(result.stdout, /unique and contiguous \(3 sessions\)/);
+    assert.match(result.stdout, /dashboard is current \(2 sessions\)/);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.match(dashboard, /Active feature: feat-002 — Second/);
+    assert.match(dashboard, /Passing features \(1\): feat-001 — First/);
+    assert.match(dashboard, /Failing\/blocked features: feat-003 — Third/);
+    assert.match(dashboard, /Last evidence: feat-001 — First — verified at 2026-10-01T10:00:00Z/);
+    assert.match(dashboard, /\[Session 002 — 2026-10-02 — Session 002\]\(progress\/002-2026-10-02\.md\)/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: passes when sessions are logged out of file order (legitimate hotfix insertion)", () => {
-  // Mirrors this repo's own real history: Session 020 was written before 019.
-  const root = progressFixture("### Session 001 — a\n\n### Session 003 — c\n\n### Session 002 — b\n");
+test("progress-update: displays structured verification evidence and selects the latest timestamp", () => {
+  const root = progressFixture([], [
+    {
+      id: "feat-001",
+      name: "First",
+      state: "passing",
+      evidence: JSON.stringify({ summary: "Earlier verification passed", timestamp: "2026-10-01T10:00:00Z" }),
+    },
+    {
+      id: "feat-002",
+      name: "Second",
+      state: "passing",
+      evidence: JSON.stringify({ summary: "Latest verification passed", timestamp: "2026-10-02T10:00:00Z" }),
+    },
+  ]);
   try {
-    const result = run(root, "lint:progress-log");
-    assert.equal(result.exit, 0, result.output);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.match(dashboard, /Last evidence: feat-002 — Second — Latest verification passed \(2026-10-02T10:00:00Z\)/);
+    assert.doesNotMatch(dashboard, /"summary"/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: fails on a duplicate session number", () => {
-  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 002 — b again\n");
+test("lint:progress-log: allows session files created out of order", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 3, date: "2026-10-03" },
+    { number: 2, date: "2026-10-02" },
+  ]);
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 0, result.output);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.ok(dashboard.indexOf("Session 002") < dashboard.indexOf("Session 003"));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails when two files use the same session number", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 1, date: "2026-10-02" },
+  ], [], { generate: false });
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 1);
-    assert.match(result.stderr, /duplicate session number: Session 2/);
+    assert.match(result.stderr, /duplicate session number: Session 1/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: fails on a gap in the session numbers", () => {
-  const root = progressFixture("### Session 001 — a\n\n### Session 002 — b\n\n### Session 004 — d\n");
+test("lint:progress-log: fails on a gap in the session files", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+    { number: 3, date: "2026-10-03" },
+  ], [], { generate: false });
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 1);
-    assert.match(result.stderr, /missing Session 3/);
+    assert.match(result.stderr, /missing Session 2/);
   } finally {
     cleanup(root);
   }
 });
 
-test("lint:progress-log: passes when PROGRESS.md has no numbered sessions yet", () => {
-  const root = progressFixture("# Progress Log\n\nNothing logged yet.\n");
+test("lint:progress-log: passes with no session files yet", () => {
+  const root = progressFixture();
   try {
     const result = run(root, "lint:progress-log");
     assert.equal(result.exit, 0, result.output);
+    assert.match(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), /No sessions recorded yet/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails when the state shards change without regenerating the dashboard", () => {
+  const root = progressFixture([], [
+    { id: "feat-001", name: "First", state: "planned" },
+  ]);
+  try {
+    write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "passing", evidence: "new evidence" }, null, 2)}\n`);
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /is out of date/);
+    assert.match(result.stderr, /progress-update/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("progress-update: regenerates feature state and session index from their sources", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01" },
+  ], [
+    { id: "feat-001", name: "First", state: "passing", evidence: "verified" },
+  ]);
+  try {
+    write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "blocked", evidence: "blocked evidence" }, null, 2)}\n`);
+    const update = run(root, "progress-update");
+    assert.equal(update.exit, 0, update.output);
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.match(dashboard, /Failing\/blocked features: feat-001 — First/);
+    assert.match(dashboard, /Last evidence: feat-001 — First — blocked evidence/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails when the session filename and heading disagree", () => {
+  const root = progressFixture([
+    { number: 1, date: "2026-10-01", heading: "### Session 001 — 2026-10-02 — Wrong date" },
+  ], [], { generate: false });
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /must start with a matching/);
   } finally {
     cleanup(root);
   }

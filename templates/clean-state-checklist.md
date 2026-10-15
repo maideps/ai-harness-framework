@@ -15,7 +15,7 @@ Run through this checklist at session end to confirm the repository is in a clea
 
 ## State Files
 
-- [ ] `PROGRESS.md` updated with current state, decisions, blockers, next steps
+- [ ] Session note added under `progress/`; `PROGRESS.md` regenerated with `node scripts/framework-check.mjs progress-update`
 - [ ] The active feature's `.harness/state/<id>.json` updated with the new state
 - [ ] `DECISIONS.md` updated with any new architectural decisions
 - [ ] `session-handoff.md` filled out (for large sessions)

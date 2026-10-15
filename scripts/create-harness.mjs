@@ -19,6 +19,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { generateHarnessDocs } from "./harness-docs.mjs";
 
 export const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -89,6 +90,10 @@ export function createRuntimeSurfaces(root) {
   };
   mkdirSync(path.join(root, ".harness", "trails"), { recursive: true });
   mkdirSync(path.join(root, ".harness", "state"), { recursive: true });
+  mkdirSync(path.join(root, "progress"), { recursive: true });
+  if (!existsSync(path.join(root, "docs", "HARNESS.md"))) {
+    generateHarnessDocs(root);
+  }
   write(".harness/traces/.gitkeep", "");
   write(".claude/settings.json", "{}\n");
   write("package-lock.json", "{}\n");
@@ -118,9 +123,10 @@ function main() {
   console.log("  Existing files were never overwritten.");
   console.log("");
   console.log("  Next steps:");
-  console.log("  1. Fill the skeletons (docs, README, feature list) — lint fails until they are project-specific.");
+  console.log("  1. Review and customize the project docs, README, and feature list.");
   console.log("  2. Declare product directories in .harness/manifest.json productRoots.");
-  console.log("  3. Run ./init.sh, then npm run check.");
+  console.log("  3. Run node scripts/framework-check.mjs progress-update after customizing feature declarations.");
+  console.log("  4. Run ./init.sh, then npm run check.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

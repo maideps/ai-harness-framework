@@ -32,49 +32,16 @@ make help           # or: npm run help
 
 Layers that are not configured report **SKIP** and do not count as verified.
 
-### Command Targets
+### Harness Commands
 
-Every make target is mirrored 1:1 by an npm script:
-
-| Purpose | Make form | npm form |
-|---|---|---|
-| Install dependencies | `make setup` | `npm run setup` |
-| Dev server | `make dev` | `npm run dev` |
-| Full verification | `make check` | `npm run check` |
-| Layer 1: static analysis | `make lint` | `npm run lint` |
-| Layer 1b: type checking | `make typecheck` | `npm run typecheck` |
-| Layer 2: runtime tests | `make test` | `npm run test` |
-| Layer 3: build verification | `make build` | `npm run build` |
-| Layer 3b: end-to-end tests | `make e2e` | `npm run e2e` |
-| Architecture enforcement | `make check-arch` | `npm run check-arch` |
-| Feature verification | `make verify-feature F=<id>` | `npm run verify-feature -- <id>` |
-| Multi-repo verification | `make verify-all` | `npm run verify-all` |
-| Create a worktree lane | `make lane-new F=<id>` | `npm run lane-new -- <id>` |
-| List worktree lanes | `make lane-list` | `npm run lane-list` |
-| Land a passing lane | `make lane-land F=<id>` | `npm run lane-land -- <id>` |
-| Drop a lane | `make lane-drop F=<id>` | `npm run lane-drop -- <id>` |
-| Migrate feature state to shards | `make migrate-feature-state` | `npm run migrate-feature-state` |
-| Add a feature stub | `make add-feature ID=<id> NAME=<name>` | `npm run add-feature -- <id> <name>` |
-| Verify + record trail | `make vcr` | `npm run vcr` |
-| Record session start | `make session-start` | `npm run session-start` |
-| Record session end | `make session-end` | `npm run session-end` |
-| Pre-commit clean state | `make clean-check` | `npm run clean-check` |
-| Generate an adopter repo | `make create-harness D=<dir>` | `npm run create-harness -- <dir>` |
-| Apply a harness upgrade | `make harness-upgrade D=<dir>` | `npm run harness-upgrade -- <dir>` |
-| Local harness audit | `make harness-audit D=<dir>` | `npm run harness-audit -- <dir>` |
-| List upgrade backups | `make backup-list` | `npm run backup-list` |
-| Pin a backup | `make backup-pin F=<id>` | `npm run backup-pin -- <id>` |
-| Unpin a backup | `make backup-unpin F=<id>` | `npm run backup-unpin -- <id>` |
-| Restore a backup | `make backup-restore F=<id\|latest>` | `npm run backup-restore -- <id\|latest>` |
-| Session report | `make report` | `npm run report` |
-| Periodic sweep | `make sweep` | `npm run sweep` |
-| Show all targets | `make help` | `npm run help` |
+The complete command list is generated from the Makefile and npm scripts. See [Harness Command Reference](docs/HARNESS.md); regenerate it with `npm run harness-docs`.
 
 ## State Files
 
 - `feature_list.json` — feature declarations: id, behavior, dependencies, verification layers
 - `.harness/state/<id>.json` — that feature's mutable state (`state`, `evidence`); one file per feature
-- `PROGRESS.md` — session continuity log
+- `PROGRESS.md` — generated current-state dashboard and session index
+- `progress/NNN-YYYY-MM-DD.md` — one session's notes
 - `DECISIONS.md` — architectural decisions log
 - `session-handoff.md` — multi-session handoff notes
 

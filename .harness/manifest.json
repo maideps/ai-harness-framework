@@ -7,6 +7,7 @@
     "trace": 1,
     "manifest": 3
   },
+  "featureIdPattern": "^feat-\\d{3}$",
   "core": [
     "AGENTS.md",
     "CLAUDE.md",
@@ -19,13 +20,14 @@
     "tests/",
     "skills/",
     "templates/",
-    "LICENSE",
-    ".nvmrc",
     ".harness/manifest.json",
     ".harness/arch-rules.json"
   ],
   "templates": [
+    { "from": "templates/LICENSE", "to": "LICENSE" },
+    { "from": "templates/nvmrc", "to": ".nvmrc" },
     { "from": "templates/README.md", "to": "README.md" },
+    { "from": "templates/gitattributes", "to": ".gitattributes" },
     { "from": "templates/gitignore", "to": ".gitignore" },
     { "from": "templates/progress.md", "to": "PROGRESS.md" },
     { "from": "templates/DECISIONS.md", "to": "DECISIONS.md" },
@@ -40,10 +42,12 @@
     { "from": "templates/docs/STANDARDS.md", "to": "docs/STANDARDS.md" },
     { "from": "templates/docs/decisions/index.md", "to": "docs/decisions/index.md" },
     { "from": "templates/multi-repo/verify-all", "to": "scripts/verify-all" },
+    { "from": "templates/multi-repo/verify-all.mjs", "to": "scripts/verify-all.mjs" },
     { "from": "templates/multi-repo/contracts/README.md", "to": "contracts/README.md" },
     { "from": "templates/multi-repo/tasks/README.md", "to": "tasks/README.md" },
     { "from": "templates/multi-repo/repositories/README.md", "to": "repositories/README.md" },
     { "from": "templates/multi-repo/repositories/example/scripts/verify", "to": "repositories/example/scripts/verify" },
+    { "from": "templates/multi-repo/repositories/example/scripts/verify.mjs", "to": "repositories/example/scripts/verify.mjs" },
     { "from": "templates/ci.yml", "to": ".github/workflows/ci.yml" },
     { "from": "templates/sprint-contract.md", "keep": true },
     { "from": "templates/evaluator-rubric.md", "keep": true },
@@ -53,11 +57,15 @@
     "feature_list.json",
     ".harness/state/",
     "PROGRESS.md",
+    "progress/",
     "claude-progress.md",
     "DECISIONS.md",
     "session-handoff.md",
+    "LICENSE",
     "README.md",
+    ".gitattributes",
     ".gitignore",
+    ".nvmrc",
     "package-lock.json",
     ".claude/settings.json",
     "docs/PRODUCT.md",
@@ -65,6 +73,7 @@
     "docs/OBSERVABILITY.md",
     "docs/TOOLS.md",
     "docs/USAGE.md",
+    "docs/HARNESS.md",
     "docs/STANDARDS.md",
     "docs/quality-document.md",
     "docs/decisions/",
@@ -79,8 +88,8 @@
   "optionalComponents": [
     {
       "name": "multi-repo",
-      "description": "Root control plane + subrepo execution domains: contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all. Adopters activate it by copying the templates/multi-repo skeletons to their declared destinations (see the manifest templates entries); single-repo projects pass check without it, and verify-all reports SKIP when the markers are absent.",
-      "markers": ["contracts/", "tasks/", "repositories/", "scripts/verify-all"]
+      "description": "Root control plane + subrepo execution domains: contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all. Adopters activate it by copying the templates/multi-repo skeletons to their declared destinations (see the manifest templates entries); verify-all is an optional check layer that SKIPs when the component is absent.",
+      "markers": ["contracts/", "tasks/", "repositories/", "scripts/verify-all", "scripts/verify-all.mjs"]
     }
   ],
   "customizationPoints": {

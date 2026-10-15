@@ -2,21 +2,22 @@
 
 ## Purpose
 
-[Describe what this system does and who it serves. What problem does it solve?]
+This repository contains a software project developed and verified with the AI Harness Framework.
 
 ## Primary Users
 
-[List the people or roles who use this system.]
+- Developers who build and maintain the project.
+- People who use the project's application or service.
 
 ## Key User Flows
 
-- [Primary user flow 1]
-- [Primary user flow 2]
+- Contributors make changes and run the project's verification checks.
+- Users access the documented application or service.
 
 ## Non-Goals
 
-[What this system intentionally does not do.]
+The framework provides engineering workflow tools; product-specific behavior belongs to this project.
 
 ## Product Constraints
 
-[Hard constraints the product must respect — e.g. runtime requirements, compliance, performance envelopes.]
+Harness operations require Node.js 18 or newer. Project-specific runtime and deployment constraints are documented alongside the application.
