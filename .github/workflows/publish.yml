@@ -1,8 +1,10 @@
 name: publish
 
+# Publishing to npm is a deliberate act, started by hand (D-027): a version tag or a GitHub
+# release no longer publishes on its own. To publish a release, run this workflow from the
+# Actions tab on its tag (for example v0.5.0); the gates below still run, and the tag must
+# match package.json. NPM_TOKEN must be a granular token allowed to publish under 2FA.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 jobs:

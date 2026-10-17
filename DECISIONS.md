@@ -383,3 +383,19 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: an upgraded adopter passes its framework tests and architecture rules with the new runner; new commands and the progress migration are announced with the exact command.
 - Negative: an adopter who edited a non-`keep` template or the classification loses that edit on upgrade (the backup keeps it), as the ownership rules always said; an adopter's file in `tests/` with the same name as a framework test is replaced.
+
+### D-027: npm publishing is started by hand, not by version tags
+
+**Date:** 2026-10-17
+**Status:** accepted
+**Context:** `publish.yml` ran on every `v*` tag, so tagging a GitHub release also published the package to npm. The only run so far (`v0.4.0`, 2026-08-26) passed every gate and then failed at `npm publish` with 403: the `NPM_TOKEN` secret can't publish under two-factor authentication. The author wanted a GitHub release for v0.5.0 without an npm publish.
+**Decision:**
+- `publish.yml` runs only on `workflow_dispatch`.
+- Releases are GitHub releases on version tags.
+- Publishing to npm means starting the workflow by hand on the release's tag. It still runs the full check and the architecture rules, and requires the tag to match `package.json`. It needs a granular npm token allowed to publish under 2FA in `NPM_TOKEN`.
+**Alternatives considered:**
+- Keep tag-triggered publishing — Rejected: every release would carry a failing publish run until the token changes, and once the token works, a tag would publish without a second look.
+- Publish on a "release published" event — Rejected for the same reason: a release would still mean an npm publish.
+**Consequences:**
+- Positive: a release and an npm publish are separate, deliberate steps, and releases no longer come with a red run.
+- Negative: someone must remember to run the workflow when npm should get a version.

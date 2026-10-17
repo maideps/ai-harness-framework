@@ -496,6 +496,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-020",
+      "name": "Manual npm publishing",
+      "behavior": "Version tags and GitHub releases no longer publish to npm; publishing is a deliberate, manually started workflow run that still verifies the full check, the architecture rules and that the tag matches package.json.",
+      "verification": "publish.yml triggers on workflow_dispatch only and keeps its gates; npm run check and check-arch pass; the v0.5.0 tag creates no publish run.",
+      "dependencies": [
+        "feat-019"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
