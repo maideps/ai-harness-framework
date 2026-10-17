@@ -2,8 +2,8 @@
 
 import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync } from "node:fs";
 import { execSync, spawnSync } from "node:child_process";
-import { EOL } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderHarnessDocs } from "./harness-docs.mjs";
 
 import {
@@ -72,6 +72,10 @@ const requiredMakeTargets = [
 ];
 const allowedStates = new Set(["planned", "active", "blocked", "passing"]);
 const allowedStatusValues = new Set(["not_started", "in_progress", "blocked", "passing"]);
+
+// Harness files (feature_list.json, state shards, trails) are written with LF on every OS,
+// matching the shipped .gitattributes; os.EOL would write CRLF on Windows and make Git warn.
+const EOL = "\n";
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -260,6 +264,25 @@ function updateProgress() {
     writeFileSync(progressFile, updated, "utf8");
   }
   pass(`Generated current state and session index in ${progressFile}`);
+}
+
+// Lifecycle commands (add-feature, activate, a recorded pass) change feature state, which the
+// generated dashboard renders; refresh it so the next lint does not fail on a stale PROGRESS.md.
+// It runs as a child process because progress-update fails hard on invalid session notes, and a
+// refresh problem must not undo a lifecycle change: it becomes a warning. Repositories whose
+// progress log has no generated block (not yet upgraded) are left alone.
+function refreshProgressDashboard() {
+  const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
+  if (!progressFile || !readText(progressFile).includes(generatedProgressStart)) {
+    return;
+  }
+  const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), "progress-update"], {
+    encoding: "utf8",
+  });
+  if (result.error || result.status !== 0) {
+    const reason = `${result.stderr ?? ""}${result.stdout ?? ""}`.trim().split(/\r?\n/).pop() ?? "unknown error";
+    console.log(`[WARN] ${progressFile} was not refreshed (${reason}); run node scripts/framework-check.mjs progress-update`);
+  }
 }
 
 // Validate one dated file per session and make the dashboard an exact rendering
@@ -561,6 +584,7 @@ function addFeature(featureId, featureArgs) {
   });
   writeFileSync("feature_list.json", `${JSON.stringify(data, null, 2)}${EOL}`, "utf8");
   pass(`Added ${featureId} to feature_list.json`);
+  refreshProgressDashboard();
 }
 
 function activateFeature(featureId) {
@@ -599,6 +623,7 @@ function activateFeature(featureId) {
   }
   writeFeatureState(featureId, { state: "active", evidence: "" });
   pass(`Activated ${featureId}`);
+  refreshProgressDashboard();
 }
 
 function migrateFeatureState() {
@@ -903,6 +928,7 @@ function recordFeaturePass(featureId, evidence) {
   // features touch two different files and merge without conflict.
   writeFeatureState(featureId, { state: "passing", evidence });
   pass(`Recorded passing evidence for ${featureId}`);
+  refreshProgressDashboard();
 }
 
 // ---- Ported harness operations (previously bash) -----------------------
@@ -1085,22 +1111,43 @@ function verifyFeature(featureId) {
 
   const skippedLayers = [];
   const layerResults = [];
-  for (const layer of feature.layers) {
+  const logDir = verificationLogDir(featureId);
+  for (const [index, layer] of feature.layers.entries()) {
     console.log(`--- ${layer.label} ---`);
     console.log(`Running: ${layer.cmd}`);
     console.log("");
 
-    try {
-      const output = execSync(layer.cmd, { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"], shell: true });
-      const reportedSkip = output.split(/\r?\n/).some((line) => line.includes("[SKIP]"));
+    // Each layer's output goes to a local, gitignored log, so a failure can be read in full
+    // and a pass can be audited; the evidence names the log, the command and the duration.
+    const logFile = `${logDir}/${String(index + 1).padStart(2, "0")}-${slugify(layer.label)}.log`;
+    const started = Date.now();
+    const run = spawnSync(layer.cmd, {
+      encoding: "utf8",
+      stdio: ["inherit", "pipe", "pipe"],
+      shell: true,
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    const durationMs = Date.now() - started;
+    const stdout = run.stdout ?? "";
+    const stderr = run.stderr ?? "";
+    writeFileSync(logFile, `$ ${layer.cmd}${EOL}${EOL}${stdout}${stderr ? `${EOL}--- stderr ---${EOL}${stderr}` : ""}`, "utf8");
+    if (stderr) process.stderr.write(stderr); // stderr stayed visible before logs existed; keep it so
+
+    if (!run.error && run.status === 0) {
+      const reportedSkip = stdout.split(/\r?\n/).some((line) => line.includes("[SKIP]"));
       if (reportedSkip) skippedLayers.push(layer.label);
-      layerResults.push({ label: layer.label, result: "PASS", skipReported: reportedSkip });
+      layerResults.push({ label: layer.label, cmd: layer.cmd, result: "PASS", skipReported: reportedSkip, durationMs, log: logFile });
       console.log("");
-      console.log(`  [PASS] ${layer.label}`);
+      console.log(`  [PASS] ${layer.label} (${formatDuration(durationMs)})`);
       console.log("");
-    } catch {
+    } else {
+      const tail = `${stdout}${stderr}`.trimEnd().split(/\r?\n/).slice(-30);
+      if (tail.length > 0 && tail.join("").trim()) {
+        console.log("Last lines of output:");
+        for (const line of tail) console.log(`  ${line}`);
+      }
       console.log("");
-      console.log(`  [FAIL] ${layer.label}`);
+      console.log(`  [FAIL] ${layer.label} (${formatDuration(durationMs)}) — full output: ${logFile}`);
       console.log("");
       if (layer.repair) {
         console.log(`Repair hint: ${layer.repair}`);
@@ -1132,6 +1179,23 @@ function verifyFeature(featureId) {
   });
   recordFeaturePass(featureId, evidence);
   console.log(`Evidence recorded in ${featureStatePath(featureId)}`);
+}
+
+// Verification logs are local diagnostics, never committed: the folder ignores itself, so
+// adopters need no .gitignore change.
+function verificationLogDir(featureId) {
+  const dir = `.harness/logs/${featureId}`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(".harness/logs/.gitignore", `*${EOL}`, "utf8");
+  return dir;
+}
+
+function slugify(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "layer";
+}
+
+function formatDuration(ms) {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
 function tryGit(args) {

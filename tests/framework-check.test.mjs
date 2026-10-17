@@ -49,7 +49,7 @@ test("clean-state-check: scans the directories derived from productRoots, not ha
     write(root, "repositories/app/debug.js", "debugger;\n");
     write(root, "src/unrelated.js", "debugger;\n");
     const result = run(root, "clean-state-check", [], { DEBUG_SCAN_PATHS: "" });
-    assert.match(result.output, /repositories[\/]app[\/]debug\.js:1: debugger;/);
+    assert.match(result.output, /repositories[\\/]app[\\/]debug\.js:1: debugger;/);
     assert.doesNotMatch(result.output, /src[\/]unrelated\.js/);
   } finally {
     cleanup(root);
@@ -810,16 +810,70 @@ test("verify-feature: records passing evidence in the shard, never rewrites feat
     assert.match(cleanEvidence.summary, /All verification layers passed/);
     assert.equal(cleanEvidence.commit, spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim());
     assert.equal(cleanEvidence.dirty, false);
-    assert.deepEqual(cleanEvidence.layers, [
-      { label: "L", result: "PASS", skipReported: false },
-      { label: "Optional", result: "PASS", skipReported: true },
-    ]);
+    assert.deepEqual(
+      cleanEvidence.layers.map(({ label, result, skipReported }) => ({ label, result, skipReported })),
+      [
+        { label: "L", result: "PASS", skipReported: false },
+        { label: "Optional", result: "PASS", skipReported: true },
+      ],
+    );
+    for (const [index, layer] of cleanEvidence.layers.entries()) {
+      assert.equal(layer.cmd, index === 0 ? `${NODE} -e "process.exit(0)"` : `${NODE} -e "console.log('[SKIP] optional')"`);
+      assert.equal(typeof layer.durationMs, "number");
+      assert.ok(layer.durationMs >= 0);
+      assert.ok(existsSync(path.join(root, layer.log)), `missing log ${layer.log}`);
+    }
+    assert.equal(cleanEvidence.layers[1].log, ".harness/logs/feat-001/02-optional.log");
+    assert.match(readFileSync(path.join(root, cleanEvidence.layers[1].log), "utf8"), /\[SKIP\] optional/);
 
     write(root, "dirty-marker.txt", "dirty\n");
     const dirtyResult = run(root, "verify-feature", ["feat-001"]);
     assert.equal(dirtyResult.exit, 0, dirtyResult.output);
     const dirtyShard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
     assert.equal(JSON.parse(dirtyShard.evidence).dirty, true);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a failing layer shows its last output lines and names its log", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          layers: [
+            {
+              label: "Unit tests",
+              cmd: `${NODE} -e "console.log('step one ran'); console.error('broke on step two'); process.exit(3)"`,
+              repair: "r",
+            },
+          ],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /Last lines of output:/);
+    assert.match(result.output, /step one ran/);
+    assert.match(result.output, /broke on step two/);
+    assert.match(result.output, /\[FAIL\] Unit tests \(\d+(\.\d)? m?s\) — full output: \.harness\/logs\/feat-001\/01-unit-tests\.log/);
+    const log = readFileSync(path.join(root, ".harness/logs/feat-001/01-unit-tests.log"), "utf8");
+    assert.match(log, /step one ran/);
+    assert.match(log, /--- stderr ---[\s\S]*broke on step two/);
+    // Logs are local diagnostics: the folder ignores itself.
+    assert.equal(readFileSync(path.join(root, ".harness/logs/.gitignore"), "utf8"), "*\n");
+    // A failed run records nothing.
+    assert.equal(existsSync(path.join(root, ".harness/state/feat-001.json")), false);
   } finally {
     cleanup(root);
   }
@@ -1118,6 +1172,54 @@ function progressFixture(sessions = [], features = [], { generate = true } = {})
   }
   return root;
 }
+
+test("lifecycle commands refresh the generated PROGRESS.md, so the next lint passes", () => {
+  const root = progressFixture([{ number: 1, date: "2026-10-01" }], [
+    { id: "feat-001", name: "First", state: "passing", evidence: "verified" },
+  ]);
+  try {
+    const added = run(root, "add-feature", ["feat-002", "Second", "--depends", "feat-001"]);
+    assert.equal(added.exit, 0, added.output);
+    assert.match(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), /Planned features \(1\): feat-002 — Second/);
+    assert.equal(run(root, "lint:progress-log").exit, 0);
+
+    const activated = run(root, "activate", ["feat-002"]);
+    assert.equal(activated.exit, 0, activated.output);
+    assert.match(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), /Active feature: feat-002 — Second/);
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lifecycle commands leave a progress log without a generated block alone", () => {
+  const root = progressFixture([], [{ id: "feat-001", name: "First", state: "passing", evidence: "verified" }], {
+    generate: false,
+  });
+  const legacy = "# Progress Log\n\nHand-written notes, from before the generated dashboard.\n";
+  write(root, "PROGRESS.md", legacy);
+  try {
+    const added = run(root, "add-feature", ["feat-002", "Second"]);
+    assert.equal(added.exit, 0, added.output);
+    assert.equal(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), legacy);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("harness files are written with LF line endings on every OS", () => {
+  const root = progressFixture([], [{ id: "feat-001", name: "First", state: "passing", evidence: "verified" }]);
+  try {
+    assert.equal(run(root, "add-feature", ["feat-002", "Second", "--depends", "feat-001"]).exit, 0);
+    assert.equal(run(root, "activate", ["feat-002"]).exit, 0);
+    for (const rel of ["feature_list.json", ".harness/state/feat-002.json", "PROGRESS.md"]) {
+      assert.equal(readFileSync(path.join(root, rel), "utf8").includes("\r"), false, `${rel} contains CR`);
+    }
+  } finally {
+    cleanup(root);
+  }
+});
 
 test("lint:progress-log: checks a generated dashboard and contiguous session index", () => {
   const root = progressFixture([
