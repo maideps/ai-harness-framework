@@ -285,6 +285,62 @@ function refreshProgressDashboard() {
   }
 }
 
+// Adopters from before the generated dashboard keep every session in one PROGRESS.md. Move each
+// "### Session NNN — YYYY-MM-DD" entry, text unchanged, to progress/NNN-YYYY-MM-DD.md and turn
+// PROGRESS.md into the generated dashboard; what came before the first session (the hand-kept
+// state block) is replaced by it. Everything is checked before anything is written (feat-019).
+function migrateProgressLog() {
+  const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
+  if (!progressFile) {
+    fail("missing PROGRESS.md — nothing to migrate");
+  }
+  const content = readText(progressFile).replace(/\r\n/g, "\n");
+  if (content.includes(generatedProgressStart)) {
+    pass(`${progressFile} already uses the generated dashboard — nothing to migrate`);
+    return;
+  }
+  const headings = [...content.matchAll(/^### Session (\d+) — (\d{4}-\d{2}-\d{2})(?: — .*)?$/gm)];
+  if (headings.length === 0) {
+    fail(`${progressFile} has no "### Session NNN — YYYY-MM-DD" entries to migrate`);
+  }
+  const sessions = headings.map((match, index) => {
+    const number = String(Number(match[1])).padStart(3, "0");
+    const end = index + 1 < headings.length ? headings[index + 1].index : content.length;
+    const text = content.slice(match.index, end).trimEnd().replace(/^### Session \d+/, `### Session ${number}`);
+    return { number: Number(match[1]), file: path.join("progress", `${number}-${match[2]}.md`), text };
+  });
+  const numbers = sessions.map((session) => session.number).sort((a, b) => a - b);
+  if (numbers.some((number, index) => number !== index + 1)) {
+    fail(`${progressFile} sessions must be numbered 1..${numbers.length} without gaps or repeats; nothing was migrated`);
+  }
+  for (const session of sessions) {
+    if (existsSync(session.file)) {
+      fail(`${session.file} already exists; nothing was migrated`);
+    }
+  }
+  mkdirSync("progress", { recursive: true });
+  for (const session of sessions) {
+    writeFileSync(session.file, `${session.text}${EOL}`, "utf8");
+  }
+  writeFileSync(
+    progressFile,
+    [
+      "# Progress Log",
+      "",
+      "Generated current-state dashboard and index of the per-session notes in `progress/`.",
+      "",
+      "After adding or updating a session note, regenerate this file with `node scripts/framework-check.mjs progress-update`.",
+      "",
+      generatedProgressStart,
+      generatedProgressEnd,
+      "",
+    ].join(EOL),
+    "utf8",
+  );
+  updateProgress();
+  pass(`Migrated ${sessions.length} session(s) from ${progressFile} to progress/`);
+}
+
 // Validate one dated file per session and make the dashboard an exact rendering
 // of feature shards plus the session files, so neither source can silently drift.
 function ensureProgressLog() {
@@ -1799,6 +1855,7 @@ function printHelp() {
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
   console.log("  progress-update  Regenerate the progress state and session index");
+  console.log("  progress-migrate  Move a single-file PROGRESS.md into progress/ and generate the dashboard");
   console.log("  clean-check    Pre-commit clean state verification");
   console.log("  help           Show this help");
   console.log("");
@@ -1891,6 +1948,10 @@ switch (mode) {
   }
   case "progress-update": {
     updateProgress();
+    break;
+  }
+  case "progress-migrate": {
+    migrateProgressLog();
     break;
   }
   case "lint:command-surfaces": {

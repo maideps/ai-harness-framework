@@ -1221,6 +1221,45 @@ test("harness files are written with LF line endings on every OS", () => {
   }
 });
 
+test("progress-migrate: moves a single-file log into progress/ and generates the dashboard (feat-019)", () => {
+  const root = progressFixture([], [{ id: "feat-001", name: "First", state: "passing", evidence: "verified" }], {
+    generate: false,
+  });
+  write(root, "PROGRESS.md", "# Progress Log\n\n## Current Verified State\n\n- Kept by hand, before the generated dashboard.\n\n## Session Log\n\n### Session 1 — 2026-10-01\n\n- Scaffolded.\n\n### Session 002 — 2026-10-02 — Second\n\n- Built the first feature.\n");
+  try {
+    const result = run(root, "progress-migrate");
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(readFileSync(path.join(root, "progress/001-2026-10-01.md"), "utf8"), "### Session 001 — 2026-10-01\n\n- Scaffolded.\n");
+    assert.match(readFileSync(path.join(root, "progress/002-2026-10-02.md"), "utf8"), /^### Session 002 — 2026-10-02 — Second\n\n- Built the first feature\.\n$/);
+    const dashboard = readFileSync(path.join(root, "PROGRESS.md"), "utf8");
+    assert.match(dashboard, /<!-- BEGIN GENERATED PROGRESS -->/);
+    assert.match(dashboard, /\(progress\/002-2026-10-02\.md\)/);
+    assert.doesNotMatch(dashboard, /Kept by hand/);
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+    const again = run(root, "progress-migrate");
+    assert.equal(again.exit, 0, again.output);
+    assert.match(again.output, /already uses the generated dashboard/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("progress-migrate: refuses a log with gaps and changes nothing", () => {
+  const root = progressFixture([], [], { generate: false });
+  const content = "# Progress Log\n\n## Current Verified State\n\n- Kept by hand, before the generated dashboard.\n\n## Session Log\n\n### Session 001 — 2026-10-01\n\n- One.\n\n### Session 003 — 2026-10-03\n\n- Three.\n";
+  write(root, "PROGRESS.md", content);
+  try {
+    const result = run(root, "progress-migrate");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /without gaps or repeats; nothing was migrated/);
+    assert.equal(existsSync(path.join(root, "progress")), false);
+    assert.equal(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), content);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("lint:progress-log: checks a generated dashboard and contiguous session index", () => {
   const root = progressFixture([
     { number: 1, date: "2026-10-01" },
