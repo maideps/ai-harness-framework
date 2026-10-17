@@ -338,3 +338,27 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: adopters receive the MIT notice on first adoption and can preserve their copyright lines across future upgrades; the adoption matrix verifies copy-on-adoption and upgrade survival.
 - Negative: changes to the framework's license starter must be reflected in both `LICENSE` and `templates/LICENSE`.
+
+### D-025: Verification keeps layer logs; harness files are LF; lifecycle commands refresh the dashboard; Windows in CI
+
+**Date:** 2026-10-17
+**Status:** accepted
+**Context:** Checking the fixes for issues #2-#10 from a Windows adopter (ai-invoice-intake) turned up four gaps:
+- A new runner test matched paths with `[\/]`, a character class holding only "/". It failed on Windows, so every Windows adopter's `npm run check` failed too, while CI (Linux only) was green.
+- `verify-feature` captured each layer's standard output only to look for SKIP, then dropped it. A failure showed nothing, and the evidence had no command, duration or log (the rest of #2).
+- Harness files were written with `os.EOL` (CRLF on Windows), against the shipped `.gitattributes` (`eol=lf`), so Git warned on every commit.
+- `add-feature` and `activate` changed feature state without refreshing the generated `PROGRESS.md`, so the next lint failed.
+**Decision:**
+- `verify-feature` writes each layer's output (stdout, then stderr) to `.harness/logs/<feature>/<NN>-<label>.log`. The folder holds a `.gitignore` of `*`, so adopters need no ignore change.
+- Each layer's evidence entry gains `cmd`, `durationMs` and `log`; `evidence` keeps the JSON-string format from #2 for compatibility.
+- A failing layer prints its last 30 lines and the log path. stderr is still printed after each layer.
+- Harness files are written with `"\n"` on every OS.
+- `add-feature`, `activate` and a recorded pass refresh the dashboard as a child `progress-update` when the log has the generated block. A refresh failure is a warning, never an undone lifecycle change; logs without the block (not yet upgraded) are left alone.
+- CI gains a `windows` job running the runner's unit tests and the architecture rules. The full check stays on Linux, because its adoption matrix needs bash, make and other toolchains.
+**Alternatives considered:**
+- Streaming layer output live and teeing it to the log — Rejected for now: layers already ran with stdout captured, so this keeps behaviour while adding the log; live streaming would need an async runner.
+- A structured `verification` object next to `evidence` — Rejected: `evidence` became structured JSON in #2 and the dashboard already reads it; a second shape would split readers.
+- The full `npm run check` on Windows — Deferred: the adoption matrix assumes bash and make.
+**Consequences:**
+- Positive: Windows-specific failures are caught before merge; a failed layer can be read in full; the evidence shows what ran and for how long; no CRLF churn; the dashboard stays current.
+- Negative: stderr appears after a layer finishes rather than while it runs; logs take local disk space until deleted.

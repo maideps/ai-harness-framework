@@ -42,3 +42,22 @@ jobs:
       - name: Makefile surface
         if: matrix.node == '18'
         run: make check
+
+  # Adopters develop on Windows too: the runner's unit tests and architecture rules run there,
+  # so path-separator and line-ending bugs fail CI instead of every Windows adopter's check
+  # (feat-018). The full check stays on Linux: its adoption matrix needs bash, make and the
+  # other toolchains.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Runner unit tests
+        run: npm run test
+
+      - name: Architecture rules
+        run: npm run check-arch
