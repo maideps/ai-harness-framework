@@ -470,6 +470,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-019",
+      "name": "Upgrades refresh runner tests and report new scripts",
+      "behavior": "harness-upgrade refreshes tests/ (the runner's own tests, a CORE surface) with scripts/, and reports harness npm scripts missing from the adopter's package.json with the line to add, since package.json is adopter-owned.",
+      "verification": "Unit tests: an upgrade replaces stale runner tests and lists missing scripts without editing package.json; npm run check passes; the ai-invoice-intake upgrade passes its checks.",
+      "dependencies": [
+        "feat-018"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

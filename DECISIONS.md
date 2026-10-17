@@ -362,3 +362,24 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: Windows-specific failures are caught before merge; a failed layer can be read in full; the evidence shows what ran and for how long; no CRLF churn; the dashboard stays current.
 - Negative: stderr appears after a layer finishes rather than while it runs; logs take local disk space until deleted.
+
+### D-026: Upgrades deliver everything the framework owns, and migrate old progress logs
+
+**Date:** 2026-10-17
+**Status:** accepted
+**Context:** Upgrading ai-invoice-intake to the feat-018 runner gave it a new `scripts/`, but `harness-upgrade` copies a hard-coded list that omitted `tests/`, even though the manifest's `core` includes it. The adopter's old runner tests then ran against the new runner, and five `lint:progress-log` tests failed `npm run test`. The new lint also told the adopter to run `npm run harness-docs`, a script its adopter-owned `package.json` didn't have, and the upgrade never mentioned it. Two more gaps followed:
+- The upgrade kept the adopter's old `templates/` (for example the old CI skeleton) and its manifest classification, so framework tests exercising `create-harness` failed inside the adopter.
+- The new classification lists `progress/`, but an adopter from before the generated dashboard keeps one `PROGRESS.md` and had no way to convert it.
+**Decision:**
+- `tests/` joins the surfaces an upgrade overwrites: the runner's tests ship and change with the runner.
+- `templates/` is refreshed, except the templates the manifest marks `keep` (the sprint contract, the evaluator rubric, the clean-state checklist), which adopters customise.
+- The manifest's classification (`harness`, `version`, `schemaVersions`, `core`, `instance`, `templates`, `optionalComponents`, `customizationPoints`) follows the framework, as `mustNotEdit` already says. `productRoots` and the adopter's own keys (such as `featureIdPattern`) stay. Both are backed up first.
+- The upgrade compares the framework's `node scripts/...` npm scripts with the adopter's `package.json` and prints missing names with the line to add. It does the same for make targets, printing each missing target's block (help lines, target, recipe), since `npm run check` requires every harness target. It never edits `package.json` or the `Makefile`; names the adopter defines with its own command count as present.
+- `progress-migrate` moves each `### Session NNN — date` entry of a single-file `PROGRESS.md` into `progress/NNN-date.md` and generates the dashboard. It checks everything first: gaps, repeats or existing files mean nothing is written. The upgrade report points to it when it sees an old-style log.
+- Instance files a newer harness declares (for example `.gitattributes`) are created from their templates when missing, as `create-harness` would; existing files are never touched, and optional-component files (such as `repositories/example`) are never recreated. When `.gitattributes` is new, the report gives the one-time `git add --renormalize .` step, to commit on its own.
+**Alternatives considered:**
+- Reading the whole `core` list from the manifest — Rejected for now: `core` also includes adopter-edited files (`Makefile`, `package.json`, `init.sh`, the manifest itself) that an upgrade must not overwrite.
+- Editing `package.json` automatically — Rejected: it is adopter-owned, and adopters extend harness commands (for example `lint`).
+**Consequences:**
+- Positive: an upgraded adopter passes its framework tests and architecture rules with the new runner; new commands and the progress migration are announced with the exact command.
+- Negative: an adopter who edited a non-`keep` template or the classification loses that edit on upgrade (the backup keeps it), as the ownership rules always said; an adopter's file in `tests/` with the same name as a framework test is replaced.
