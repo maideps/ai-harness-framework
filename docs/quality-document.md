@@ -47,6 +47,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-10-14 (session 031): generated command reference — Makefile targets and npm scripts produce `docs/HARNESS.md`; lint checks for drift and a README link; adoption creates the generated page.
 - 2026-10-14 (session 033): initialization skips empty Node installs and selects lock-preserving package-manager commands; a manifest-backed `.gitattributes` template establishes consistent line endings and survives upgrades.
 - 2026-10-14 (session 034): current master merged with the lockfile and line-ending changes intact; conflict resolution verified by the full 87-test check and architecture rules.
+- 2026-10-19 (session 041, feat-021, D-028): `lane-suggest` added — read-only detection of dependency-graph-independent `planned` features, for an agent to propose and a human to approve before any `lane-new`/session/`lane-land` runs; `parallel-lanes` skill codifies the loop. No state-changing behavior added; 6 new unit tests; full check (112 tests, e2e matrix) and verify-feature gate both PASS.
 
 ---
 

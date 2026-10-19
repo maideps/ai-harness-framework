@@ -636,6 +636,103 @@ test("lane-drop: refuses to discard an uncommitted lane, then removes it cleanly
   }
 });
 
+// ---- lane-suggest (feat-021) ------------------------------------------------
+// Advisory only: never creates a worktree, writes no state. These tests assert
+// it reports the right *set* of startable features and excludes anything
+// already claimed, without exercising git worktree mechanics (lane-new's own
+// tests above already cover that) — a plain `git branch` is enough to
+// simulate "a lane already claims this feature".
+
+test("lane-suggest: reports nothing to start when no feature is planned", () => {
+  const root = gitFeatureFixture([{ id: "feat-001", state: "passing", dependencies: [], layers: [] }]);
+  try {
+    const result = run(root, "lane-suggest");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /No features are currently startable in parallel/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lane-suggest: suggests a single startable feature directly instead of a parallel set", () => {
+  const root = gitFeatureFixture([{ id: "feat-001", name: "Solo Feature", state: "planned", dependencies: [], layers: [] }]);
+  try {
+    const result = run(root, "lane-suggest");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Only one feature is startable right now: feat-001 \(Solo Feature\)/);
+    assert.match(result.stdout, /npm run lane-new -- feat-001/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lane-suggest: lists every independent startable feature with dependency status and suggested commands", () => {
+  const root = gitFeatureFixture([
+    { id: "feat-001", name: "Already Done", state: "passing", dependencies: [], layers: [] },
+    { id: "feat-002", name: "No Deps", state: "planned", dependencies: [], layers: [] },
+    { id: "feat-003", name: "Satisfied Deps", state: "planned", dependencies: ["feat-001"], layers: [] },
+  ]);
+  try {
+    const result = run(root, "lane-suggest");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /2 feature\(s\) are startable right now and independent of each other/);
+    assert.match(result.stdout, /feat-002: No Deps \(no dependencies\)/);
+    assert.match(result.stdout, /feat-003: Satisfied Deps \(depends on: feat-001 \[passing\]\)/);
+    assert.match(result.stdout, /npm run lane-new -- feat-002/);
+    assert.match(result.stdout, /npm run lane-new -- feat-003/);
+    assert.doesNotMatch(result.stdout, /feat-001:/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lane-suggest: excludes a planned feature with unmet dependencies", () => {
+  const root = gitFeatureFixture([
+    { id: "feat-001", name: "Not Done Yet", state: "planned", dependencies: [], layers: [] },
+    { id: "feat-002", name: "No Deps", state: "planned", dependencies: [], layers: [] },
+    { id: "feat-003", name: "Blocked On 001", state: "planned", dependencies: ["feat-001"], layers: [] },
+  ]);
+  try {
+    const result = run(root, "lane-suggest");
+    assert.equal(result.exit, 0, result.output);
+    // feat-001 and feat-002 are both startable (two candidates); feat-003 is not.
+    assert.match(result.stdout, /2 feature\(s\) are startable/);
+    assert.doesNotMatch(result.stdout, /feat-003:/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lane-suggest: excludes active and blocked features", () => {
+  const root = gitFeatureFixture([
+    { id: "feat-001", name: "In Progress", state: "active", dependencies: [], layers: [] },
+    { id: "feat-002", name: "Blocked", state: "blocked", dependencies: [], layers: [] },
+    { id: "feat-003", name: "Startable", state: "planned", dependencies: [], layers: [] },
+  ]);
+  try {
+    const result = run(root, "lane-suggest");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Only one feature is startable right now: feat-003/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lane-suggest: excludes a feature already claimed by an existing lane/* branch", () => {
+  const root = gitFeatureFixture([
+    { id: "feat-001", name: "Already Claimed", state: "planned", dependencies: [], layers: [] },
+    { id: "feat-002", name: "Still Open", state: "planned", dependencies: [], layers: [] },
+  ]);
+  try {
+    spawnSync("git", ["branch", "lane/feat-001"], { cwd: root });
+    const result = run(root, "lane-suggest");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Only one feature is startable right now: feat-002/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 // ---- Lane-aware WIP=1 (ensureLaneWipContract, via arch:wip-contract) ------
 
 function laneBranchFixture(branch, features) {

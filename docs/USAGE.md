@@ -50,7 +50,7 @@ Traces are JSON files in `.harness/traces/`. They are runtime records, not evide
 
 Reusable capability packs live in `skills/` — one folder per skill with a `SKILL.md` (frontmatter `name`/`description`, `When to Use`, workflow, quick-reference checklist). The lint layer validates every skill's structure.
 
-Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest gate runs), `session-handoff` (durable session ends), `adopt` (bootstrapping the harness), `release` (final pre-release pass), `commit` (focused commits), `review` (pre-gate independent pass), `update-docs` (docs-drift cleanup), `write-skill` (the meta-skill for authoring new ones).
+Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest gate runs), `session-handoff` (durable session ends), `adopt` (bootstrapping the harness), `parallel-lanes` (agent-proposed, human-approved parallel lanes), `release` (final pre-release pass), `commit` (focused commits), `review` (pre-gate independent pass), `update-docs` (docs-drift cleanup), `write-skill` (the meta-skill for authoring new ones).
 
 Project skills may be added under `skills/` — see the `write-skill` skill for the format.
 
@@ -65,6 +65,8 @@ npm run lane-list               # every local lane/* branch: feature, state, wor
 npm run lane-land -- feat-020   # from the branch to merge into: refuses unless the lane's
                                  # feature is passing, then merges, removes the worktree, deletes the branch
 npm run lane-drop -- feat-020   # abandon the lane's worktree without merging (branch kept)
+npm run lane-suggest            # advisory: which planned features are startable in parallel right now
+                                 # (creates nothing — see the `parallel-lanes` skill for the propose/approve flow)
 ```
 
 A git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity is the coordination primitive — no lock file or lease. WIP=1 applies per lane: a `lane/<feature-id>` branch may only activate the feature it is named for (`arch-002` enforces this). Feature state is sharded — one file per feature under `.harness/state/<id>.json` (feat-011, D-017) — so two lanes landing two different features touch two different files and merge conflict-free by construction; `feature_list.json` itself only changes when features are declared, so lane landings rarely touch it at all.

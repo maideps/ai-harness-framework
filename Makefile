@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -62,6 +62,11 @@ lane-land:
 ## Usage: make lane-drop F=<feature-id>
 lane-drop:
 	@node scripts/framework-check.mjs lane-drop $(F)
+
+## List features startable in parallel right now (advisory — creates no lane,
+## writes no state; a human approves before any lane-new runs)
+lane-suggest:
+	@node scripts/framework-check.mjs lane-suggest
 
 ## Sharded feature state (feat-011) — one-time migration: moves inline
 ## state/evidence out of feature_list.json into .harness/state/<id>.json.

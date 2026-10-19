@@ -17,6 +17,7 @@
 | `make lane-list` | `npm run lane-list` |
 | `make lane-land` | `npm run lane-land` |
 | `make lane-drop` | `npm run lane-drop` |
+| `make lane-suggest` | `npm run lane-suggest` |
 | `make migrate-feature-state` | `npm run migrate-feature-state` |
 | `make add-feature` | `npm run add-feature` |
 | `make activate` | `npm run activate` |

@@ -51,6 +51,7 @@ const requiredMakeTargets = [
   "lane-list",
   "lane-land",
   "lane-drop",
+  "lane-suggest",
   "migrate-feature-state",
   "add-feature",
   "activate",
@@ -1506,6 +1507,77 @@ function laneDrop(featureId) {
   console.log(`Worktree removed. Branch ${branch} still exists — delete it manually (git branch -D ${branch}) if it's no longer needed.`);
 }
 
+// Advisory only — never creates a worktree, never writes state, never starts
+// anything. It answers "what could run in parallel right now", so an agent
+// can propose a plan and a human can approve it before any lane-new runs
+// (feat-021, D-017's human-in-the-loop extension). "Independent" here means
+// dependency-graph safe only: every candidate already has its dependencies
+// passing (the same gate lane-new enforces per-feature), so by construction
+// none of them can depend on another still-open candidate in the same set.
+// It is not a promise that two candidates leave disjoint files untouched —
+// this framework does not track per-feature file scope, so that risk is
+// still reviewed by a human at lane-land time, same as any merge.
+function laneSuggest() {
+  const { features } = loadFeaturesWithState();
+  const byId = new Map(features.map((feature) => [feature.id, feature]));
+
+  const claimedByLane = new Set(
+    (gitCapture(["for-each-ref", "--format=%(refname:short)", "refs/heads/lane"]) ?? "")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((branch) => laneFeatureIdFromBranch(branch))
+      .filter(Boolean),
+  );
+
+  const candidates = features.filter((feature) => {
+    if (getFeatureState(feature) !== "planned") {
+      return false;
+    }
+    if (claimedByLane.has(feature.id)) {
+      return false;
+    }
+    const unmet = getFeatureDependencies(feature).filter((dependencyId) => byId.get(dependencyId)?.state !== "passing");
+    return unmet.length === 0;
+  });
+
+  console.log("=== Lane Suggestions ===");
+  console.log("");
+
+  if (candidates.length === 0) {
+    console.log("No features are currently startable in parallel: every planned feature either has");
+    console.log("unmet dependencies, is blocked, or already has a lane claiming it.");
+    return;
+  }
+
+  if (candidates.length === 1) {
+    const only = candidates[0];
+    console.log(`Only one feature is startable right now: ${only.id} (${only.name ?? only.title}).`);
+    console.log("Nothing to parallelize yet. Start it directly once approved:");
+    console.log(`  npm run lane-new -- ${only.id}`);
+    return;
+  }
+
+  console.log(`${candidates.length} feature(s) are startable right now and independent of each other`);
+  console.log("(dependency-graph safe — none is waiting on another feature in this set):");
+  console.log("");
+  for (const feature of candidates) {
+    const deps = getFeatureDependencies(feature);
+    const depsText = deps.length > 0 ? `depends on: ${deps.join(", ")} [passing]` : "no dependencies";
+    console.log(`  - ${feature.id}: ${feature.name ?? feature.title} (${depsText})`);
+  }
+  console.log("");
+  console.log("This is a suggestion only — nothing has been created. A human must approve before");
+  console.log("any lane is started. Suggested commands, once approved:");
+  console.log("");
+  for (const feature of candidates) {
+    console.log(`  npm run lane-new -- ${feature.id}`);
+  }
+  console.log("");
+  console.log("Note: independence here is dependency-graph safety, not a file-conflict guarantee —");
+  console.log("this framework does not track per-feature file scope. Review each lane before");
+  console.log("running lane-land on it.");
+}
+
 function collectModifiedFiles() {
   const files = new Set();
   for (const cmd of ["git diff --name-only --relative", "git ls-files --others --exclude-standard"]) {
@@ -1849,6 +1921,7 @@ function printHelp() {
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
   console.log("  lane-drop F=<id>  Abandon a lane's worktree without merging");
+  console.log("  lane-suggest      List features startable in parallel right now (advisory, creates nothing)");
   console.log("  migrate-feature-state  Move inline state/evidence into .harness/state/<id>.json");
   console.log("  add-feature ID=<id> NAME=<name>  Append a declaration-only feature stub");
   console.log("  vcr            verify + check-arch + record trail");
@@ -2029,6 +2102,10 @@ switch (mode) {
   }
   case "lane-drop": {
     laneDrop(args[0]);
+    break;
+  }
+  case "lane-suggest": {
+    laneSuggest();
     break;
   }
   case "migrate-feature-state": {

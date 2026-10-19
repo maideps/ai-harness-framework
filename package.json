@@ -41,6 +41,7 @@
     "lane-list": "node scripts/framework-check.mjs lane-list",
     "lane-land": "node scripts/framework-check.mjs lane-land",
     "lane-drop": "node scripts/framework-check.mjs lane-drop",
+    "lane-suggest": "node scripts/framework-check.mjs lane-suggest",
     "migrate-feature-state": "node scripts/framework-check.mjs migrate-feature-state",
     "add-feature": "node scripts/framework-check.mjs add-feature",
     "activate": "node scripts/framework-check.mjs activate",

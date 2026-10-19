@@ -399,3 +399,19 @@ This file records significant architectural decisions, their context, alternativ
 **Consequences:**
 - Positive: a release and an npm publish are separate, deliberate steps, and releases no longer come with a red run.
 - Negative: someone must remember to run the workflow when npm should get a version.
+
+### D-028: Parallel-lane detection is advisory; every state-changing step stays human-approved
+
+**Date:** 2026-10-19
+**Status:** accepted
+**Context:** D-017 gave agents the mechanism for concurrent work (worktree lanes) but left detection and initiation entirely manual — a human had to notice that two features were independent and run `lane-new` for each. An adopter asked for agents to detect parallelizable features themselves and request access to act on it, with a human still in the loop before anything happens.
+**Decision:**
+- `lane-suggest` (feat-021) is a new, strictly read-only command: it lists every `planned` feature whose dependencies are already `passing` and that no existing `lane/*` branch has claimed. It creates no worktree, writes no state, and never calls `lane-new` itself.
+- "Independent" is defined as dependency-graph safety only — each candidate already clears the same unmet-dependency gate `lane-new` enforces per feature, so by construction none of them is blocked on another still-open candidate in the same set. This is explicitly not a promise that two candidates leave disjoint files untouched; the framework does not track per-feature file scope, so that residual risk stays a human review at `lane-land` time.
+- The `parallel-lanes` skill codifies the loop an agent follows: detect with `lane-suggest`, propose the candidate set and the exact commands to a human, wait for an explicit yes, create one lane per approved feature, hand each to its own scoped session, and land one at a time with confirmation before each merge.
+**Alternatives considered:**
+- Let an agent run `lane-new` directly for every candidate `lane-suggest` finds — rejected: creating a worktree is cheap to undo, but starting other agent sessions and committing a human's compute/review time to multiple parallel tracks on the agent's own initiative crosses the same bar as other hard-to-reverse, human-facing actions this harness treats carefully.
+- Track declared per-feature file scope (e.g. a `paths` field in `feature_list.json`) to make the independence check conflict-aware, not just dependency-graph-aware — deferred, not rejected: it would strengthen the suggestion, but adds a new declaration surface and a drift-detection problem (declared paths going stale against what a feature actually touches) that isn't justified before real usage shows the dependency-only heuristic is too weak in practice.
+**Consequences:**
+- Positive: agents can now propose parallel work instead of requiring a human to notice it, without weakening the human-approval bar anywhere in the lane lifecycle; the advisory command has no side effects to audit.
+- Negative: the independence signal is weaker than a true conflict check — two suggested lanes can still collide on a shared file at land time, surfaced only as an ordinary merge conflict to resolve by hand.

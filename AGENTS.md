@@ -84,7 +84,7 @@ Required checks (each with its npm mirror):
 - `make build` / `npm run build` — Production build verification
 - `make e2e` / `npm run e2e` — End-to-end tests (required for cross-component changes)
 
-Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `activate` (`npm run activate -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `migrate-feature-state`, `add-feature` (`-- <id> <name>`), `vcr`, `harness-docs`, `create-harness`, `harness-upgrade`, `harness-audit`, `backup-list`, `backup-pin` (`-- <id>`), `backup-unpin` (`-- <id>`), `backup-restore` (`-- <id>`), `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
+Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `activate` (`npm run activate -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `lane-suggest`, `migrate-feature-state`, `add-feature` (`-- <id> <name>`), `vcr`, `harness-docs`, `create-harness`, `harness-upgrade`, `harness-audit`, `backup-list`, `backup-pin` (`-- <id>`), `backup-unpin` (`-- <id>`), `backup-restore` (`-- <id>`), `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
 
 `make check` runs all layers in order (lint → typecheck → test → build → e2e → optional verify-all). The multi-repo layer reports SKIP when its markers are absent; other unconfigured layers also report SKIP and do not count as verified. A failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
 
@@ -117,6 +117,7 @@ Skills are reusable capability packs in `skills/` — one folder per skill, each
 - `verification` — running the gates honestly and reading their output
 - `session-handoff` — ending a session durably
 - `adopt` — bootstrapping the harness in a new project
+- `parallel-lanes` — an agent proposes a parallel-lane plan from independent features; a human approves every state-changing step
 - `release` — the final pass before reporting work done
 - `commit` — focused commits, one logical operation, message explains WHY
 - `review` — an independent verification pass before the feature gate

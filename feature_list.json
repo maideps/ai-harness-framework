@@ -522,6 +522,33 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-021",
+      "name": "Lane Suggest Command",
+      "behavior": "lane-suggest lists planned features whose dependencies are already passing and that no lane/* branch has claimed, so an agent can detect a parallelizable set and propose the exact lane-new commands for human approval; it creates no worktree and writes no state.",
+      "verification": "npm run check passes; unit tests cover: zero candidates (none startable), exactly one candidate (no parallel benefit, suggests lane-new directly), multiple independent candidates (lists all with their dependency status and the suggested commands), and candidates already claimed by an existing lane/* branch are excluded.",
+      "dependencies": [
+        "feat-010",
+        "feat-011"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
