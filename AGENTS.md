@@ -11,13 +11,14 @@ Before writing code:
 3. **Read project docs** (`docs/ARCHITECTURE.md`, `docs/PRODUCT.md`, README)
 4. **Run `./init.sh`** to verify environment is healthy
 5. **Read `feature_list.json`** to see current feature state
-6. **Review recent commits** with `git log --oneline -5`
+6. **Check for parallel work** — if more than one feature is `planned`, run `npm run lane-suggest` before picking just one. It is read-only; if it reports an independent set, propose that set (and the `parallel-lanes` skill's flow) to a human before defaulting to a single feature.
+7. **Review recent commits** with `git log --oneline -5`
 
 If baseline verification is failing, repair that first before adding new scope.
 
 ## Working Rules
 
-- **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json`
+- **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json` — unless `npm run lane-suggest` found an independent, human-approved set to run in parallel lanes instead (see `parallel-lanes` skill, DECISIONS.md D-028)
 - **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"` in that feature's `.harness/state/<id>.json`). Complete and move to `passing` before activating the next. On a `lane/<feature-id>` worktree lane, this is scoped per lane — a lane may only activate the feature it is named for (see `lane-new`/`lane-list`/`lane-land`/`lane-drop`, docs/ARCHITECTURE.md, and DECISIONS.md D-017).
 - **Verification required**: Don't claim done without running verification commands
 - **Update artifacts**: Before ending a session, add `progress/NNN-YYYY-MM-DD.md`, regenerate `PROGRESS.md`, and update the active feature's `.harness/state/<id>.json`
