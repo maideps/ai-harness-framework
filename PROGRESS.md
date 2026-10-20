@@ -11,10 +11,10 @@ After adding or updating a session note, regenerate this file with `node scripts
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check`)
 - Active feature: none
-- Passing features (21): feat-001 — Core Scaffold, feat-002 — Seams and Manifest, feat-003 — Node Runner Consolidation, feat-004 — Assurance Suite, feat-005 — Multi-repo Extension, feat-006 — Distribution, feat-007 — Sweep and Report, feat-008 — Skills Packs, feat-009 — Portability Extensions, feat-010 — Worktree Lanes, feat-011 — Sharded Feature State, feat-012 — Upgrade Backups, feat-013 — Dogfooding Feedback Round 1, feat-014 — Feature lifecycle commands, feat-015 — Adopter CI template and Node version, feat-016 — Generated Harness Command Reference, feat-017 — Generated Progress Dashboard, feat-018 — Windows-safe verification records, feat-019 — Upgrades refresh runner tests and report new scripts, feat-020 — Manual npm publishing, feat-021 — Lane Suggest Command
+- Passing features (22): feat-001 — Core Scaffold, feat-002 — Seams and Manifest, feat-003 — Node Runner Consolidation, feat-004 — Assurance Suite, feat-005 — Multi-repo Extension, feat-006 — Distribution, feat-007 — Sweep and Report, feat-008 — Skills Packs, feat-009 — Portability Extensions, feat-010 — Worktree Lanes, feat-011 — Sharded Feature State, feat-012 — Upgrade Backups, feat-013 — Dogfooding Feedback Round 1, feat-014 — Feature lifecycle commands, feat-015 — Adopter CI template and Node version, feat-016 — Generated Harness Command Reference, feat-017 — Generated Progress Dashboard, feat-018 — Windows-safe verification records, feat-019 — Upgrades refresh runner tests and report new scripts, feat-020 — Manual npm publishing, feat-021 — Lane Suggest Command, feat-022 — Honest required-layer verification and private adopter package identity
 - Failing/blocked features: none
 - Planned features (0): none
-- Last evidence: feat-021 — Lane Suggest Command — All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 3: System confirmation) (2026-10-19T23:13:54.186Z)
+- Last evidence: feat-022 — Honest required-layer verification and private adopter package identity — All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation, Layer 0: targeted unit tests) (2026-10-20T20:27:16.665Z)
 
 ## Session Index
 
@@ -59,4 +59,6 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 039 — 2026-10-17 — feat-019 Upgrades refresh runner tests and report new scripts](progress/039-2026-10-17.md)
 - [Session 040 — 2026-10-17 — feat-020 Manual npm publishing, v0.5.0 release](progress/040-2026-10-17.md)
 - [Session 041 — 2026-10-19 — feat-021 Lane Suggest Command (human-in-the-loop parallel detection)](progress/041-2026-10-19.md)
+- [Session 042 — 2026-10-19 — Discoverability fix: wire lane-suggest into the startup contract](progress/042-2026-10-19.md)
+- [Session 043 — 2026-10-20 — feat-022 Honest required-layer verification and private adopter package identity](progress/043-2026-10-20.md)
 <!-- END GENERATED PROGRESS -->

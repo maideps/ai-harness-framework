@@ -549,6 +549,35 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-022",
+      "name": "Honest required-layer verification and private adopter package identity",
+      "behavior": "verify-feature/verify-all fail a required layer or repository that only reports SKIP with no real PASS evidence instead of silently passing it; create-harness gives a freshly adopted repo its own private package.json identity instead of copying the framework's own name/publishConfig/repository verbatim.",
+      "verification": "npm run check passes (unit tests + e2e adoption matrix, including the new vacuous-SKIP and pristine-scaffold regression tests); npm run check-arch passes.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/framework-check.test.mjs tests/create-harness.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

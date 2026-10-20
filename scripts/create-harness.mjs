@@ -79,6 +79,33 @@ export function placeTemplates(root, { skipExisting = false } = {}) {
   return placed;
 }
 
+// package.json is CORE (its "scripts"/"bin"/"engines" must stay in sync with
+// the framework's own), but its identity fields are not: copying it verbatim
+// into a brand-new adopter repo leaves that repo named after the framework
+// itself, publishable to npm as the framework's own package, and licensed
+// as if the adopter's own content were the framework's MIT-licensed output
+// (2026-09-08 external review, finding H11). Only touches package.json when
+// this adopt() run is what just created it — an already-customized adopter
+// package.json (skipExisting path) is never rewritten.
+function instantiatePackageJson(root, { wasFreshlyCreated }) {
+  if (!wasFreshlyCreated) return;
+  const pkgPath = path.join(root, "package.json");
+  if (!existsSync(pkgPath)) return;
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  const instanceName =
+    path
+      .basename(root)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "my-project";
+  pkg.name = instanceName;
+  pkg.version = "0.1.0";
+  pkg.private = true;
+  delete pkg.publishConfig;
+  delete pkg.repository;
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+}
+
 // Create the runtime/generated instance surfaces the manifest expects to
 // exist in an operating repository.
 export function createRuntimeSurfaces(root) {
@@ -104,6 +131,7 @@ export function createRuntimeSurfaces(root) {
 export function adopt(root, { skipExisting = false } = {}) {
   mkdirSync(root, { recursive: true });
   const core = copyCore(root, { skipExisting });
+  instantiatePackageJson(root, { wasFreshlyCreated: core.includes("package.json") });
   const templates = placeTemplates(root, { skipExisting });
   createRuntimeSurfaces(root);
   return { core, templates };
@@ -125,8 +153,13 @@ function main() {
   console.log("  Next steps:");
   console.log("  1. Review and customize the project docs, README, and feature list.");
   console.log("  2. Declare product directories in .harness/manifest.json productRoots.");
-  console.log("  3. Run node scripts/framework-check.mjs progress-update after customizing feature declarations.");
-  console.log("  4. Run ./init.sh, then npm run check.");
+  console.log(
+    "  3. package.json was given a private, instance-specific name — review LICENSE too: " +
+      "it was copied as MIT (the framework's own license). If this project's content isn't " +
+      "MIT, replace LICENSE with your own before publishing anything."
+  );
+  console.log("  4. Run node scripts/framework-check.mjs progress-update after customizing feature declarations.");
+  console.log("  5. Run ./init.sh, then npm run check.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

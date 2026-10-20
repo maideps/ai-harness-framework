@@ -285,6 +285,17 @@ function runUpgradeTest() {
 function runMultiRepoTest() {
   const root = buildAdopter("multirepo", "none");
   try {
+    const earlyAssertions = [];
+    const earlyCheck = (ok, message) => earlyAssertions.push({ ok, message });
+    // H01, pristine state: a repo fresh out of create-harness already has
+    // repositories/example (every adopter gets the multi-repo skeleton
+    // unconditionally, "optional" is descriptive, not a copy gate) with no
+    // check.js yet. verify-all must treat this as "nothing to verify yet",
+    // not as a failure — only a repo added *after* scaffolding and still
+    // unconfigured should make verify-all fail.
+    const pristineVerifyAll = spawnRunner(root, ["verify-all"]);
+    earlyCheck(pristineVerifyAll.exit === 0, `verify-all passes on a freshly-scaffolded repo with only the example placeholder (exit ${pristineVerifyAll.exit})`);
+
     // Activate the component: place every multi-repo skeleton at its declared
     // destination (the manifest's optional-marker entries).
     const manifest = loadManifest();
@@ -317,7 +328,7 @@ function runMultiRepoTest() {
     const gitAdd = () => spawnSync("git", ["add", "-A"], { cwd: root });
     gitAdd();
 
-    const assertions = [];
+    const assertions = [...earlyAssertions];
     const check = (ok, message) => assertions.push({ ok, message });
 
     const checkArch = spawnRunner(root, ["check-arch"]);
@@ -334,6 +345,23 @@ function runMultiRepoTest() {
     const verifyAllFail = spawnRunner(root, ["verify-all"]);
     check(verifyAllFail.exit === 1, `verify-all fails when a subrepo fails (exit ${verifyAllFail.exit})`);
     writeFileSync(path.join(lib, "verify.cjs"), "console.log('[PASS] CommonJS entrypoint');\n", "utf8");
+
+    // Negative (H01): every repository present but none has a verify script —
+    // all SKIP, zero PASS — must fail, not silently report "all pass".
+    const exampleCheck = path.join(example, "check.js");
+    const appVerify = path.join(app, "verify.mjs");
+    const libVerify = path.join(lib, "verify.cjs");
+    rmSync(exampleCheck, { force: true });
+    rmSync(appVerify, { force: true });
+    rmSync(libVerify, { force: true });
+    const verifyAllVacuous = spawnRunner(root, ["verify-all"]);
+    check(
+      verifyAllVacuous.exit === 1,
+      `verify-all fails when every repository is SKIP and none actually verified (exit ${verifyAllVacuous.exit})`
+    );
+    writeFileSync(exampleCheck, "console.log('[PASS] extensionless template');\n", "utf8");
+    writeFileSync(appVerify, "console.log('[PASS] ESM entrypoint');\n", "utf8");
+    writeFileSync(libVerify, "console.log('[PASS] CommonJS entrypoint');\n", "utf8");
 
     // Negative: an unclassified file fails arch-005 coverage
     writeFileSync(path.join(root, "stray.txt"), "unclassified\n", "utf8");

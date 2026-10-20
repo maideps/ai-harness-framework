@@ -883,7 +883,7 @@ test("verify-feature: records passing evidence in the shard, never rewrites feat
           dependencies: [],
           layers: [
             { label: "L", cmd: `${NODE} -e "process.exit(0)"`, repair: "r" },
-            { label: "Optional", cmd: `${NODE} -e "console.log('[SKIP] optional')"`, repair: "r" },
+            { label: "Optional", cmd: `${NODE} -e "console.log('[SKIP] optional')"`, repair: "r", required: false },
           ],
         },
       ],
@@ -928,6 +928,149 @@ test("verify-feature: records passing evidence in the shard, never rewrites feat
     assert.equal(dirtyResult.exit, 0, dirtyResult.output);
     const dirtyShard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
     assert.equal(JSON.parse(dirtyShard.evidence).dirty, true);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- H01: a required layer that only reports SKIP must not pass -----------
+// (2026-09-08 external review of a downstream adopter: a feature went
+// "passing" while its required layer printed only [SKIP] and did nothing.)
+
+test("verify-feature: a required layer that only reports SKIP fails, not passes", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          layers: [
+            { label: "Vacuous", cmd: `${NODE} -e "console.log('[SKIP] nothing was configured')"`, repair: "r" },
+          ],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /\[FAIL\] Vacuous .* required layer reported only SKIP, nothing was verified/);
+    assert.match(result.output, /set "required": false on it in feature_list\.json/);
+    assert.equal(existsSync(path.join(root, ".harness/state/feat-001.json")), false);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a layer with required:false may report only SKIP and still pass", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          layers: [
+            {
+              label: "Vacuous but optional",
+              cmd: `${NODE} -e "console.log('[SKIP] optional toolchain not installed')"`,
+              repair: "r",
+              required: false,
+            },
+          ],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "passing");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a SKIP alongside a real PASS in the same layer is informational, not a failure", () => {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          layers: [
+            {
+              label: "Mixed",
+              cmd: `${NODE} -e "console.log('[PASS] core check'); console.log('[SKIP] optional toolchain cell')"`,
+              repair: "r",
+            },
+          ],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "passing");
+    assert.match(JSON.parse(shard.evidence).summary, /SKIP reported in: Mixed/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a layer whose own pass evidence uses \"PASS:\" (not \"[PASS]\") alongside a nested [SKIP] is not vacuous", () => {
+  // framework-check.mjs's own pass()/fail() helpers print "PASS: <message>"
+  // (no brackets) — a layer like "npm run check" that only emits that
+  // colon-style convention at its own level, while nested output elsewhere
+  // contains bracket-style [SKIP] lines, must not be misread as vacuous.
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify(
+    {
+      features: [
+        {
+          id: "feat-001",
+          name: "One",
+          behavior: "b",
+          verification: "v",
+          dependencies: [],
+          layers: [
+            {
+              label: "Colon style",
+              cmd: `${NODE} -e "console.log('PASS: core command result'); console.log('[SKIP] nested optional toolchain')"`,
+              repair: "r",
+            },
+          ],
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "passing");
   } finally {
     cleanup(root);
   }

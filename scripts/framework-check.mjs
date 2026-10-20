@@ -1190,8 +1190,26 @@ function verifyFeature(featureId) {
     writeFileSync(logFile, `$ ${layer.cmd}${EOL}${EOL}${stdout}${stderr ? `${EOL}--- stderr ---${EOL}${stderr}` : ""}`, "utf8");
     if (stderr) process.stderr.write(stderr); // stderr stayed visible before logs existed; keep it so
 
-    if (!run.error && run.status === 0) {
-      const reportedSkip = stdout.split(/\r?\n/).some((line) => line.includes("[SKIP]"));
+    const outputLines = stdout.split(/\r?\n/);
+    const reportedSkip = outputLines.some((line) => line.includes("[SKIP]"));
+    // Two conventions report a real pass in this codebase: this file's own
+    // pass()/fail() helpers print "PASS: <message>" (colon, no brackets) for
+    // top-level command results, while nested checks (adoption-matrix cells,
+    // per-repo verify scripts, verify-all) print "[PASS] <message>" (bracket
+    // style). A layer command like "npm run check" can legitimately emit only
+    // the colon style at its own level while still containing plenty of
+    // bracket-style [SKIP] lines from nested output — that must not look vacuous.
+    const reportedPass = outputLines.some((line) => line.includes("[PASS]") || /^PASS:/.test(line.trim()));
+    // "Vacuous" means the layer produced no evidence of anything actually being
+    // checked — only SKIP lines, no PASS lines — as opposed to a SKIP for one
+    // optional sub-check (e.g. a missing toolchain cell) sitting alongside real
+    // PASS output elsewhere in the same layer. A required layer must not be
+    // allowed to go from "nothing ran" to feature state "passing" (2026-09-08
+    // external review, finding H01 — see DECISIONS.md).
+    const isVacuousSkip = reportedSkip && !reportedPass;
+    const isRequired = layer.required !== false;
+
+    if (!run.error && run.status === 0 && !(isVacuousSkip && isRequired)) {
       if (reportedSkip) skippedLayers.push(layer.label);
       layerResults.push({ label: layer.label, cmd: layer.cmd, result: "PASS", skipReported: reportedSkip, durationMs, log: logFile });
       console.log("");
@@ -1204,7 +1222,15 @@ function verifyFeature(featureId) {
         for (const line of tail) console.log(`  ${line}`);
       }
       console.log("");
-      console.log(`  [FAIL] ${layer.label} (${formatDuration(durationMs)}) — full output: ${logFile}`);
+      if (isVacuousSkip && isRequired) {
+        layerResults.push({ label: layer.label, cmd: layer.cmd, result: "FAIL", skipReported: true, durationMs, log: logFile });
+        console.log(`  [FAIL] ${layer.label} (${formatDuration(durationMs)}) — required layer reported only SKIP, nothing was verified`);
+        console.log(`  Full output: ${logFile}`);
+        console.log("");
+        console.log(`  To mark this layer optional instead of required, set "required": false on it in feature_list.json.`);
+      } else {
+        console.log(`  [FAIL] ${layer.label} (${formatDuration(durationMs)}) — full output: ${logFile}`);
+      }
       console.log("");
       if (layer.repair) {
         console.log(`Repair hint: ${layer.repair}`);
