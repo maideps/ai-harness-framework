@@ -11,10 +11,14 @@ import path from "node:path";
 
 const REPOS_DIR = "repositories";
 const VERIFY_SCRIPTS = ["verify", "verify.mjs", "verify.cjs"];
+// Reserved exit code meaning "ran, but nothing was verified yet" — distinct from 0 (a real
+// pass) so the outer runner (runVerifyAll in scripts/framework-check.mjs) can report this
+// honestly as SKIP instead of a silent PASS (#24). Keep both copies in sync.
+const SKIP_EXIT_CODE = 42;
 
 if (!existsSync(REPOS_DIR)) {
   console.log("=== verify-all: no repositories/ component — nothing to verify ===");
-  process.exit(0);
+  process.exit(SKIP_EXIT_CODE);
 }
 
 const repositories = readdirSync(REPOS_DIR, { withFileTypes: true })
@@ -23,18 +27,17 @@ const repositories = readdirSync(REPOS_DIR, { withFileTypes: true })
 
 if (repositories.length === 0) {
   console.log("=== verify-all: repositories/ is empty — nothing to verify ===");
-  process.exit(0);
+  process.exit(SKIP_EXIT_CODE);
 }
 
 console.log(`=== verify-all: ${repositories.length} repositories ===`);
 let failures = 0;
 let passed = 0;
 let skipped = 0;
-// "example" is the create-harness scaffold placeholder present in every
-// adopter by default (templates/multi-repo/repositories/example) — it is
-// not a real repository until the adopter adds its own check.js. Its SKIP
-// must not, by itself, make a freshly-scaffolded repo with no real repos
-// yet look like a broken required gate.
+// "example" is the create-harness scaffold placeholder present once this component is
+// activated (templates/multi-repo/repositories/example) — it is not a real repository
+// until the adopter adds its own check.js. Its SKIP must not, by itself, make a
+// freshly-activated component with no real repos yet look like a broken required gate.
 let meaningfulSkipped = 0;
 
 for (const repo of repositories) {
@@ -92,6 +95,6 @@ if (passed === 0 && meaningfulSkipped > 0) {
 }
 if (passed === 0) {
   console.log("=== verify-all: nothing to verify yet (only the unconfigured example scaffold is present) ===");
-  process.exit(0);
+  process.exit(SKIP_EXIT_CODE);
 }
 console.log("=== verify-all: all repositories pass ===");

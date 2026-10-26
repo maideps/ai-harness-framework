@@ -7,7 +7,7 @@
 //
 //   node scripts/harness-upgrade.mjs <adopter-dir>
 
-import { copyFileSync, existsSync, readdirSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -98,6 +98,22 @@ function createMissingInstanceFiles(root) {
   return created;
 }
 
+// .harness/trails/ is declared INSTANCE but, unlike .harness/traces/, ships with no .gitkeep
+// of its own (it only gains files once `npm run vcr` runs). Git does not track empty
+// directories, so an adopter who committed before this fixed earlier has a trails/ directory
+// that exists locally but vanishes on a fresh clone, failing check-arch there. Backfill it
+// exactly once, the same way create-harness does for a brand-new adopter.
+function ensureTrailsGitkeep(root) {
+  const dir = path.join(root, ".harness", "trails");
+  const gitkeep = path.join(dir, ".gitkeep");
+  if (existsSync(gitkeep)) return false;
+  const hasOtherFiles = existsSync(dir) && readdirSync(dir).length > 0;
+  if (hasOtherFiles) return false;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(gitkeep, "", "utf8");
+  return true;
+}
+
 function upgradeManifest(root) {
   const file = path.join(root, ".harness", "manifest.json");
   const theirs = readJson(file);
@@ -184,6 +200,7 @@ export function upgrade(root) {
   report.overwritten.push("templates/ (framework skeletons)");
   if (upgradeManifest(root)) report.overwritten.push(".harness/manifest.json classification (productRoots kept)");
   report.created = createMissingInstanceFiles(root);
+  if (ensureTrailsGitkeep(root)) report.created.push(".harness/trails/.gitkeep");
   report.preserved.push(
     `Makefile, package.json, init.sh, .harness/manifest.json productRoots, .harness/arch-rules.json, skills/ additions, docs/, README.md, the customisable templates (${keptTemplates.join(", ")}), all INSTANCE state`,
   );

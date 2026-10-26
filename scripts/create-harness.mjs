@@ -62,12 +62,37 @@ export function copyCore(root, { skipExisting = false } = {}) {
   return copied;
 }
 
-// Place every copy-kind template at its declared destination.
-export function placeTemplates(root, { skipExisting = false } = {}) {
+// A template destination belongs to an optional component when it matches one of that
+// component's declared markers (prefix match for a "/"-suffixed marker, exact otherwise).
+function optionalComponentFor(manifest, to) {
+  for (const component of manifest.optionalComponents ?? []) {
+    for (const marker of component.markers ?? []) {
+      if (marker.endsWith("/") ? to.startsWith(marker) : to === marker) return component.name;
+    }
+  }
+  return null;
+}
+
+// Every optional component's declared name, for validating --with/components input.
+export function optionalComponentNames(manifest = loadManifest()) {
+  return (manifest.optionalComponents ?? []).map((component) => component.name);
+}
+
+// Place every copy-kind template at its declared destination. Optional-component templates
+// (manifest.optionalComponents' markers) are skipped unless the component is explicitly
+// requested via `components` — a fresh adopter gets none of them by default, so a plain
+// single-repo project never acquires, say, the multi-repo control plane unasked (#24).
+// Pass `components` again (or rerun with the same flag) against an existing adopter to
+// activate one later: already-placed files are left alone by skipExisting, so only the
+// component's still-missing files are added.
+export function placeTemplates(root, { skipExisting = false, components = [] } = {}) {
   const manifest = loadManifest();
+  const wanted = new Set(components);
   const placed = [];
   for (const entry of manifest.templates) {
     if (typeof entry === "string" || entry.keep) continue;
+    const component = optionalComponentFor(manifest, entry.to);
+    if (component && !wanted.has(component)) continue;
     const src = path.join(HARNESS_ROOT, entry.from);
     const dest = path.join(root, entry.to);
     if (!existsSync(src)) continue;
@@ -122,33 +147,55 @@ export function createRuntimeSurfaces(root) {
     generateHarnessDocs(root);
   }
   write(".harness/traces/.gitkeep", "");
+  write(".harness/trails/.gitkeep", "");
   write(".claude/settings.json", "{}\n");
   write("package-lock.json", "{}\n");
   write("claude-progress.md", "# Claude Progress\n\nCompatibility alias for PROGRESS.md.\n");
 }
 
-// Full adoption: CORE + templates + runtime surfaces.
-export function adopt(root, { skipExisting = false } = {}) {
+// Full adoption: CORE + templates + runtime surfaces. `components` opts into optional
+// components (by name, e.g. "multi-repo"); omit it for a plain single-repo adopter.
+export function adopt(root, { skipExisting = false, components = [] } = {}) {
   mkdirSync(root, { recursive: true });
   const core = copyCore(root, { skipExisting });
   instantiatePackageJson(root, { wasFreshlyCreated: core.includes("package.json") });
-  const templates = placeTemplates(root, { skipExisting });
+  const templates = placeTemplates(root, { skipExisting, components });
   createRuntimeSurfaces(root);
   return { core, templates };
 }
 
 function main() {
-  const target = process.argv[2];
+  const args = process.argv.slice(2);
+  const components = [];
+  const positional = [];
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === "--with") {
+      i += 1;
+      if (args[i]) components.push(args[i]);
+    } else {
+      positional.push(args[i]);
+    }
+  }
+  const target = positional[0];
   if (!target) {
-    console.error("usage: node scripts/create-harness.mjs <target-dir>");
+    console.error("usage: node scripts/create-harness.mjs <target-dir> [--with <component>]...");
     process.exit(1);
   }
+  const known = optionalComponentNames();
+  for (const name of components) {
+    if (!known.includes(name)) {
+      console.error(`unknown optional component "${name}" (known: ${known.join(", ") || "none"})`);
+      process.exit(1);
+    }
+  }
   const root = path.resolve(target);
-  const result = adopt(root, { skipExisting: true });
+  const result = adopt(root, { skipExisting: true, components });
   console.log(`=== create-harness: ${root} ===`);
   console.log(`  CORE surfaces copied: ${result.core.length}`);
   console.log(`  Templates placed: ${result.templates.length}`);
+  if (components.length > 0) console.log(`  Optional components activated: ${components.join(", ")}`);
   console.log("  Existing files were never overwritten.");
+  console.log("  Rerun with --with <component> any time to activate one later — already-placed files are left alone.");
   console.log("");
   console.log("  Next steps:");
   console.log("  1. Review and customize the project docs, README, and feature list.");

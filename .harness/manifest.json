@@ -88,7 +88,7 @@
   "optionalComponents": [
     {
       "name": "multi-repo",
-      "description": "Root control plane + subrepo execution domains: contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all. Adopters activate it by copying the templates/multi-repo skeletons to their declared destinations (see the manifest templates entries); verify-all is an optional check layer that SKIPs when the component is absent.",
+      "description": "Root control plane + subrepo execution domains: contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all. create-harness never places these by default; adopters activate it with `node scripts/create-harness.mjs <dir> --with multi-repo` (safe to rerun later against an existing adopter). verify-all is an optional check layer that SKIPs both when the component is absent and when it is active but has nothing to verify yet.",
       "markers": ["contracts/", "tasks/", "repositories/", "scripts/verify-all", "scripts/verify-all.mjs"]
     }
   ],

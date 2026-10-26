@@ -14,6 +14,33 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// A layer package.json may legitimately replace (lint, typecheck, test, build — the layers
+// with a harness self-check baked into framework-check.mjs's own implementation of that
+// mode, docs/ARCHITECTURE.md's documented customization point). Dropping the harness's own
+// invocation from one of these loses everything that layer checks (skills structure,
+// progress log, placeholder docs, and command-surface drift for lint; feature-tracker shape
+// for typecheck; the dependency graph, WIP contract, and runner unit tests for test; Make
+// target/shell-shim wiring for build) with no warning, since check-arch (arch-001..006)
+// does not cover any of that (#25). Warn, never fail: a layer intentionally chaining both
+// (`node scripts/framework-check.mjs lint && eslint .`, USAGE.md's documented pattern) is
+// fine and is not flagged.
+const SELF_CHECK_LAYERS = ["lint", "typecheck", "test", "build"];
+
+export function missingSelfChecks(root) {
+  const pkgPath = path.join(root, "package.json");
+  if (!existsSync(pkgPath)) return [];
+  let scripts;
+  try {
+    scripts = JSON.parse(readFileSync(pkgPath, "utf8")).scripts ?? {};
+  } catch {
+    return [];
+  }
+  return SELF_CHECK_LAYERS.filter((layer) => {
+    const command = scripts[layer];
+    return typeof command === "string" && !command.includes(`framework-check.mjs ${layer}`);
+  });
+}
+
 export function audit(root) {
   const report = { manifest: false, coverage: false, templatesPlaced: [], templatesMissing: [], skills: false };
   const runner = path.join(root, "scripts", "framework-check.mjs");
@@ -22,6 +49,7 @@ export function audit(root) {
   if (!existsSync(runner)) {
     return { ...report, missingRunner: true };
   }
+  report.missingSelfChecks = missingSelfChecks(root);
 
   const manifestPath = path.join(root, ".harness", "manifest.json");
   if (existsSync(manifestPath)) {
@@ -64,6 +92,10 @@ function main() {
   line(report.templatesMissing.length === 0, `templates placed: ${report.templatesPlaced.length}/${report.templatesPlaced.length + report.templatesMissing.length}`);
   for (const missing of report.templatesMissing) {
     console.log(`           missing destination: ${missing}`);
+  }
+  for (const layer of report.missingSelfChecks ?? []) {
+    console.log(`  [WARN] "${layer}" no longer runs the harness's own check (\`node scripts/framework-check.mjs ${layer}\`) — chain it`
+      + ` alongside your product tool (e.g. "node scripts/framework-check.mjs ${layer} && <your command>") to keep both (#25, see USAGE.md).`);
   }
 
   console.log("");

@@ -86,13 +86,15 @@ Upgrading a repository from the older inline-state schema (or hand-migrating one
 
 ## Multi-repo Extension (optional)
 
+It is **opt-in**: `create-harness` never places it unasked, so a plain single-repo adopter never acquires `contracts/`, `tasks/`, `repositories/`, or `scripts/verify-all` just from adopting the harness.
+
 Projects that span multiple repositories can activate the multi-repo component:
 
-1. Copy the `templates/multi-repo/*` skeletons to their declared destinations (`scripts/verify-all`, `scripts/verify-all.mjs`, `contracts/`, `tasks/`, `repositories/`).
+1. Activate it: `node scripts/create-harness.mjs <dir> --with multi-repo` places the `templates/multi-repo/*` skeletons (`scripts/verify-all`, `scripts/verify-all.mjs`, `contracts/`, `tasks/`, `repositories/`) at their declared destinations. Safe to rerun later against an already-adopted repository — existing files are never overwritten, so only what's still missing gets added.
 2. Give every subrepository a `scripts/verify`, `scripts/verify.mjs`, or `scripts/verify.cjs` that exits non-zero on failure.
 3. Run the root gate: `npm run verify-all` (or `make verify-all`) — it runs every repository's verify script and aggregates the results. `make check` includes this optional layer.
 
-Single-repo projects never need the component: `check` passes without it, and `verify-all` reports SKIP when the markers are absent. Repositories without any supported verify script are SKIPped, not passed.
+Single-repo projects never need the component: `check` passes without it, and `verify-all` reports `[SKIP] Multi-repo component not activated` when its files are absent. Once activated but still only holding the untouched `example` scaffold (no real repositories added yet), `verify-all` honestly reports `[SKIP] verify-all ran but nothing was verified yet` rather than a silent pass — it only reports success once at least one real repository's verify script actually runs and passes. Repositories without any supported verify script are SKIPped, not passed.
 
 ## Distribution
 
@@ -178,12 +180,31 @@ Customization points (from the manifest):
 - MAY edit: extra Makefile targets, project scripts in `package.json`, stack-specific verification in `init.sh`, manifest `productRoots`.
 - MUST NOT edit: `scripts/framework-check.mjs`, the manifest classification itself, the PASS/SKIP/FAIL semantics, the feature state machine and WIP=1 contract.
 
+### Replacing `lint`, `typecheck`, `test`, or `build` without losing the harness's own checks (#25)
+
+For a Node project, `lint`, `typecheck`, `test`, and `build` ship pointing at `node scripts/framework-check.mjs <layer>` — which is also how the harness checks itself: `lint` validates skills structure, the generated progress dashboard, and framework docs for unfilled template placeholders; `typecheck` validates `feature_list.json`'s shape; `test` validates the feature dependency graph, the WIP=1/lane contract, and runs the runner's own unit tests; `build` validates Make targets and shell shims. `npm run check-arch` (arch-001..006) does **not** duplicate any of this — replacing one of these four script values with your product tool entirely, instead of chaining it, silently drops that layer's harness checks from both `npm run check` and every `npm run verify-feature` run, with nothing to catch the gap.
+
+**Chain the two instead of replacing:**
+
+```json
+"scripts": {
+  "lint": "node scripts/framework-check.mjs lint && eslint .",
+  "typecheck": "node scripts/framework-check.mjs typecheck && tsc --noEmit",
+  "test": "node scripts/framework-check.mjs test && jest",
+  "build": "node scripts/framework-check.mjs build && tsc -p . --outDir dist"
+}
+```
+
+Each side must still exit non-zero on its own failure for `&&` to stop the chain correctly — that's true of ordinary CLI tools (eslint, tsc, jest, …) by default. Only an adopter who later overwrites one of these four keys outright (not by appending `&&`) loses the harness side.
+
+Forgot to chain one? `node scripts/harness-audit.mjs` warns, by layer name, the first time it notices a layer script no longer invokes `framework-check.mjs <layer>` at all.
+
 ## Verification Semantics
 
 - **PASS** — the layer ran and succeeded; it counts as verified.
 - **SKIP** — the layer is not configured; it does not count as verified.
 - **FAIL** — non-zero exit; the chain stops.
-- **The default `e2e` layer is the framework's adoption matrix.** It generates throwaway adopter repos and runs the harness in each. Its fixtures always use the canonical harness layer scripts, so repointing `lint`, `typecheck`, `test` or `build` at your product tooling (a documented customisation point) does not break it. It tests the harness, not your product: once you have real end-to-end tests, replace the `e2e` script with them.
+- **The default `e2e` layer is the framework's adoption matrix.** It generates throwaway adopter repos and runs the harness in each — five stack cells, a simulated upgrade, the multi-repo component, and an existing-repo adoption check. It tests the harness, not your product, and is one of the slower layers: budget low-single-digit minutes locally (it spawns `git init`/`git add` and a nested `node --test` run per cell), and it can be the majority of a full `npm run check` until you have real end-to-end tests. Once you do, replace the `e2e` script with them. Until then, skip it locally with `CW_SKIP_ADOPTION_MATRIX=1 npm run check` — the generated CI workflow already sets this so CI exercises your project's own layers, not the framework's self-test, on every run.
 
 `npm run check-arch` enforces six rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, and feature declarations carry no leftover inline state (sharded state stays consistent).
 

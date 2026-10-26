@@ -98,6 +98,28 @@ test("harness-upgrade: creates missing instance files from templates, never over
   }
 });
 
+test("harness-upgrade: backfills .harness/trails/.gitkeep so a fresh clone keeps the directory (#26)", () => {
+  const root = adopter();
+  try {
+    const report = upgrade(root);
+    assert.ok(report.created.includes(".harness/trails/.gitkeep"), JSON.stringify(report.created));
+    assert.equal(readFileSync(path.join(root, ".harness/trails/.gitkeep"), "utf8"), "");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("harness-upgrade: leaves .harness/trails/ alone once it already holds real trail files", () => {
+  const root = adopter();
+  write(root, ".harness/trails/vcr-20260101T000000.json", "{}\n");
+  try {
+    const report = upgrade(root);
+    assert.ok(!report.created.includes(".harness/trails/.gitkeep"), JSON.stringify(report.created));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("missingHarnessScripts: lists harness commands the adopter lacks, never its own variants", () => {
   const harness = tempDir();
   const root = tempDir();

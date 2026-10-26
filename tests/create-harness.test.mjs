@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 
-import { adopt, HARNESS_ROOT } from "../scripts/create-harness.mjs";
+import { adopt, HARNESS_ROOT, placeTemplates } from "../scripts/create-harness.mjs";
 
 function fixture(name) {
   return mkdtempSync(path.join(os.tmpdir(), `cw-create-harness-${name}-`));
@@ -63,5 +63,51 @@ test("adopt: the sanitized name is derived from the target directory name", () =
     assert.equal(pkg.name, "my-cool-project");
   } finally {
     cleanup(parent);
+  }
+});
+
+// #24: a plain adopter must not acquire the multi-repo component (or any other optional
+// component) unasked — only an explicit `components` opt-in places it.
+test("adopt: a plain adoption places no optional-component files", () => {
+  const root = fixture("plain");
+  try {
+    adopt(root, { skipExisting: true });
+    assert.ok(!existsSync(path.join(root, "repositories")));
+    assert.ok(!existsSync(path.join(root, "contracts")));
+    assert.ok(!existsSync(path.join(root, "tasks")));
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all")));
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all.mjs")));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: components opts into an optional component's templates", () => {
+  const root = fixture("opt-in");
+  try {
+    adopt(root, { skipExisting: true, components: ["multi-repo"] });
+    assert.ok(existsSync(path.join(root, "repositories", "example", "scripts", "verify.mjs")));
+    assert.ok(existsSync(path.join(root, "scripts", "verify-all.mjs")));
+    assert.ok(existsSync(path.join(root, "contracts", "README.md")));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("placeTemplates: rerunning with the same component against an existing adopter only adds what's missing", () => {
+  const root = fixture("activate-later");
+  try {
+    adopt(root, { skipExisting: true });
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all.mjs")));
+    const before = readFileSync(path.join(root, "AGENTS.md"), "utf8");
+    const placed = placeTemplates(root, { skipExisting: true, components: ["multi-repo"] });
+    assert.ok(placed.includes("scripts/verify-all.mjs"));
+    assert.ok(existsSync(path.join(root, "scripts", "verify-all.mjs")));
+    // Re-running the same activation is idempotent and never touches unrelated CORE files.
+    const placedAgain = placeTemplates(root, { skipExisting: true, components: ["multi-repo"] });
+    assert.deepEqual(placedAgain, []);
+    assert.equal(readFileSync(path.join(root, "AGENTS.md"), "utf8"), before);
+  } finally {
+    cleanup(root);
   }
 });

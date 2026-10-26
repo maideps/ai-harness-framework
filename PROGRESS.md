@@ -61,4 +61,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 041 — 2026-10-19 — feat-021 Lane Suggest Command (human-in-the-loop parallel detection)](progress/041-2026-10-19.md)
 - [Session 042 — 2026-10-19 — Discoverability fix: wire lane-suggest into the startup contract](progress/042-2026-10-19.md)
 - [Session 043 — 2026-10-20 — feat-022 Honest required-layer verification and private adopter package identity](progress/043-2026-10-20.md)
+- [Session 044 — 2026-10-26 — Fix four dogfooding-reported GitHub issues (#23, #24, #25, #26)](progress/044-2026-10-26.md)
 <!-- END GENERATED PROGRESS -->

@@ -13,7 +13,6 @@
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -25,7 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { HARNESS_ROOT, adopt, loadManifest } from "./create-harness.mjs";
+import { HARNESS_ROOT, adopt, placeTemplates } from "./create-harness.mjs";
 import { generateHarnessDocs } from "./harness-docs.mjs";
 import { upgrade as upgradeHarness } from "./harness-upgrade.mjs";
 import { restoreBackup as restoreBackupSnapshot } from "./harness-backup.mjs";
@@ -51,9 +50,9 @@ export function normalizeFixtureScripts(root) {
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
-function buildAdopter(stage, stack) {
+function buildAdopter(stage, stack, { components = [] } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), `cw-adopt-${stage}-${stack}-`));
-  adopt(root);
+  adopt(root, { components });
   normalizeFixtureScripts(root);
   fillDocs(root, stack);
   addProduct(root, stack);
@@ -287,27 +286,31 @@ function runMultiRepoTest() {
   try {
     const earlyAssertions = [];
     const earlyCheck = (ok, message) => earlyAssertions.push({ ok, message });
-    // H01, pristine state: a repo fresh out of create-harness already has
-    // repositories/example (every adopter gets the multi-repo skeleton
-    // unconditionally, "optional" is descriptive, not a copy gate) with no
-    // check.js yet. verify-all must treat this as "nothing to verify yet",
-    // not as a failure — only a repo added *after* scaffolding and still
-    // unconfigured should make verify-all fail.
+    // A plain adopter (no --with multi-repo) gets none of the component's directories or
+    // files — it is opt-in, not placed unconditionally (#24) — so verify-all reports the
+    // layer itself as SKIP (component not activated), not a silent pass for nothing checked.
+    earlyCheck(!existsSync(path.join(root, "repositories")), "a plain adopter has no repositories/ directory");
+    earlyCheck(!existsSync(path.join(root, "scripts", "verify-all.mjs")), "a plain adopter has no scripts/verify-all.mjs");
     const pristineVerifyAll = spawnRunner(root, ["verify-all"]);
-    earlyCheck(pristineVerifyAll.exit === 0, `verify-all passes on a freshly-scaffolded repo with only the example placeholder (exit ${pristineVerifyAll.exit})`);
+    earlyCheck(pristineVerifyAll.exit === 0, `verify-all layer passes (reports SKIP, not FAIL) when the component isn't activated (exit ${pristineVerifyAll.exit})`);
+    earlyCheck(pristineVerifyAll.output.includes("[SKIP] Multi-repo component not activated"), "verify-all layer reports the component as not activated, honestly, not as a pass");
 
-    // Activate the component: place every multi-repo skeleton at its declared
-    // destination (the manifest's optional-marker entries).
-    const manifest = loadManifest();
-    const optionalPrefixes = ["contracts/", "tasks/", "repositories/", "scripts/verify-all"];
-    for (const entry of manifest.templates) {
-      if (typeof entry === "string" || entry.keep) continue;
-      if (!optionalPrefixes.some((prefix) => entry.to.startsWith(prefix) || entry.to === prefix)) continue;
-      const src = path.join(HARNESS_ROOT, entry.from);
-      const dest = path.join(root, entry.to);
-      mkdirSync(path.dirname(dest), { recursive: true });
-      copyFileSync(src, dest);
-    }
+    // Activate the component via the same opt-in path a real adopter uses
+    // (create-harness --with multi-repo / placeTemplates({ components })). skipExisting
+    // matters here as much as components does: without it, every already-placed,
+    // already-filled template (README.md, docs/*) gets silently reset to its pristine
+    // template content too, since only optional-component destinations are filtered —
+    // every other template entry is placed unconditionally when skipExisting is false.
+    placeTemplates(root, { skipExisting: true, components: ["multi-repo"] });
+    // H01, freshly-activated state: activating gives only repositories/example with no
+    // check.js yet. verify-all must treat this as "nothing to verify yet", not as a
+    // failure — only a repo added *after* activation and still unconfigured should fail it.
+    const freshlyActivatedVerifyAll = spawnRunner(root, ["verify-all"]);
+    earlyCheck(
+      freshlyActivatedVerifyAll.exit === 0,
+      `verify-all passes on a freshly-activated component with only the example placeholder (exit ${freshlyActivatedVerifyAll.exit})`,
+    );
+    earlyCheck(freshlyActivatedVerifyAll.output.includes("[SKIP] verify-all ran but nothing was verified yet"), "the runner reports the vacuous activation as SKIP, not a silent pass");
     // Exercise extensionless, ESM, and CommonJS entrypoints within a module-typed root.
     const packagePath = path.join(root, "package.json");
     const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));

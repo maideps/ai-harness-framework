@@ -9,7 +9,9 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 | scripts/framework-check.mjs | A | C | A | A | A |
 | scripts/harness-docs.mjs | A | C | A | A | A |
 | scripts/stack-detect.mjs | B | C | A | A | A |
-| scripts/harness-upgrade.mjs | B | — | A | A | A |
+| scripts/harness-upgrade.mjs | A | — | A | A | A |
+| scripts/create-harness.mjs | A | — | A | A | A |
+| scripts/harness-audit.mjs | A | — | A | A | A |
 | .harness/manifest.json + arch-rules.json | B | B | B | A | A |
 | templates/ (adopter skeletons) | — | — | A | A | — |
 | Makefile | B | — | A | A | A |
@@ -48,6 +50,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-10-14 (session 033): initialization skips empty Node installs and selects lock-preserving package-manager commands; a manifest-backed `.gitattributes` template establishes consistent line endings and survives upgrades.
 - 2026-10-14 (session 034): current master merged with the lockfile and line-ending changes intact; conflict resolution verified by the full 87-test check and architecture rules.
 - 2026-10-19 (session 041, feat-021, D-028): `lane-suggest` added — read-only detection of dependency-graph-independent `planned` features, for an agent to propose and a human to approve before any `lane-new`/session/`lane-land` runs; `parallel-lanes` skill codifies the loop. No state-changing behavior added; 6 new unit tests; full check (112 tests, e2e matrix) and verify-feature gate both PASS.
+- 2026-10-26 (session 044, D-031, GitHub #23/#24/#25/#26): `.harness/trails/.gitkeep` ships on create and backfills on upgrade; the placeholder check diffs docs against their manifest-declared template source instead of dead bracket-text matching, with an `init.sh`-only warn mode; the multi-repo optional component is opt-in (`--with multi-repo`) with a reserved exit code so `verify-all` reports SKIP honestly instead of a silent pass; `harness-audit` gained `missingSelfChecks` (first-ever test coverage for that script) and docs now document chaining a layer script with the harness's own check. 14 new unit tests (133 total); full check and the standalone e2e matrix (stack cells, upgrade test, multi-repo test, existing-repo test) all PASS.
 
 ---
 

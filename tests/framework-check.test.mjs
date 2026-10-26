@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { adopt } from "../scripts/create-harness.mjs";
+
 // scripts/framework-check.mjs is a monolithic CLI (fail() calls process.exit
 // directly, every mode reads relative to process.cwd()) rather than a module
 // of pure exported functions. Unit-testing its rules in isolation means
@@ -42,6 +44,55 @@ function cleanup(root) {
   rmSync(root, { recursive: true, force: true });
 }
 
+// #23: a fresh create-harness output must fail lint/arch-003 until its docs are actually
+// filled in, diffed against their own template source rather than matched against bracketed
+// placeholder text (which had drifted out of the templates' prose and gone silently vacuous).
+test("ensureNoPlaceholders: a fresh create-harness output fails lint and arch-003 (#23)", () => {
+  const root = fixture();
+  try {
+    adopt(root, { skipExisting: true });
+    const lint = run(root, "lint");
+    assert.equal(lint.exit, 1, lint.output);
+    assert.match(lint.output, /README\.md is unchanged from its template/);
+    assert.match(lint.output, /docs\/PRODUCT\.md is unchanged from its template/);
+    assert.match(lint.output, /docs\/quality-document\.md is unchanged from its template/);
+    const archCheck = run(root, "arch:no-placeholders");
+    assert.equal(archCheck.exit, 1, archCheck.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("ensureNoPlaceholders: passes once a doc is edited; still fails for any doc left unfilled", () => {
+  const root = fixture();
+  try {
+    adopt(root, { skipExisting: true });
+    writeFileSync(path.join(root, "README.md"), "# Real Project\n\nActual project-specific content.\n", "utf8");
+    const lint = run(root, "lint");
+    assert.equal(lint.exit, 1, lint.output);
+    assert.doesNotMatch(lint.output, /README\.md is unchanged/);
+    assert.match(lint.output, /docs\/PRODUCT\.md is unchanged from its template/);
+    assert.match(lint.output, /docs\/quality-document\.md is unchanged from its template/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("ensureNoPlaceholders: init.sh's CW_INIT_SH warns instead of failing, so a first run completes", () => {
+  const root = fixture();
+  try {
+    adopt(root, { skipExisting: true });
+    const result = run(root, "lint", [], { CW_INIT_SH: "1" });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[WARN\] README\.md is unchanged from its template/);
+    // arch-003 is unaffected by CW_INIT_SH — it is the hard gate check-arch still enforces.
+    const archCheck = run(root, "arch:no-placeholders", [], { CW_INIT_SH: "1" });
+    assert.equal(archCheck.exit, 1, archCheck.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("clean-state-check: scans the directories derived from productRoots, not hardcoded roots", () => {
   const root = fixture();
   try {
@@ -62,6 +113,33 @@ test("verify-all: skips cleanly when the optional component is absent", () => {
     const result = run(root, "verify-all");
     assert.equal(result.exit, 0, result.output);
     assert.match(result.stdout, /\[SKIP\] Multi-repo component not activated/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// #24: the multi-repo component's own verify-all can be present but have verified nothing
+// yet (e.g. only the untouched example scaffold). It signals that with a reserved exit code
+// (42) rather than a silent exit 0, so this runner reports it as SKIP, not a pass.
+test("verify-all: a reserved exit code from the script is reported as SKIP, not a silent pass", () => {
+  const root = fixture();
+  try {
+    write(root, "scripts/verify-all.mjs", "process.exit(42);\n");
+    const result = run(root, "verify-all");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] verify-all ran but nothing was verified yet/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-all: a real failure (any other non-zero exit) still fails the layer", () => {
+  const root = fixture();
+  try {
+    write(root, "scripts/verify-all.mjs", "process.exit(1);\n");
+    const result = run(root, "verify-all");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.stdout, /\[FAIL\] verify-all failed \(exit 1\)/);
   } finally {
     cleanup(root);
   }

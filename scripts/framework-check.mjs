@@ -29,14 +29,19 @@ const requiredFiles = [
   "init.sh",
 ];
 
+// Reserved exit code the optional multi-repo component's verify-all (templates/multi-repo/
+// verify-all.mjs) uses to report "ran, but nothing was verified yet" honestly as SKIP rather
+// than as a silent PASS (exit 0) — the two must stay distinguishable by exit code alone, since
+// this runner only inspects the child process's exit status (#24). Keep both copies of this
+// constant in sync.
+const MULTI_REPO_VERIFY_ALL_SKIP = 42;
+
 const requiredDirs = ["docs", "templates", "scripts", ".harness", "skills"];
-const placeholderChecks = [
-  { file: "docs/PRODUCT.md", text: "[Describe what this system does and who it serves.]" },
-  { file: "docs/PRODUCT.md", text: "[Primary user flow 1]" },
-  { file: "docs/quality-document.md", text: "[module-name]" },
-  { file: "docs/quality-document.md", text: "[module or surface name]" },
-  { file: "README.md", text: "[Add license information]" },
-];
+// Docs a fresh adopter must fill in with project-specific content before shipping (#23).
+// Checked by diffing against their own template source (manifest-declared), not by matching
+// bracketed marker strings — those drift out of the templates' prose independently of whether
+// a doc was actually filled in, which is exactly how this check went silently vacuous before.
+const PLACEHOLDER_DOCS = ["README.md", "docs/PRODUCT.md", "docs/quality-document.md"];
 const requiredMakeTargets = [
   "check",
   "lint",
@@ -358,15 +363,42 @@ function ensureProgressLog() {
   pass(`Progress dashboard is current (${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
 }
 
-function ensureNoPlaceholders() {
-  for (const check of placeholderChecks) {
-    if (!existsSync(check.file)) {
-      fail(`${check.file} is missing — copy the skeleton from templates/ and fill it in for this project`);
+function normalizeEol(text) {
+  return text.replace(/\r\n/g, "\n");
+}
+
+// The manifest is the single source of truth for a doc's own template (its {from, to}
+// entry) — never a second, hardcoded "templates/X.md" path that could drift from it.
+function templateSourceFor(to) {
+  const manifest = readJson(".harness/manifest.json");
+  for (const entry of manifest?.templates ?? []) {
+    if (typeof entry === "string" || entry.keep) continue;
+    if (entry.to === to) return entry.from;
+  }
+  return null;
+}
+
+function ensureNoPlaceholders({ warnOnly = false } = {}) {
+  const problems = [];
+  for (const doc of PLACEHOLDER_DOCS) {
+    if (!existsSync(doc)) {
+      problems.push(`${doc} is missing — copy the skeleton from templates/ and fill it in for this project`);
+      continue;
     }
-    if (readText(check.file).includes(check.text)) {
-      fail(`${check.file} still contains template placeholder text`);
+    const from = templateSourceFor(doc);
+    if (!from || !existsSync(from)) continue;
+    if (normalizeEol(readText(doc)) === normalizeEol(readText(from))) {
+      problems.push(`${doc} is unchanged from its template (${from}) — fill it in with this project's own content`);
     }
   }
+  if (problems.length === 0) return;
+  if (warnOnly) {
+    for (const problem of problems) {
+      console.log(`[WARN] ${problem}`);
+    }
+    return;
+  }
+  fail(problems.join("\n       "));
 }
 
 function ensureSkills() {
@@ -1882,13 +1914,18 @@ function runVerifyAll() {
   const script = ["scripts/verify-all", "scripts/verify-all.mjs", "scripts/verify-all.cjs"].find(existsSync);
   if (!script) {
     console.log("[SKIP] Multi-repo component not activated (verify-all script absent)");
-    console.log("  Activate it by copying the templates/multi-repo skeletons to their declared destinations.");
+    console.log("  Activate it with: node scripts/create-harness.mjs <dir> --with multi-repo");
     return;
   }
   try {
     const result = spawnSync(process.execPath, [script], { stdio: "inherit" });
-    if (result.error || (result.status ?? 1) !== 0) {
-      console.log(`[FAIL] verify-all failed (exit ${result.error ? 1 : result.status})`);
+    const status = result.error ? 1 : (result.status ?? 1);
+    if (status === MULTI_REPO_VERIFY_ALL_SKIP) {
+      console.log("[SKIP] verify-all ran but nothing was verified yet");
+      return;
+    }
+    if (status !== 0) {
+      console.log(`[FAIL] verify-all failed (exit ${status})`);
       process.exit(1);
     }
   } catch (err) {
@@ -1979,7 +2016,11 @@ switch (mode) {
     }
     readJson("feature_list.json");
     readJson(".harness/arch-rules.json");
-    ensureNoPlaceholders();
+    // init.sh's first run on a just-adopted project hasn't had a chance to fill in docs yet;
+    // warn there instead of failing lint outright so `./init.sh` still completes (#23). A
+    // manually-run `npm run check`/`npm run lint`, and arch-003 (arch:no-placeholders below),
+    // are unaffected and still fail on an unfilled doc.
+    ensureNoPlaceholders({ warnOnly: process.env.CW_INIT_SH === "1" });
     ensureSkills();
     ensureCommandSurfaces();
     ensureProgressLog();

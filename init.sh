@@ -61,7 +61,10 @@ fi
 # Run the stack's verification chain
 echo ""
 echo "=== Running verification ==="
-node scripts/framework-check.mjs verify-chain
+# CW_INIT_SH tells the lint layer's placeholder check to warn, not fail, on a doc still
+# unchanged from its template (#23) — a just-adopted project hasn't had a chance to fill
+# docs in yet, so init.sh should still complete; npm run check and arch-003 are unaffected.
+CW_INIT_SH=1 node scripts/framework-check.mjs verify-chain
 echo ""
 
 # Verify harness state files exist
