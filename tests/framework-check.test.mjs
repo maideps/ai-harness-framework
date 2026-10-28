@@ -28,11 +28,16 @@ function write(root, rel, content) {
 }
 
 function run(root, mode, args = [], env = {}) {
+  // ./init.sh runs this suite with CW_INIT_SH=1 set, which turns lint's placeholder check
+  // into a warning. Drop it from the inherited environment so a test only sees it when it
+  // passes it explicitly; otherwise the #23 lint assertions pass alone but fail under init.sh.
+  const inheritedEnv = { ...process.env };
+  delete inheritedEnv.CW_INIT_SH;
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
     encoding: "utf8",
     timeout: 30000,
-    env: { ...process.env, ...env },
+    env: { ...inheritedEnv, ...env },
   });
   const stdout = result.stdout ?? "";
   const stderr = result.stderr ?? "";

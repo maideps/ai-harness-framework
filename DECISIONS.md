@@ -468,3 +468,18 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a fresh adopter's tree matches what they actually asked for; `npm run check` on a plain adopter honestly reports the multi-repo layer as SKIP in both its "absent" and "activated but empty" shapes, closing the gap D-029 left at the outer boundary.
 - Negative: every existing adopter created before this change keeps the component's files whether they wanted them or not (never retroactively removed, per the no-surprise-deletion norm), so `verify-all` for them still exercises the component until they remove those files themselves; a downstream project that was relying on the component always being present (e.g. scripting around `contracts/` existing after a bare `create-harness` run) now needs `--with multi-repo`.
+
+### D-032: Runner unit tests drop an inherited CW_INIT_SH unless a test sets it
+
+**Date:** 2026-10-27
+**Status:** accepted
+**Context:** D-031's session (#23) made `./init.sh` set `CW_INIT_SH=1` for `verify-chain`, so `ensureNoPlaceholders` warns instead of failing on a project's first run. The test layer of that chain runs `tests/framework-check.test.mjs`, whose `run()` helper spawned the runner with `{ ...process.env, ...env }`. Every spawned runner therefore inherited `CW_INIT_SH=1`, so "a fresh create-harness output fails lint and arch-003 (#23)" saw lint exit 0 instead of 1 and failed — but only under `./init.sh`, never when run alone or under `npm run check`. `./init.sh` exited 1 on every run from commit b77ec83 onward, in this repo and in every adopter that took that commit (ai-issue-triage hit it on its first run).
+**Decision:**
+- `run()` in `tests/framework-check.test.mjs` copies `process.env`, deletes `CW_INIT_SH` from the copy, then applies the test's own `env`. A test sees `CW_INIT_SH` only when it passes it explicitly, as "init.sh's CW_INIT_SH warns instead of failing" does.
+- The other spawn helper in `tests/`, `run()` in `tests/harness-docs.test.mjs`, is left unchanged: it only spawns the docs generator and `lint:command-surfaces`, and neither reads `CW_INIT_SH` (only the `lint` mode does).
+**Alternatives considered:**
+- Run the test layer without `CW_INIT_SH` in `init.sh` (set it only for the lint step) — rejected: `verify-chain` is one runner invocation, and splitting it in `init.sh` would duplicate the chain's layer order outside the runner.
+- Strip every `CW_*` variable in `run()` — rejected: tests pass `CW_SKIP_ADOPTION_MATRIX` explicitly where they need it, and the other `CW_*` variables do not change any assertion today; a blanket strip would hide which variable actually mattered.
+**Consequences:**
+- Positive: `./init.sh` exits 0 again; the #23 tests assert the same thing whether run alone, under `npm run check`, or under `./init.sh`. Adopters receive the fix through `harness-upgrade`, since `tests/` is CORE.
+- Negative: a future runner environment variable that changes a mode's behavior needs the same treatment in `run()`; nothing enforces that automatically.
