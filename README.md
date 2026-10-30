@@ -19,6 +19,7 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Skills packs**: Ten reusable capability packs in `skills/` (feature-cycle, verification, review, commit, release, adopt, parallel-lanes, update-docs, session-handoff, write-skill), validated on every lint run
 - **Proven adoption**: An e2e matrix generates throwaway repos for node/python/go/rust from the seam manifest and runs real feature cycles in each; a customization-survival upgrade test guards the seam contract; CI proves both on Linux with real toolchains
 - **Distribution**: `create-harness`, `harness-upgrade`, and `harness-audit` tools read the manifest as the single source of truth — adopt with one command, upgrade without losing customizations
+- **Opt-in quality gates**: `make quality` / `npm run quality` enforces metric floors declared in `.harness/quality.json` — coverage presets per stack, and any command that prints a number (mutation score, eval accuracy); disabled by default, SKIP while off
 - **Optional multi-repo extension**: `verify-all` aggregates per-repository verification for projects that span repositories; single-repo projects are unaffected
 
 The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack. Harness tooling runs on Node and detects the host project's stack (node, python, go, rust, jvm, dotnet) at runtime.
@@ -79,8 +80,9 @@ Every feature passes through these layers, grouped into three gates (static chec
 | 2 | Runtime Tests | `make test` / `npm run test` | Unit and integration tests |
 | 3 | Build Verification | `make build` / `npm run build` | Production build succeeds |
 | 3b | End-to-End | `make e2e` / `npm run e2e` | Full system integration |
+| 4 | Quality Gates (opt-in) | `make quality` / `npm run quality` | Coverage, mutation score or any metric stays above its floor |
 
-Run all layers with `make check` (lint → typecheck → test → build → e2e → optional verify-all); `npm run check` is the make-free equivalent. The verify-all layer SKIPs when multi-repo markers are absent. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
+Run all layers with `make check` (lint → typecheck → test → build → e2e → optional verify-all → optional quality); `npm run check` is the make-free equivalent. The verify-all layer SKIPs when multi-repo markers are absent, and the quality layer while `.harness/quality.json` is disabled. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
 
 Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 

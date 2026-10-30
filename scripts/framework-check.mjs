@@ -5,6 +5,7 @@ import { execSync, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderHarnessDocs } from "./harness-docs.mjs";
+import { QUALITY_CONFIG, runQualityGates, validateQualityConfig } from "./quality-gates.mjs";
 
 import {
   LAYERS,
@@ -52,6 +53,7 @@ const requiredMakeTargets = [
   "check-arch",
   "verify-feature",
   "verify-all",
+  "quality",
   "lane-new",
   "lane-list",
   "lane-land",
@@ -812,6 +814,16 @@ function ensureCommandSurfaces() {
     }
   }
   pass("README links to the current command reference and AGENTS documents every make target");
+}
+
+// The quality config is optional, but a malformed one must fail lint, not surface only
+// when someone finally enables the gates (feat-023).
+function ensureQualityConfig() {
+  if (!existsSync(QUALITY_CONFIG)) return;
+  const errors = validateQualityConfig(readJson(QUALITY_CONFIG));
+  if (errors.length > 0) {
+    fail(`invalid ${QUALITY_CONFIG}: ${errors.join("; ")}`);
+  }
 }
 
 function ensureShellScripts() {
@@ -1971,12 +1983,13 @@ function printHelp() {
   console.log("");
   console.log("  setup          Install all dependencies from scratch");
   console.log("  dev            Start local development server");
-  console.log("  check          Full verification: lint → typecheck → test → build → e2e");
+  console.log("  check          Full verification: lint → typecheck → test → build → e2e → verify-all → quality");
   console.log("  lint           Layer 1: static analysis");
   console.log("  typecheck      Layer 1b: type checking");
   console.log("  test           Layer 2: runtime tests");
   console.log("  build          Layer 3: build verification");
   console.log("  e2e            Layer 3b: end-to-end tests");
+  console.log("  quality        Opt-in metric gates from .harness/quality.json (coverage, mutation, …)");
   console.log("  check-arch     Architecture constraint enforcement");
   console.log("  verify-feature F=<id>  Run all verification layers for a feature");
   console.log("  activate F=<id>        Activate a feature when dependencies allow");
@@ -2016,6 +2029,7 @@ switch (mode) {
     }
     readJson("feature_list.json");
     readJson(".harness/arch-rules.json");
+    ensureQualityConfig();
     // init.sh's first run on a just-adopted project hasn't had a chance to fill in docs yet;
     // warn there instead of failing lint outright so `./init.sh` still completes (#23). A
     // manually-run `npm run check`/`npm run lint`, and arch-003 (arch:no-placeholders below),
@@ -2153,6 +2167,10 @@ switch (mode) {
   }
   case "verify-all": {
     runVerifyAll();
+    break;
+  }
+  case "quality": {
+    process.exitCode = runQualityGates();
     break;
   }
   case "lane-new": {

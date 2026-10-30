@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -6,7 +6,7 @@
 
 ## Full verification — all layers in order.
 ## Layers that are not configured report SKIP and do not count as verified.
-check: lint typecheck test build e2e verify-all
+check: lint typecheck test build e2e verify-all quality
 	@echo "=== make check: complete ==="
 	@echo "  Any layer that reported SKIP was not configured and does not count as verified."
 
@@ -42,6 +42,10 @@ verify-feature:
 ## Multi-repo verification — runs repositories/*/scripts/verify (SKIP when inactive)
 verify-all:
 	@node scripts/framework-check.mjs verify-all
+
+## Quality gates — opt-in metric thresholds from .harness/quality.json (SKIP when disabled)
+quality:
+	@node scripts/framework-check.mjs quality
 
 ## Worktree lanes (feat-010) — parallel isolated development lanes, git branch-checkout
 ## exclusivity is the coordination primitive (see DECISIONS.md D-017)

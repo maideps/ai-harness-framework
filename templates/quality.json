@@ -1,0 +1,8 @@
+{
+  "$comment": "Opt-in metric gates run by make quality / npm run quality (and last in make check). See the Quality Gates section of docs/USAGE.md.",
+  "enabled": false,
+  "gates": [
+    { "name": "coverage", "min": 80 },
+    { "name": "mutation", "enabled": false, "min": 80 }
+  ]
+}

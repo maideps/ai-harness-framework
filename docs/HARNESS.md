@@ -13,6 +13,7 @@
 | `make check-arch` | `npm run check-arch` |
 | `make verify-feature` | `npm run verify-feature` |
 | `make verify-all` | `npm run verify-all` |
+| `make quality` | `npm run quality` |
 | `make lane-new` | `npm run lane-new` |
 | `make lane-list` | `npm run lane-list` |
 | `make lane-land` | `npm run lane-land` |
