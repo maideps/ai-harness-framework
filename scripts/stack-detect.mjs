@@ -160,6 +160,61 @@ export function resolveLayer(runtime, layer, cwd = ".") {
   }
 }
 
+// Where quality-gate presets write their reports. The folder ignores itself
+// (created by scripts/quality-gates.mjs), so adopters need no .gitignore change.
+export const QUALITY_REPORT_DIR = ".harness/quality";
+
+// Preset command and metric for one quality gate in the detected stack (feat-023).
+// Returns { cmd, metric, skip } like resolveLayer: metric says where the number
+// is read from — { pattern } (last regex match in the output) or { file, path }
+// (a field of a JSON report). Only coverage has presets: mutation tools differ
+// too much per stack, so a mutation gate always declares its own cmd and metric.
+export function resolveQualityPreset(runtime, gate, cwd = ".") {
+  const none = (reason) => ({ cmd: "", metric: null, skip: reason });
+  const custom = `set "cmd" and "metric" on the gate in .harness/quality.json`;
+  if (gate !== "coverage") return none(`no ${gate} preset — ${custom}`);
+  const report = `${QUALITY_REPORT_DIR}/coverage`;
+  switch (runtime) {
+    case "node": {
+      // The harness's own tests live in the adopter's tests/ too, so running them under
+      // coverage would measure the harness, not the product. Use the product's own script.
+      const script = readNodeScripts(cwd).coverage;
+      if (typeof script !== "string" || !script.trim()) {
+        return none('package.json has no coverage script (for example "c8 --reporter=text node --test" or "vitest run --coverage")');
+      }
+      // c8, nyc, vitest, jest and node --experimental-test-coverage all print an "All files | <n> |" row.
+      return { cmd: script.trim(), metric: { pattern: "all files\\s*\\|\\s*([\\d.]+)" }, skip: "" };
+    }
+    case "python": {
+      const py = pythonInterpreter();
+      if (!py) return none("python interpreter not found");
+      if (!toolAvailable(`${py} -c "import pytest_cov"`)) return none("pytest-cov is not installed");
+      const source = existsSync(path.join(cwd, "src")) ? "src" : ".";
+      return {
+        cmd: `${py} -m pytest -q --cov=${source} --cov-report=term --cov-report=json:${report}.json`,
+        metric: { file: `${report}.json`, path: "totals.percent_covered" },
+        skip: "",
+      };
+    }
+    case "go":
+      if (!toolAvailable("go version")) return none("go toolchain is not installed");
+      return {
+        cmd: `go test -coverprofile=${report}.out ./... && go tool cover -func=${report}.out`,
+        metric: { pattern: "total:\\s+\\(statements\\)\\s+([\\d.]+)%" },
+        skip: "",
+      };
+    case "rust":
+      if (!toolAvailable("cargo llvm-cov --version")) return none("cargo-llvm-cov is not installed");
+      return {
+        cmd: `cargo llvm-cov --json --summary-only --output-path ${report}.json`,
+        metric: { file: `${report}.json`, path: "data.0.totals.lines.percent" },
+        skip: "",
+      };
+    default:
+      return none(`no coverage preset for ${runtime} — ${custom}`);
+  }
+}
+
 function resolveDev(runtime, cwd = ".") {
   if (runtime === "node") {
     const scripts = readNodeScripts(cwd);

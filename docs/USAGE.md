@@ -6,7 +6,7 @@ This guide covers running the harness day-to-day and adopting it in a new projec
 
 ```bash
 ./init.sh        # check prerequisites, detect the project stack, install deps, run verification
-make check       # full verification: lint → typecheck → test → build → e2e → optional verify-all
+make check       # full verification: lint → typecheck → test → build → e2e → optional verify-all → optional quality
 make help        # list all available commands
 ```
 
@@ -97,6 +97,52 @@ Projects that span multiple repositories can activate the multi-repo component:
 3. Run the root gate: `npm run verify-all` (or `make verify-all`) — it runs every repository's verify script and aggregates the results. `make check` includes this optional layer.
 
 Single-repo projects never need the component: `check` passes without it, and `verify-all` reports `[SKIP] Multi-repo component not activated` when its files are absent. Once activated but still only holding the untouched `example` scaffold (no real repositories added yet), `verify-all` honestly reports `[SKIP] verify-all ran but nothing was verified yet` rather than a silent pass — it only reports success once at least one real repository's verify script actually runs and passes. Repositories without any supported verify script are SKIPped, not passed.
+
+## Quality Gates (opt-in)
+
+`make quality` / `npm run quality` runs the metric gates declared in `.harness/quality.json`, and `make check` runs it last. Every adopter gets that file with the gates **disabled**, so the layer reports `[SKIP] Quality gates are disabled` until the project has tests worth measuring. To turn them on:
+
+```json
+{
+  "enabled": true,
+  "gates": [
+    { "name": "coverage", "min": 80 },
+    { "name": "mutation", "enabled": false, "min": 80 }
+  ]
+}
+```
+
+Each gate runs one command, reads one number from it, and fails when the number is below `min`. A disabled gate, or one whose tool is not installed, reports SKIP. A SKIP is never a PASS: a feature layer that runs `npm run quality` and only gets SKIPs fails `verify-feature` (D-029).
+
+**Coverage presets.** A gate named `coverage` with no `cmd` uses the detected stack's preset:
+
+| Stack | Command | Number read |
+|---|---|---|
+| node | your `coverage` script in `package.json` (c8, vitest, jest, `node --experimental-test-coverage`) | the `All files \| <n>` row |
+| python | `pytest --cov=src` (or `--cov=.`), needs `pytest-cov` | `totals.percent_covered` in the JSON report |
+| go | `go test -coverprofile` + `go tool cover -func` | the `total: (statements)` line |
+| rust | `cargo llvm-cov --json --summary-only`, needs `cargo-llvm-cov` | `data.0.totals.lines.percent` |
+
+JVM and .NET have no preset: declare the command yourself.
+
+**Your own command.** Any gate can declare `cmd`, and then must declare where its number comes from:
+
+- `"metric": { "pattern": "<regex>" }` reads the last match in the output (case-insensitive). Capture group 1 is the value; named groups `num` and `den` give `100 × num / den` for tools that print counts instead of a score.
+- `"metric": { "file": "<json report>", "path": "a.b.0.c" }` reads a field of a JSON report (numeric segments index arrays; `"87.5%"` strings are accepted).
+- `"exitCodes": [0, 2]` accepts exit codes other than 0, for tools that exit non-zero on their own verdict.
+
+Mutation testing has no preset because each stack's tool reports differently. Starting points (check them against your tool's version):
+
+| Tool | `cmd` | `metric` |
+|---|---|---|
+| Stryker (JS/TS), Stryker.NET | `npx stryker run` / `dotnet stryker` | `{ "pattern": "all files\s*\|\s*([\d.]+)" }` |
+| PIT (JVM) | `mvn -q org.pitest:pitest-maven:mutationCoverage` | `{ "pattern": "Killed \d+ \((\d+)%\)" }` |
+| mutmut 3 (Linux, macOS, WSL) | `mutmut run && mutmut export-cicd-stats && mutmut badge --output .harness/quality/mutation.json` | `{ "file": ".harness/quality/mutation.json", "path": "message" }` |
+| cargo-mutants | `cargo mutants` with `"exitCodes": [0, 2]` | `{ "pattern": "(?<den>\d+) mutants tested.*?(?<num>\d+) caught" }` |
+
+A gate is any number with a floor, so the same mechanism fits an LLM eval score (`{ "name": "eval-accuracy", "cmd": "python -m evals.run", "metric": { "file": "evals/results/latest.json", "path": "accuracy" }, "min": 0.8 }`).
+
+Reports go to `.harness/quality/`, a folder that ignores itself. `npm run lint` fails on a malformed `.harness/quality.json` even while it is disabled. To make a metric part of a feature's evidence, add `{ "label": "Layer 4: Quality gates", "cmd": "npm run quality" }` to its layers. After `harness-upgrade`, an existing adopter gets the disabled file and the new `quality` script is listed for `package.json`; append `&& npm run quality` to your `check` script so `npm run check` matches `make check`.
 
 ## Distribution
 

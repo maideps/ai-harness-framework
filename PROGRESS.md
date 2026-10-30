@@ -11,10 +11,10 @@ After adding or updating a session note, regenerate this file with `node scripts
 - Primary startup command: `./init.sh`
 - Primary verification command: `make check` (make-free equivalent: `npm run check`)
 - Active feature: none
-- Passing features (22): feat-001 — Core Scaffold, feat-002 — Seams and Manifest, feat-003 — Node Runner Consolidation, feat-004 — Assurance Suite, feat-005 — Multi-repo Extension, feat-006 — Distribution, feat-007 — Sweep and Report, feat-008 — Skills Packs, feat-009 — Portability Extensions, feat-010 — Worktree Lanes, feat-011 — Sharded Feature State, feat-012 — Upgrade Backups, feat-013 — Dogfooding Feedback Round 1, feat-014 — Feature lifecycle commands, feat-015 — Adopter CI template and Node version, feat-016 — Generated Harness Command Reference, feat-017 — Generated Progress Dashboard, feat-018 — Windows-safe verification records, feat-019 — Upgrades refresh runner tests and report new scripts, feat-020 — Manual npm publishing, feat-021 — Lane Suggest Command, feat-022 — Honest required-layer verification and private adopter package identity
+- Passing features (23): feat-001 — Core Scaffold, feat-002 — Seams and Manifest, feat-003 — Node Runner Consolidation, feat-004 — Assurance Suite, feat-005 — Multi-repo Extension, feat-006 — Distribution, feat-007 — Sweep and Report, feat-008 — Skills Packs, feat-009 — Portability Extensions, feat-010 — Worktree Lanes, feat-011 — Sharded Feature State, feat-012 — Upgrade Backups, feat-013 — Dogfooding Feedback Round 1, feat-014 — Feature lifecycle commands, feat-015 — Adopter CI template and Node version, feat-016 — Generated Harness Command Reference, feat-017 — Generated Progress Dashboard, feat-018 — Windows-safe verification records, feat-019 — Upgrades refresh runner tests and report new scripts, feat-020 — Manual npm publishing, feat-021 — Lane Suggest Command, feat-022 — Honest required-layer verification and private adopter package identity, feat-023 — Opt-in quality gates
 - Failing/blocked features: none
 - Planned features (0): none
-- Last evidence: feat-022 — Honest required-layer verification and private adopter package identity — All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation, Layer 0: targeted unit tests) (2026-10-20T20:27:16.665Z)
+- Last evidence: feat-023 — Opt-in quality gates — All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation, Layer 4: Quality gates) (2026-10-30T16:53:37.432Z)
 
 ## Session Index
 
@@ -63,4 +63,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 043 — 2026-10-20 — feat-022 Honest required-layer verification and private adopter package identity](progress/043-2026-10-20.md)
 - [Session 044 — 2026-10-26 — Fix four dogfooding-reported GitHub issues (#23, #24, #25, #26)](progress/044-2026-10-26.md)
 - [Session 045 — 2026-10-27 — Fix ./init.sh always failing on the #23 placeholder test](progress/045-2026-10-27.md)
+- [Session 046 — 2026-10-30 — feat-023 Opt-in quality gates](progress/046-2026-10-30.md)
 <!-- END GENERATED PROGRESS -->

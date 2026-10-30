@@ -578,6 +578,40 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-023",
+      "name": "Opt-in quality gates",
+      "behavior": "make quality / npm run quality runs the metric gates declared in .harness/quality.json (opt-in, disabled by default): each gate runs a command (or a per-stack coverage preset), reads one number from its output or a JSON report, and fails below its min; check runs quality last; a disabled or unresolvable gate reports SKIP, never PASS.",
+      "verification": "npm run check passes including tests/quality-gates.test.mjs (config validation, metric extraction, PASS/FAIL/SKIP per gate, presets per stack, fresh adopter gets a disabled config that SKIPs); the harness dogfoods its own coverage gate; npm run check-arch passes.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/quality-gates.test.mjs tests/stack-detect.test.mjs tests/create-harness.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        },
+        {
+          "label": "Layer 4: Quality gates",
+          "cmd": "npm run quality",
+          "repair": "Fix Layer 4: Quality gates failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

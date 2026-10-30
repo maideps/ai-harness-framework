@@ -1,0 +1,12 @@
+{
+  "$comment": "The harness dogfoods its own gate: line coverage of scripts/ measured by node's built-in test coverage. Child processes the tests spawn are not counted, so the number understates real coverage.",
+  "enabled": true,
+  "gates": [
+    {
+      "name": "coverage",
+      "cmd": "node --test --experimental-test-coverage \"--test-coverage-include=scripts/**\" \"tests/*.test.mjs\"",
+      "metric": { "pattern": "all files\\s*\\|\\s*([\\d.]+)" },
+      "min": 65
+    }
+  ]
+}

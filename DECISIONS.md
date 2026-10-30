@@ -483,3 +483,21 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: `./init.sh` exits 0 again; the #23 tests assert the same thing whether run alone, under `npm run check`, or under `./init.sh`. Adopters receive the fix through `harness-upgrade`, since `tests/` is CORE.
 - Negative: a future runner environment variable that changes a mode's behavior needs the same treatment in `run()`; nothing enforces that automatically.
+
+### D-033: Quality gates are opt-in metric floors, with coverage presets only
+
+**Date:** 2026-10-30
+**Status:** accepted
+**Context:** The layers answer "did the command pass", never "how good is the result". A comparable Java harness (wesleyosantos91/ai-harness-chassis) enforces JaCoCo and PIT floors of 90 %, and the AI apps built on this harness need the same kind of floor for eval scores. Coverage and mutation tools differ per stack in how they report, and mutation testing is slow enough that forcing it on every adopter would make `npm run check` unusable for prototypes.
+**Decision:**
+- A new `quality` mode (`make quality` / `npm run quality`, last in `check`) runs the gates declared in `.harness/quality.json`, an INSTANCE file placed from `templates/quality.json` with `"enabled": false`. Each gate runs one command, reads one number (last regex match in the output, `num`/`den` named groups for count-only tools, or a dot path into a JSON report) and FAILs below `min`. A disabled gate or a missing tool reports SKIP, so D-029's rule (a required layer with only SKIPs fails `verify-feature`) applies unchanged.
+- Only `coverage` has per-stack presets (node via the product's own `coverage` script, python via pytest-cov, go via `go tool cover`, rust via cargo-llvm-cov). Mutation and anything else declare `cmd` and `metric`; docs/USAGE.md lists starting points for Stryker, PIT, mutmut 3 and cargo-mutants. Node's preset never runs `node --test` over `tests/`, because in an adopter that directory holds the harness's own tests.
+- Logic lives in a new CORE module, `scripts/quality-gates.mjs`, so it can be unit-tested without spawning the runner; `lint` validates the config even while it is disabled. Reports go to `.harness/quality/`, which writes its own `*` .gitignore.
+- The harness dogfoods the gate: its own `.harness/quality.json` enables coverage of `scripts/` through node's built-in test coverage with a floor of 65 (measured 66.6 on 2026-10-30). Child processes are not counted, so the number understates real coverage.
+**Alternatives considered:**
+- Hard-coded `coverage`/`mutation` settings with a threshold per tool — rejected: every new tool or stack would need runner code, and eval scores for AI apps would not fit.
+- Gates enabled at 90/90 by default, as in the Java chassis — rejected by the maintainer: too strict for new projects; adopters opt in and pick their floor.
+- Let each tool enforce its own threshold (`--cov-fail-under`, Stryker `break`) and only check the exit code — rejected: the number would not appear in the gate line or in `verify-feature` logs, and not every tool has such a flag.
+**Consequences:**
+- Positive: one mechanism covers coverage, mutation score and eval accuracy; the measured value is printed and lands in `verify-feature` logs; adopters get it through `harness-upgrade` with no behavior change until they enable it.
+- Negative: `npm run check` in this repository runs the test suite twice (once plain, once under coverage, about 30 s more). Existing adopters must append `&& npm run quality` to their own `check` script, because `package.json` is adopter-owned on upgrade; `make check` gets it through the Makefile.

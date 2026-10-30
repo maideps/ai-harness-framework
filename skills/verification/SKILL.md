@@ -14,14 +14,15 @@ How to run the gates and what the tri-state results mean.
 
 ## Workflow
 
-1. Run the full chain in order: `npm run check` (lint → typecheck → test → build → e2e).
+1. Run the full chain in order: `npm run check` (lint → typecheck → test → build → e2e → verify-all → quality).
 2. Read the output, not only the exit status:
    - **PASS** — the layer ran and succeeded; it counts as verified.
    - **SKIP** — the layer is not configured; it does NOT count as verified.
    - **FAIL** — non-zero exit; the chain stops. Fix and rerun the failing layer, then the chain from that layer on.
 3. For architecture enforcement: `npm run check-arch` (required surfaces, WIP=1/dependency order, no placeholder docs, valid manifest, every tracked file classified).
 4. Before committing: `npm run clean-check` (harness files present, working tree clean, no debug artifacts, WIP ≤ 1, no OS artifacts staged).
-5. For a specific feature: `npm run verify-feature -- <feature-id>` — runs the feature's own layers in order, stops at the first failure, prints the repair hint, and records evidence only when all layers pass.
+5. If the project enabled quality gates (`.harness/quality.json` has `"enabled": true`), `npm run quality` runs last in the chain. Read each gate line: `[PASS] coverage: 84.20 ≥ 80` counts; `[SKIP] mutation: disabled` does not; a `[FAIL]` names the metric and the floor it missed. Never lower a `min` to make a gate pass without saying so to a human.
+6. For a specific feature: `npm run verify-feature -- <feature-id>` — runs the feature's own layers in order, stops at the first failure, prints the repair hint, and records evidence only when all layers pass.
 
 ## Rules
 
@@ -32,6 +33,7 @@ How to run the gates and what the tri-state results mean.
 ## Quick Reference
 
 - [ ] `npm run check` — full chain, output read
+- [ ] `npm run quality` — metric floors, when enabled
 - [ ] `npm run check-arch` — architecture rules
 - [ ] `npm run clean-check` — pre-commit clean state
 - [ ] PASS ≠ SKIP; report both honestly

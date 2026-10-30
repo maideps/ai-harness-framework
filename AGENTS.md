@@ -84,10 +84,11 @@ Required checks (each with its npm mirror):
 - `make test` / `npm run test` — Unit and integration tests
 - `make build` / `npm run build` — Production build verification
 - `make e2e` / `npm run e2e` — End-to-end tests (required for cross-component changes)
+- `make quality` / `npm run quality` — Opt-in metric gates from `.harness/quality.json` (coverage, mutation score, …); SKIP while disabled
 
 Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `activate` (`npm run activate -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `lane-suggest`, `migrate-feature-state`, `add-feature` (`-- <id> <name>`), `vcr`, `harness-docs`, `create-harness`, `harness-upgrade`, `harness-audit`, `backup-list`, `backup-pin` (`-- <id>`), `backup-unpin` (`-- <id>`), `backup-restore` (`-- <id>`), `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `setup`, `dev`, `help`.
 
-`make check` runs all layers in order (lint → typecheck → test → build → e2e → optional verify-all). The multi-repo layer reports SKIP when its markers are absent; other unconfigured layers also report SKIP and do not count as verified. A failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
+`make check` runs all layers in order (lint → typecheck → test → build → e2e → optional verify-all → optional quality). The multi-repo layer reports SKIP when its markers are absent, and the quality layer while `.harness/quality.json` is disabled; other unconfigured layers also report SKIP and do not count as verified. A failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
 
 ## Architecture Boundaries
 
