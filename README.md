@@ -21,6 +21,7 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Distribution**: `create-harness`, `harness-upgrade`, and `harness-audit` tools read the manifest as the single source of truth — adopt with one command, upgrade without losing customizations
 - **Opt-in quality gates**: `make quality` / `npm run quality` enforces metric floors declared in `.harness/quality.json` — coverage presets per stack, and any command that prints a number (mutation score, eval accuracy); disabled by default, SKIP while off
 - **Optional dev container**: `create-harness --with devcontainer` adds an Ubuntu dev container with Node pinned to `.nvmrc`, the product stack's toolchain, and Claude Code, Codex and Gemini CLI preinstalled — the same environment for every agent session
+- **Optional MCP servers**: `create-harness --with mcp` configures the context7 documentation server for Claude Code and Gemini CLI, and the dev container registers it with Codex
 - **Optional multi-repo extension**: `verify-all` aggregates per-repository verification for projects that span repositories; single-repo projects are unaffected
 
 The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack. Harness tooling runs on Node and detects the host project's stack (node, python, go, rust, jvm, dotnet) at runtime.

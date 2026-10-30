@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -138,6 +139,8 @@ test("adopt: the devcontainer component is opt-in and pins Node to the project's
     assert.ok(postCreate.startsWith("#!/bin/bash\n"));
     assert.match(postCreate, /npm install -g @openai\/codex @google\/gemini-cli/);
     assert.match(postCreate, /\.\/init\.sh/);
+    assert.match(postCreate, /bash \.devcontainer\/register-mcp\.sh/);
+    assert.ok(existsSync(path.join(root, ".devcontainer", "register-mcp.sh")));
   } finally {
     cleanup(plain);
     cleanup(root);
@@ -175,6 +178,53 @@ test("adopt: activating the devcontainer later never rewrites one the adopter al
     writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
     adopt(root, { skipExisting: true, components: ["devcontainer"] });
     assert.equal(readFileSync(file, "utf8"), edited);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: the mcp component is opt-in and gives Claude Code and Gemini the same servers", () => {
+  const plain = fixture("no-mcp");
+  const root = fixture("mcp");
+  try {
+    adopt(plain);
+    assert.ok(!existsSync(path.join(plain, ".mcp.json")));
+    assert.ok(!existsSync(path.join(plain, ".gemini")));
+
+    adopt(root, { components: ["mcp"] });
+    const claude = JSON.parse(readFileSync(path.join(root, ".mcp.json"), "utf8"));
+    const gemini = JSON.parse(readFileSync(path.join(root, ".gemini", "settings.json"), "utf8"));
+    assert.deepEqual(claude.mcpServers.context7, { command: "npx", args: ["-y", "@upstash/context7-mcp"] });
+    assert.deepEqual(gemini.mcpServers, claude.mcpServers);
+    // The mcp component alone brings no dev container.
+    assert.ok(!existsSync(path.join(root, ".devcontainer")));
+  } finally {
+    cleanup(plain);
+    cleanup(root);
+  }
+});
+
+// register-mcp.sh is bash; on Windows `bash` may resolve to WSL, which cannot see this
+// fixture's paths, so the run is left to the Linux CI job.
+test("register-mcp.sh registers every command server in .mcp.json with codex", { skip: process.platform === "win32" }, () => {
+  const root = fixture("register-mcp");
+  try {
+    adopt(root, { components: ["devcontainer", "mcp"] });
+    const bin = path.join(root, "fake-bin");
+    mkdirSync(bin);
+    const log = path.join(root, "codex-calls.txt");
+    writeFileSync(path.join(bin, "codex"), `#!/bin/bash\necho "$*" >> "${log}"\n`, { mode: 0o755 });
+    const config = JSON.parse(readFileSync(path.join(root, ".mcp.json"), "utf8"));
+    config.mcpServers.remote = { type: "http", url: "https://example.invalid/mcp" };
+    writeFileSync(path.join(root, ".mcp.json"), JSON.stringify(config), "utf8");
+
+    const result = spawnSync("bash", [".devcontainer/register-mcp.sh"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    assert.equal(readFileSync(log, "utf8"), "mcp add context7 -- npx -y @upstash/context7-mcp\n");
   } finally {
     cleanup(root);
   }
