@@ -18,7 +18,7 @@ import { QUALITY_REPORT_DIR, detectRuntime, resolveQualityPreset } from "./stack
 
 export const QUALITY_CONFIG = ".harness/quality.json";
 
-const GATE_KEYS = new Set(["name", "enabled", "min", "cmd", "metric", "exitCodes", "$comment"]);
+const GATE_KEYS = new Set(["name", "enabled", "min", "cmd", "probe", "metric", "exitCodes", "$comment"]);
 
 // Returns the list of problems with a parsed quality config; empty when it is valid.
 export function validateQualityConfig(config) {
@@ -52,6 +52,7 @@ export function validateQualityConfig(config) {
     if ("enabled" in gate && typeof gate.enabled !== "boolean") errors.push(`${where} "enabled" must be true or false`);
     if ("cmd" in gate && (typeof gate.cmd !== "string" || !gate.cmd.trim())) errors.push(`${where} "cmd" must be a non-empty string`);
     if (gate.cmd && !gate.metric) errors.push(`${where} declares a cmd, so it must also declare a "metric"`);
+    if ("probe" in gate && (typeof gate.probe !== "string" || !gate.probe.trim())) errors.push(`${where} "probe" must be a non-empty string`);
     if ("metric" in gate) errors.push(...validateMetric(gate.metric).map((error) => `${where} ${error}`));
     if ("exitCodes" in gate && !(Array.isArray(gate.exitCodes) && gate.exitCodes.length > 0 && gate.exitCodes.every(Number.isInteger))) {
       errors.push(`${where} "exitCodes" must be a non-empty array of integers`);
@@ -174,6 +175,15 @@ export function runQualityGates() {
     if (!resolved.cmd) {
       console.log(`  [SKIP] ${gate.name}: ${resolved.skip}`);
       continue;
+    }
+    // A custom gate's counterpart to the presets' tool check: when the tool cannot run here
+    // (wrong OS, too old a runtime, not installed), the gate is unverified, not failed.
+    if (gate.probe) {
+      const probe = spawnSync(gate.probe, { shell: true, stdio: "ignore", env: commandEnv(runtime) });
+      if (probe.error || probe.status !== 0) {
+        console.log(`  [SKIP] ${gate.name}: probe failed (${gate.probe})`);
+        continue;
+      }
     }
     // A report left by an earlier run must never stand in for this one.
     if (metric.file) rmSync(metric.file, { force: true });

@@ -128,6 +128,7 @@ JVM and .NET have no preset: declare the command yourself.
 - `"metric": { "pattern": "<regex>" }` reads the last match in the output (case-insensitive). Capture group 1 is the value; named groups `num` and `den` give `100 × num / den` for tools that print counts instead of a score.
 - `"metric": { "file": "<json report>", "path": "a.b.0.c" }` reads a field of a JSON report (numeric segments index arrays; `"87.5%"` strings are accepted).
 - `"exitCodes": [0, 2]` accepts exit codes other than 0, for tools that exit non-zero on their own verdict.
+- `"probe": "<command>"` runs first; when it exits non-zero the gate reports SKIP instead of running. Use it for tools that only work on some platforms or versions (mutmut needs Linux, macOS or WSL; this repository probes for Node 22+ before measuring its own coverage).
 
 Mutation testing has no preset because each stack's tool reports differently. Starting points (check them against your tool's version):
 

@@ -158,6 +158,24 @@ test("quality: a failing command fails the gate unless its exit code is allowed"
   }
 });
 
+test("quality: a failing probe SKIPs the gate without running its command", () => {
+  const skipped = fixture(gate({ probe: `${NODE} tool.mjs none x 9`, cmd: `${NODE} tool.mjs print 10`, metric: PRINT_METRIC }));
+  const probed = fixture(gate({ probe: `${NODE} tool.mjs none x 0`, cmd: `${NODE} tool.mjs print 90`, metric: PRINT_METRIC }));
+  try {
+    const skip = quality(skipped);
+    assert.equal(skip.status, 0, skip.out);
+    assert.match(skip.out, /\[SKIP\] coverage: probe failed/);
+    assert.doesNotMatch(skip.out, /All files/);
+    const pass = quality(probed);
+    assert.equal(pass.status, 0, pass.out);
+    assert.match(pass.out, /\[PASS\] coverage: 90 ≥ 80/);
+    assert.match(validateQualityConfig(gate({ probe: "" })).join("\n"), /"probe" must be a non-empty string/);
+  } finally {
+    rmSync(skipped, { recursive: true, force: true });
+    rmSync(probed, { recursive: true, force: true });
+  }
+});
+
 test("quality: a metric that cannot be read fails instead of passing", () => {
   const root = fixture(gate({ cmd: `${NODE} tool.mjs none`, metric: PRINT_METRIC }));
   try {
