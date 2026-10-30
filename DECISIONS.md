@@ -502,3 +502,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: one mechanism covers coverage, mutation score and eval accuracy; the measured value is printed and lands in `verify-feature` logs; adopters get it through `harness-upgrade` with no behavior change until they enable it.
 - Negative: `npm run check` in this repository runs the test suite twice (once plain, once under coverage, about 30 s more). Existing adopters must append `&& npm run quality` to their own `check` script, because `package.json` is adopter-owned on upgrade; `make check` gets it through the Makefile.
+
+### D-034: The dev container is an optional component that create-harness instantiates once
+
+**Date:** 2026-10-30
+**Status:** accepted
+**Context:** Agents run in whatever environment the host happens to have, so a session can fail on a missing toolchain or a different Node version instead of on the feature. The Java harness used for comparison ships a DevContainer that installs the agent CLIs and its MCP servers. This harness is stack-agnostic, so a single static `devcontainer.json` cannot carry the right toolchain, and the right Node version lives in the adopter's `.nvmrc`.
+**Decision:**
+- New optional component `devcontainer` (marker `.devcontainer/`), never placed by default (D-031), activated with `create-harness --with devcontainer`. It places `devcontainer.json` (Ubuntu 24.04 base image, node, github-cli and Anthropic's claude-code features, named volumes for `~/.claude`, `~/.codex`, `~/.gemini`) and `post-create.sh` (Codex and Gemini CLI from npm, then `./init.sh`; a failing `init.sh` does not abort container creation).
+- When this `create-harness` run is what placed `devcontainer.json`, it rewrites it once: the node feature's version becomes the `.nvmrc` value, and the toolchain feature of the detected product stack is added (python, go, rust, java with Maven or Gradle, dotnet). A `devcontainer.json` that already existed is never rewritten, matching the package.json rule (H11).
+- Claude, Codex and Gemini are all installed because the harness ships CLAUDE.md, codex.md and GEMINI.md (maintainer's choice). No API keys are wired in; logins persist in the volumes.
+**Alternatives considered:**
+- Detect the stack inside `post-create.sh` and install toolchains there — rejected: dev container features are declarative, cached by the image build, and visible in the file; a script would reinstall on every rebuild.
+- Install Node per `.nvmrc` with nvm in `post-create.sh` — rejected: switching the default Node after the claude-code feature installed under the feature's Node can drop `claude` from PATH.
+- Pass `ANTHROPIC_API_KEY` and friends through `remoteEnv` — rejected: an unset host variable becomes an empty string in the container, which some CLIs treat as a set-but-invalid key.
+**Consequences:**
+- Positive: one command gives every agent the same environment, with the project's Node and toolchain.
+- Negative: adding a stack later or changing `.nvmrc` needs a manual edit of `devcontainer.json`. The container build itself is not exercised by the test suite or CI; only the generated files are.

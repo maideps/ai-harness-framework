@@ -1,0 +1,16 @@
+{
+  "name": "harness-project",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+  },
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=harness-claude-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    "source=harness-codex-${devcontainerId},target=/home/vscode/.codex,type=volume",
+    "source=harness-gemini-${devcontainerId},target=/home/vscode/.gemini,type=volume"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

@@ -143,6 +143,21 @@ A gate is any number with a floor, so the same mechanism fits an LLM eval score 
 
 Reports go to `.harness/quality/`, a folder that ignores itself. `npm run lint` fails on a malformed `.harness/quality.json` even while it is disabled. To make a metric part of a feature's evidence, add `{ "label": "Layer 4: Quality gates", "cmd": "npm run quality" }` to its layers. After `harness-upgrade`, an existing adopter gets the disabled file and the new `quality` script is listed for `package.json`; append `&& npm run quality` to your `check` script so `npm run check` matches `make check`.
 
+## Dev Container (optional)
+
+The `devcontainer` component gives every agent session the same environment: Docker and an editor that supports dev containers (VS Code, Cursor, the `devcontainer` CLI, GitHub Codespaces) are all you need on the host. It is opt-in:
+
+```bash
+node scripts/create-harness.mjs <dir> --with devcontainer   # new project, or rerun on an existing one
+```
+
+It places two files:
+
+- `.devcontainer/devcontainer.json`: Ubuntu 24.04 with Node pinned to the project's `.nvmrc`, the GitHub CLI, Claude Code (its official dev container feature), and the toolchain feature for the product already in the directory (python, go, rust, java with Maven or Gradle, .NET). Agent logins live in named volumes (`~/.claude`, `~/.codex`, `~/.gemini`), so they survive container rebuilds.
+- `.devcontainer/post-create.sh`: installs Codex and Gemini CLI from npm, then runs `./init.sh`, so the first session starts from a verified state. A failing `init.sh` is reported without aborting the container.
+
+Pinning and the toolchain are filled in only when `create-harness` places the file. If you add a stack later, or change `.nvmrc`, edit `devcontainer.json` yourself: an existing file is never rewritten. API keys are not wired in; log in inside the container once (the volumes keep it), or add `remoteEnv` entries such as `"ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"`.
+
 ## Distribution
 
 Three tools read the manifest as the single source of truth (make and npm mirrors exist):

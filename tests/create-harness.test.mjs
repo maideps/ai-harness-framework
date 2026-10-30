@@ -111,3 +111,71 @@ test("placeTemplates: rerunning with the same component against an existing adop
     cleanup(root);
   }
 });
+
+const NODE_FEATURE = "ghcr.io/devcontainers/features/node:1";
+
+function devcontainerOf(root) {
+  return JSON.parse(readFileSync(path.join(root, ".devcontainer", "devcontainer.json"), "utf8"));
+}
+
+test("adopt: the devcontainer component is opt-in and pins Node to the project's .nvmrc", () => {
+  const plain = fixture("no-devcontainer");
+  const root = fixture("devcontainer");
+  try {
+    adopt(plain);
+    assert.ok(!existsSync(path.join(plain, ".devcontainer")));
+
+    adopt(root, { components: ["devcontainer"] });
+    const config = devcontainerOf(root);
+    const nvmrc = readFileSync(path.join(HARNESS_ROOT, "templates", "nvmrc"), "utf8").trim();
+    assert.deepEqual(config.features[NODE_FEATURE], { version: nvmrc });
+    assert.ok("ghcr.io/anthropics/devcontainer-features/claude-code:1" in config.features);
+    assert.equal(config.postCreateCommand, "bash .devcontainer/post-create.sh");
+    // A fresh adopter is detected as node (the harness package.json), which needs no extra toolchain.
+    assert.equal(Object.keys(config.features).filter((id) => id.includes("/python:") || id.includes("/go:")).length, 0);
+
+    const postCreate = readFileSync(path.join(root, ".devcontainer", "post-create.sh"), "utf8");
+    assert.ok(postCreate.startsWith("#!/bin/bash\n"));
+    assert.match(postCreate, /npm install -g @openai\/codex @google\/gemini-cli/);
+    assert.match(postCreate, /\.\/init\.sh/);
+  } finally {
+    cleanup(plain);
+    cleanup(root);
+  }
+});
+
+test("adopt: the devcontainer gets the toolchain feature of the product already in the target", () => {
+  const cases = [
+    ["pyproject.toml", "ghcr.io/devcontainers/features/python:1", {}],
+    ["go.mod", "ghcr.io/devcontainers/features/go:1", {}],
+    ["Cargo.toml", "ghcr.io/devcontainers/features/rust:1", {}],
+    ["pom.xml", "ghcr.io/devcontainers/features/java:1", { installMaven: "true" }],
+    ["build.gradle.kts", "ghcr.io/devcontainers/features/java:1", { installGradle: "true" }],
+    ["app.csproj", "ghcr.io/devcontainers/features/dotnet:2", {}],
+  ];
+  for (const [marker, feature, options] of cases) {
+    const root = fixture(`devcontainer-${marker.replace(/\W/g, "")}`);
+    try {
+      writeFileSync(path.join(root, marker), "", "utf8");
+      adopt(root, { skipExisting: true, components: ["devcontainer"] });
+      assert.deepEqual(devcontainerOf(root).features[feature], options, marker);
+    } finally {
+      cleanup(root);
+    }
+  }
+});
+
+test("adopt: activating the devcontainer later never rewrites one the adopter already edited", () => {
+  const root = fixture("devcontainer-edited");
+  try {
+    adopt(root, { skipExisting: true, components: ["devcontainer"] });
+    const file = path.join(root, ".devcontainer", "devcontainer.json");
+    const edited = `${JSON.stringify({ name: "mine", image: "custom", features: {} }, null, 2)}\n`;
+    writeFileSync(file, edited, "utf8");
+    writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+    adopt(root, { skipExisting: true, components: ["devcontainer"] });
+    assert.equal(readFileSync(file, "utf8"), edited);
+  } finally {
+    cleanup(root);
+  }
+});

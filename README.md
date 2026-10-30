@@ -20,6 +20,7 @@ The AI Harness Framework provides a structured, verifiable workflow for AI-assis
 - **Proven adoption**: An e2e matrix generates throwaway repos for node/python/go/rust from the seam manifest and runs real feature cycles in each; a customization-survival upgrade test guards the seam contract; CI proves both on Linux with real toolchains
 - **Distribution**: `create-harness`, `harness-upgrade`, and `harness-audit` tools read the manifest as the single source of truth — adopt with one command, upgrade without losing customizations
 - **Opt-in quality gates**: `make quality` / `npm run quality` enforces metric floors declared in `.harness/quality.json` — coverage presets per stack, and any command that prints a number (mutation score, eval accuracy); disabled by default, SKIP while off
+- **Optional dev container**: `create-harness --with devcontainer` adds an Ubuntu dev container with Node pinned to `.nvmrc`, the product stack's toolchain, and Claude Code, Codex and Gemini CLI preinstalled — the same environment for every agent session
 - **Optional multi-repo extension**: `verify-all` aggregates per-repository verification for projects that span repositories; single-repo projects are unaffected
 
 The framework is intentionally generic: it provides a reusable harness contract for any development project rather than prescribing a single product stack. Harness tooling runs on Node and detects the host project's stack (node, python, go, rust, jvm, dotnet) at runtime.
