@@ -12,6 +12,7 @@ Document your MCP server integrations here. Each entry should include:
 ### Default MCP Configuration
 
 MCP servers are configured via:
+- `.mcp.json` (project-scoped servers for Claude Code) and `.gemini/settings.json` (Gemini CLI), placed by `create-harness --with mcp`; see the MCP Servers section of `docs/USAGE.md`
 - `.claude/settings.json` (Claude-specific)
 - IDE MCP configuration (environment-specific)
 

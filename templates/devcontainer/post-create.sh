@@ -13,5 +13,6 @@ done
 
 # Claude Code comes from its devcontainer feature; Codex and Gemini CLI from npm.
 npm install -g @openai/codex @google/gemini-cli
+bash .devcontainer/register-mcp.sh
 
 ./init.sh || echo "post-create: ./init.sh reported problems — run it again once you have read its output."

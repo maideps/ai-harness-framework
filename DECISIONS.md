@@ -519,3 +519,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: one command gives every agent the same environment, with the project's Node and toolchain.
 - Negative: adding a stack later or changing `.nvmrc` needs a manual edit of `devcontainer.json`. The container build itself is not exercised by the test suite or CI; only the generated files are.
+
+### D-035: MCP servers are an optional component shared by the three agents
+
+**Date:** 2026-10-30
+**Status:** accepted
+**Context:** Agents answer library questions from memory, which goes stale. The Java harness used for comparison ships several MCP servers preconfigured. Each agent CLI this harness supports reads MCP servers from a different place: Claude Code from a project `.mcp.json`, Gemini CLI from `.gemini/settings.json`, Codex from the user-level `~/.codex/config.toml`.
+**Decision:**
+- New optional component `mcp` (markers `.mcp.json`, `.gemini/`), never placed by default (D-031), activated with `create-harness --with mcp`. It ships one server, context7 (`npx -y @upstash/context7-mcp`): stack-agnostic and needs no secret (maintainer's choice).
+- The same server list goes in `.mcp.json` and `.gemini/settings.json`. Codex gets it through `.devcontainer/register-mcp.sh` (devcontainer component), which reads `.mcp.json` and runs `codex mcp add` per command server; post-create runs it, and it is a no-op without `.mcp.json` or without `codex`.
+- No permission is pre-granted: Claude Code still asks before starting a project server (the `ask` default in `docs/TOOLS.md`).
+**Alternatives considered:**
+- Place `.mcp.json` in every adopter by default — rejected: it adds a network-fetched tool the adopter did not ask for, against D-031.
+- Ship more servers (fetch, GitHub, cloud docs) — rejected by the maintainer; they are stack- or account-specific.
+- Write `~/.codex/config.toml` directly from `create-harness` — rejected: it would edit the user's home directory from a project scaffold.
+**Consequences:**
+- Positive: one command gives Claude Code and Gemini the same documentation tool, and the dev container gives it to Codex too.
+- Negative: the server list lives in two files that can drift; nothing checks they match. Outside the dev container, Codex needs a manual `codex mcp add`.

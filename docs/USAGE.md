@@ -156,9 +156,25 @@ node scripts/create-harness.mjs <dir> --with devcontainer   # new project, or re
 It places two files:
 
 - `.devcontainer/devcontainer.json`: Ubuntu 24.04 with Node pinned to the project's `.nvmrc`, the GitHub CLI, Claude Code (its official dev container feature), and the toolchain feature for the product already in the directory (python, go, rust, java with Maven or Gradle, .NET). Agent logins live in named volumes (`~/.claude`, `~/.codex`, `~/.gemini`), so they survive container rebuilds.
-- `.devcontainer/post-create.sh`: installs Codex and Gemini CLI from npm, then runs `./init.sh`, so the first session starts from a verified state. A failing `init.sh` is reported without aborting the container.
+- `.devcontainer/post-create.sh`: installs Codex and Gemini CLI from npm, registers the project's MCP servers with Codex (`register-mcp.sh`, a no-op without the `mcp` component), then runs `./init.sh`, so the first session starts from a verified state. A failing `init.sh` is reported without aborting the container.
 
 Pinning and the toolchain are filled in only when `create-harness` places the file. If you add a stack later, or change `.nvmrc`, edit `devcontainer.json` yourself: an existing file is never rewritten. API keys are not wired in; log in inside the container once (the volumes keep it), or add `remoteEnv` entries such as `"ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"`.
+
+## MCP Servers (optional)
+
+The `mcp` component gives the agents the same Model Context Protocol servers. It ships one, [context7](https://github.com/upstash/context7), which looks up current documentation for libraries instead of relying on what the model remembers. It needs no secret. It is opt-in:
+
+```bash
+node scripts/create-harness.mjs <dir> --with mcp            # often together with --with devcontainer
+```
+
+| Agent | Where it reads the servers | What the component does |
+|---|---|---|
+| Claude Code | `.mcp.json` (project scope) | places it; Claude Code asks once before starting a project server |
+| Gemini CLI | `.gemini/settings.json` | places it with the same servers |
+| Codex | `~/.codex/config.toml` (user scope) | `.devcontainer/register-mcp.sh` registers every command server from `.mcp.json` with `codex mcp add`; post-create runs it. Outside the container run `codex mcp add context7 -- npx -y @upstash/context7-mcp` once |
+
+Add a server by editing both `.mcp.json` and `.gemini/settings.json`, then rerun `bash .devcontainer/register-mcp.sh` for Codex. `register-mcp.sh` skips servers without a `command` (remote HTTP servers) and does not pass `env` entries.
 
 ## Distribution
 

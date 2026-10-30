@@ -51,6 +51,9 @@
     { "from": "templates/multi-repo/repositories/example/scripts/verify.mjs", "to": "repositories/example/scripts/verify.mjs" },
     { "from": "templates/devcontainer/devcontainer.json", "to": ".devcontainer/devcontainer.json" },
     { "from": "templates/devcontainer/post-create.sh", "to": ".devcontainer/post-create.sh" },
+    { "from": "templates/devcontainer/register-mcp.sh", "to": ".devcontainer/register-mcp.sh" },
+    { "from": "templates/mcp/mcp.json", "to": ".mcp.json" },
+    { "from": "templates/mcp/gemini-settings.json", "to": ".gemini/settings.json" },
     { "from": "templates/ci.yml", "to": ".github/workflows/ci.yml" },
     { "from": "templates/sprint-contract.md", "keep": true },
     { "from": "templates/evaluator-rubric.md", "keep": true },
@@ -97,8 +100,13 @@
     },
     {
       "name": "devcontainer",
-      "description": "Reproducible agent environment: .devcontainer/devcontainer.json (Ubuntu, Node pinned to .nvmrc, the detected product stack's toolchain feature, Claude Code) and post-create.sh (Codex and Gemini CLI, ./init.sh). create-harness never places it by default; activate it with `node scripts/create-harness.mjs <dir> --with devcontainer`, safe to rerun against an existing adopter.",
+      "description": "Reproducible agent environment: .devcontainer/devcontainer.json (Ubuntu, Node pinned to .nvmrc, the detected product stack's toolchain feature, Claude Code) and post-create.sh (Codex and Gemini CLI, register-mcp.sh, ./init.sh). create-harness never places it by default; activate it with `node scripts/create-harness.mjs <dir> --with devcontainer`, safe to rerun against an existing adopter.",
       "markers": [".devcontainer/"]
+    },
+    {
+      "name": "mcp",
+      "description": "Project-scoped MCP servers (context7 documentation lookup) for Claude Code (.mcp.json) and Gemini CLI (.gemini/settings.json); the devcontainer's register-mcp.sh registers the same servers with Codex. create-harness never places it by default; activate it with `node scripts/create-harness.mjs <dir> --with mcp`. Claude Code still asks before starting a project server.",
+      "markers": [".mcp.json", ".gemini/"]
     }
   ],
   "customizationPoints": {

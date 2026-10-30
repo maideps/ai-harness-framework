@@ -641,6 +641,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-025",
+      "name": "MCP optional component",
+      "behavior": "create-harness --with mcp places a project-scoped MCP configuration with the context7 documentation server for Claude Code (.mcp.json) and Gemini CLI (.gemini/settings.json); the devcontainer's post-create.sh registers the same servers with Codex. Opt-in like the other components; Claude Code still asks before starting a project server.",
+      "verification": "npm run check passes including create-harness tests for the mcp component (absent by default, both files declare the same servers) and a test that post-create.sh registers .mcp.json servers with Codex; npm run check-arch passes.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/create-harness.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }
