@@ -171,8 +171,10 @@ node scripts/create-harness.mjs <dir> --with mcp            # often together wit
 | Agent | Where it reads the servers | What the component does |
 |---|---|---|
 | Claude Code | `.mcp.json` (project scope) | places it; Claude Code asks once before starting a project server |
-| Gemini CLI | `.gemini/settings.json` | places it with the same servers |
+| Gemini CLI | `.gemini/settings.json` | places it with the same servers; Gemini keeps project servers disabled until you trust the folder |
 | Codex | `~/.codex/config.toml` (user scope) | `.devcontainer/register-mcp.sh` registers every command server from `.mcp.json` with `codex mcp add`; post-create runs it. Outside the container run `codex mcp add context7 -- npx -y @upstash/context7-mcp` once |
+
+The first start of a server runs `npx`, which downloads the package; an agent can report it as disconnected until that download finishes, so retry once before debugging.
 
 Add a server by editing both `.mcp.json` and `.gemini/settings.json`, then rerun `bash .devcontainer/register-mcp.sh` for Codex. `register-mcp.sh` skips servers without a `command` (remote HTTP servers) and does not pass `env` entries.
 

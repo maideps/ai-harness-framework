@@ -535,4 +535,4 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 - Write `~/.codex/config.toml` directly from `create-harness` — rejected: it would edit the user's home directory from a project scaffold.
 **Consequences:**
 - Positive: one command gives Claude Code and Gemini the same documentation tool, and the dev container gives it to Codex too.
-- Negative: the server list lives in two files that can drift; nothing checks they match. Outside the dev container, Codex needs a manual `codex mcp add`.
+- Negative: the server list lives in two files that can drift; nothing checks they match. Outside the dev container, Codex needs a manual `codex mcp add`. Each agent keeps its own gate: Claude Code lists the server as pending approval and Gemini CLI as disabled until the folder is trusted (seen in the dev container build on 2026-10-30).
