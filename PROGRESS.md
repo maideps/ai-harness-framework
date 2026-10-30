@@ -66,4 +66,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 046 — 2026-10-30 — feat-023 Opt-in quality gates](progress/046-2026-10-30.md)
 - [Session 047 — 2026-10-30 — feat-024 Dev container optional component](progress/047-2026-10-30.md)
 - [Session 048 — 2026-10-30 — feat-025 MCP optional component](progress/048-2026-10-30.md)
+- [Session 049 — 2026-10-30 — Correct the quality-gate upgrade note](progress/049-2026-10-30.md)
 <!-- END GENERATED PROGRESS -->

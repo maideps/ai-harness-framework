@@ -501,7 +501,7 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 - Let each tool enforce its own threshold (`--cov-fail-under`, Stryker `break`) and only check the exit code — rejected: the number would not appear in the gate line or in `verify-feature` logs, and not every tool has such a flag.
 **Consequences:**
 - Positive: one mechanism covers coverage, mutation score and eval accuracy; the measured value is printed and lands in `verify-feature` logs; adopters get it through `harness-upgrade` with no behavior change until they enable it.
-- Negative: `npm run check` in this repository runs the test suite twice (once plain, once under coverage, about 30 s more). Existing adopters must append `&& npm run quality` to their own `check` script, because `package.json` is adopter-owned on upgrade; `make check` gets it through the Makefile.
+- Negative: `npm run check` in this repository runs the test suite twice (once plain, once under coverage, about 30 s more). Existing adopters must add the `quality` make target and npm script by hand and append them to `check`, because `Makefile` and `package.json` are both adopter-owned on upgrade (corrected 2026-10-30 after upgrading ai-issue-triage: the first version of this entry said the Makefile was refreshed).
 
 ### D-034: The dev container is an optional component that create-harness instantiates once
 
