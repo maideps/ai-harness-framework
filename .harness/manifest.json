@@ -49,6 +49,8 @@
     { "from": "templates/multi-repo/repositories/README.md", "to": "repositories/README.md" },
     { "from": "templates/multi-repo/repositories/example/scripts/verify", "to": "repositories/example/scripts/verify" },
     { "from": "templates/multi-repo/repositories/example/scripts/verify.mjs", "to": "repositories/example/scripts/verify.mjs" },
+    { "from": "templates/devcontainer/devcontainer.json", "to": ".devcontainer/devcontainer.json" },
+    { "from": "templates/devcontainer/post-create.sh", "to": ".devcontainer/post-create.sh" },
     { "from": "templates/ci.yml", "to": ".github/workflows/ci.yml" },
     { "from": "templates/sprint-contract.md", "keep": true },
     { "from": "templates/evaluator-rubric.md", "keep": true },
@@ -92,6 +94,11 @@
       "name": "multi-repo",
       "description": "Root control plane + subrepo execution domains: contracts/, tasks/, repositories/*/scripts/verify, scripts/verify-all. create-harness never places these by default; adopters activate it with `node scripts/create-harness.mjs <dir> --with multi-repo` (safe to rerun later against an existing adopter). verify-all is an optional check layer that SKIPs both when the component is absent and when it is active but has nothing to verify yet.",
       "markers": ["contracts/", "tasks/", "repositories/", "scripts/verify-all", "scripts/verify-all.mjs"]
+    },
+    {
+      "name": "devcontainer",
+      "description": "Reproducible agent environment: .devcontainer/devcontainer.json (Ubuntu, Node pinned to .nvmrc, the detected product stack's toolchain feature, Claude Code) and post-create.sh (Codex and Gemini CLI, ./init.sh). create-harness never places it by default; activate it with `node scripts/create-harness.mjs <dir> --with devcontainer`, safe to rerun against an existing adopter.",
+      "markers": [".devcontainer/"]
     }
   ],
   "customizationPoints": {

@@ -20,6 +20,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateHarnessDocs } from "./harness-docs.mjs";
+import { detectRuntime } from "./stack-detect.mjs";
 
 export const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -153,6 +154,40 @@ export function createRuntimeSurfaces(root) {
   write("claude-progress.md", "# Claude Progress\n\nCompatibility alias for PROGRESS.md.\n");
 }
 
+// Dev container features that install each product stack's toolchain (feat-024). Node is
+// always present because the harness itself runs on it.
+const STACK_FEATURES = {
+  python: ["ghcr.io/devcontainers/features/python:1", {}],
+  go: ["ghcr.io/devcontainers/features/go:1", {}],
+  rust: ["ghcr.io/devcontainers/features/rust:1", {}],
+  dotnet: ["ghcr.io/devcontainers/features/dotnet:2", {}],
+};
+
+function stackFeature(root, runtime) {
+  if (runtime === "jvm") {
+    const gradle = existsSync(path.join(root, "build.gradle")) || existsSync(path.join(root, "build.gradle.kts"));
+    return ["ghcr.io/devcontainers/features/java:1", gradle ? { installGradle: "true" } : { installMaven: "true" }];
+  }
+  return STACK_FEATURES[runtime] ?? null;
+}
+
+// The devcontainer template is stack-neutral; when this run just placed it, pin its Node to
+// the project's .nvmrc and add the toolchain of the product already in the target directory.
+// A devcontainer.json the adopter already had is never rewritten.
+function instantiateDevcontainer(root, { wasFreshlyCreated }) {
+  if (!wasFreshlyCreated) return;
+  const file = path.join(root, ".devcontainer", "devcontainer.json");
+  const config = JSON.parse(readFileSync(file, "utf8"));
+  const nvmrc = path.join(root, ".nvmrc");
+  if (existsSync(nvmrc)) {
+    const version = readFileSync(nvmrc, "utf8").trim().replace(/^v/, "");
+    if (version) config.features["ghcr.io/devcontainers/features/node:1"] = { version };
+  }
+  const feature = stackFeature(root, detectRuntime(root));
+  if (feature) config.features[feature[0]] = feature[1];
+  writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
 // Full adoption: CORE + templates + runtime surfaces. `components` opts into optional
 // components (by name, e.g. "multi-repo"); omit it for a plain single-repo adopter.
 export function adopt(root, { skipExisting = false, components = [] } = {}) {
@@ -160,6 +195,7 @@ export function adopt(root, { skipExisting = false, components = [] } = {}) {
   const core = copyCore(root, { skipExisting });
   instantiatePackageJson(root, { wasFreshlyCreated: core.includes("package.json") });
   const templates = placeTemplates(root, { skipExisting, components });
+  instantiateDevcontainer(root, { wasFreshlyCreated: templates.includes(".devcontainer/devcontainer.json") });
   createRuntimeSurfaces(root);
   return { core, templates };
 }
