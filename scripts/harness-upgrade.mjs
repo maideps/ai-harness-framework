@@ -34,6 +34,7 @@ const FRAMEWORK_MANIFEST_KEYS = [
   "version",
   "schemaVersions",
   "core",
+  "shippedSkills",
   "instance",
   "templates",
   "optionalComponents",
@@ -177,14 +178,26 @@ export function missingMakeTargets(root, harnessRoot = HARNESS_ROOT) {
   return missing;
 }
 
+// The shipped skill packs are CORE ("never modify the shipped skills"), but skills/ also holds
+// the adopter's own project skills, so only the folders the manifest names are refreshed
+// (feat-026). The list comes from the manifest because, run from inside an adopter, the harness
+// root's skills/ folder holds that adopter's project skills too.
+function shippedSkillSurfaces() {
+  const manifest = readJson(path.join(HARNESS_ROOT, ".harness", "manifest.json")) ?? {};
+  return (manifest.shippedSkills ?? [])
+    .filter((name) => existsSync(path.join(HARNESS_ROOT, "skills", name)))
+    .map((name) => `skills/${name}/`);
+}
+
 export function upgrade(root) {
+  const skills = shippedSkillSurfaces();
   // Snapshot what's about to be overwritten before touching anything — a
   // safety net independent of git, for a dirty tree or a mustNotEdit file an
   // adopter edited against policy (feat-012, backups live in
   // .harness/backups/, gitignored).
-  const backup = createBackup(root, [...MUST_NOT_EDIT_SURFACES, "templates/", ".harness/manifest.json"], HARNESS_ROOT);
+  const backup = createBackup(root, [...MUST_NOT_EDIT_SURFACES, ...skills, "templates/", ".harness/manifest.json"], HARNESS_ROOT);
   const report = { overwritten: [], preserved: [], backup };
-  for (const surface of MUST_NOT_EDIT_SURFACES) {
+  for (const surface of [...MUST_NOT_EDIT_SURFACES, ...skills]) {
     const src = path.join(HARNESS_ROOT, surface);
     const dest = path.join(root, surface);
     if (!existsSync(src)) continue;
@@ -202,7 +215,7 @@ export function upgrade(root) {
   report.created = createMissingInstanceFiles(root);
   if (ensureTrailsGitkeep(root)) report.created.push(".harness/trails/.gitkeep");
   report.preserved.push(
-    `Makefile, package.json, init.sh, .harness/manifest.json productRoots, .harness/arch-rules.json, skills/ additions, docs/, README.md, the customisable templates (${keptTemplates.join(", ")}), all INSTANCE state`,
+    `Makefile, package.json, init.sh, .harness/manifest.json productRoots, .harness/arch-rules.json, project skills in skills/, docs/, README.md, the customisable templates (${keptTemplates.join(", ")}), all INSTANCE state`,
   );
   report.missingScripts = missingHarnessScripts(root);
   report.missingMakeTargets = missingMakeTargets(root);

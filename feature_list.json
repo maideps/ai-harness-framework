@@ -670,6 +670,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-026",
+      "name": "Upgrades refresh the shipped skills",
+      "behavior": "harness-upgrade overwrites every shipped skill pack listed in the manifest's shippedSkills (backed up first, like the other CORE surfaces) and never touches a project skill added next to them; check-arch fails when a listed skill has no SKILL.md.",
+      "verification": "npm run check passes including harness-upgrade tests (an edited shipped skill is refreshed, a project skill survives, the backup holds the old copy) and the manifest test for shippedSkills; npm run check-arch passes.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/harness-upgrade.test.mjs tests/framework-check.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

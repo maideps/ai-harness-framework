@@ -183,7 +183,7 @@ Three tools read the manifest as the single source of truth (make and npm mirror
 | Tool | Purpose |
 |---|---|
 | `create-harness <dir>` | Generates an adopter repo: CORE as-is, templates placed per their `{from, to}` mapping, runtime surfaces created. Never overwrites existing files. |
-| `harness-upgrade <dir>` | Applies an upgrade per the D-010 contract: overwrites mustNotEdit CORE only; every adopter-owned surface is never overwritten. |
+| `harness-upgrade <dir>` | Applies an upgrade per the D-010 contract: overwrites mustNotEdit CORE only, including the shipped skills named in the manifest's `shippedSkills`; every adopter-owned surface, project skills included, is never overwritten. |
 | `harness-audit [dir]` | Local health report: manifest validity, classification coverage, template placement status, skills structure. Exits non-zero on any failure. |
 
 ```bash
