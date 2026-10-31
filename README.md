@@ -53,23 +53,28 @@ make help           # or: npm run help
 
 ### Architecture
 
-```
-┌─────────────────────────────────────────────┐
-│               Presentation Layer             │
-│  (UI, CLI, API endpoints — user-facing)     │
-├─────────────────────────────────────────────┤
-│               Application Layer              │
-│  (Use cases, orchestration, workflows)       │
-├─────────────────────────────────────────────┤
-│                 Domain Layer                  │
-│  (Business logic, entities, rules)           │
-├─────────────────────────────────────────────┤
-│             Infrastructure Layer             │
-│  (Persistence, networking, external APIs)    │
-└─────────────────────────────────────────────┘
-```
+This repository has two distinct architecture concerns — don't confuse them:
 
-Layers may only depend on layers below them. The domain layer has zero external dependencies. Infrastructure implements interfaces defined by domain. Presentation never directly accesses infrastructure.
+1. **This repo's own architecture**: one canonical Node runner, `scripts/framework-check.mjs`, implements every harness operation (verification layers, `verify-feature`, worktree lanes, sharded feature state, quality gates, …). The Makefile and `package.json` scripts are thin 1:1 delegations to it, so the make and npm surfaces can't drift apart. `scripts/stack-detect.mjs` is the single source of truth for what kind of project is being verified (node, python, go, rust, jvm, dotnet) and resolves per-layer commands accordingly. Reusable vs. project-owned surfaces are classified in `.harness/manifest.json` (CORE / TEMPLATE / INSTANCE / product-owned), enforced by `make check-arch`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full model.
+2. **The layered product architecture the harness enforces in adopting projects**, once they add source code:
+
+   ```
+   ┌─────────────────────────────────────────────┐
+   │               Presentation Layer             │
+   │  (UI, CLI, API endpoints — user-facing)     │
+   ├─────────────────────────────────────────────┤
+   │               Application Layer              │
+   │  (Use cases, orchestration, workflows)       │
+   ├─────────────────────────────────────────────┤
+   │                 Domain Layer                  │
+   │  (Business logic, entities, rules)           │
+   ├─────────────────────────────────────────────┤
+   │             Infrastructure Layer             │
+   │  (Persistence, networking, external APIs)    │
+   └─────────────────────────────────────────────┘
+   ```
+
+   Layers may only depend on layers below them. The domain layer has zero external dependencies. Infrastructure implements interfaces defined by domain. Presentation never directly accesses infrastructure. Adopters extend `.harness/arch-rules.json` with checks for their own product layers as their codebase grows; this repository itself has no product code, so only harness-architecture rules apply here today.
 
 ### Verification Layers
 
