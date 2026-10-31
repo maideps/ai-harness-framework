@@ -262,3 +262,55 @@ test("register-mcp.sh registers every command server in .mcp.json with codex", {
     cleanup(root);
   }
 });
+
+// feat-028: a python adopter's CI failed in `npm run setup` because the workflow only set up
+// Node and the runner's system Python refuses `pip install` (PEP 668).
+function ciWorkflowOf(root) {
+  return readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+}
+
+test("adopt: a python product's CI workflow sets up Python before the setup step", () => {
+  const root = fixture("ci-python");
+  try {
+    writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+    adopt(root, { skipExisting: true });
+    const workflow = ciWorkflowOf(root);
+    assert.match(workflow, /- uses: actions\/setup-python@v5\n\s+with:\n\s+python-version: "3\.12"\n/);
+    assert.ok(workflow.indexOf("setup-node") < workflow.indexOf("setup-python"));
+    assert.ok(workflow.indexOf("setup-python") < workflow.indexOf("npm run setup --if-present"));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: the CI workflow takes the Python version from .python-version when present", () => {
+  const root = fixture("ci-python-version");
+  try {
+    writeFileSync(path.join(root, "requirements.txt"), "", "utf8");
+    writeFileSync(path.join(root, ".python-version"), "3.11\n", "utf8");
+    adopt(root, { skipExisting: true });
+    assert.match(ciWorkflowOf(root), /python-version-file: \.python-version\n/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: other stacks and an existing CI workflow get no setup-python step", () => {
+  const goRoot = fixture("ci-go");
+  const existingRoot = fixture("ci-existing");
+  try {
+    writeFileSync(path.join(goRoot, "go.mod"), "", "utf8");
+    adopt(goRoot, { skipExisting: true });
+    assert.equal(ciWorkflowOf(goRoot), readFileSync(path.join(HARNESS_ROOT, "templates", "ci.yml"), "utf8"));
+
+    const own = "name: mine\n";
+    mkdirSync(path.join(existingRoot, ".github", "workflows"), { recursive: true });
+    writeFileSync(path.join(existingRoot, ".github", "workflows", "ci.yml"), own, "utf8");
+    writeFileSync(path.join(existingRoot, "pyproject.toml"), "", "utf8");
+    adopt(existingRoot, { skipExisting: true });
+    assert.equal(ciWorkflowOf(existingRoot), own);
+  } finally {
+    cleanup(goRoot);
+    cleanup(existingRoot);
+  }
+});
