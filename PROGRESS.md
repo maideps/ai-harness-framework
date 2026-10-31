@@ -68,4 +68,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 048 — 2026-10-30 — feat-025 MCP optional component](progress/048-2026-10-30.md)
 - [Session 049 — 2026-10-30 — Correct the quality-gate upgrade note](progress/049-2026-10-30.md)
 - [Session 050 — 2026-10-30 — feat-026 Upgrades refresh the shipped skills](progress/050-2026-10-30.md)
+- [Session 051 — 2026-10-30 — Quality-gate presets checked with real tools](progress/051-2026-10-30.md)
 <!-- END GENERATED PROGRESS -->
