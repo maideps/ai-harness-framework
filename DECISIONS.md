@@ -536,3 +536,18 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: one command gives Claude Code and Gemini the same documentation tool, and the dev container gives it to Codex too.
 - Negative: the server list lives in two files that can drift; nothing checks they match. Outside the dev container, Codex needs a manual `codex mcp add`. Each agent keeps its own gate: Claude Code lists the server as pending approval and Gemini CLI as disabled until the folder is trusted (seen in the dev container build on 2026-10-30).
+
+### D-037: create-harness gives a new adopter an empty productRoots list
+
+**Date:** 2026-10-30
+**Status:** accepted
+**Context:** `.harness/manifest.json` is CORE and `create-harness` copied it verbatim, so every new adopter's `productRoots` listed this repository's own product-owned files (`.github/workflows/publish.yml`, `repo-completion-plan.md`). The adopter has neither file, and the entries exempt those paths from arch-005 if the adopter ever creates them for another purpose. Found while creating ai-app-chassis, which emptied the list by hand.
+**Decision:**
+- When this `create-harness` run is what placed the manifest, it rewrites `productRoots` to `[]` and leaves every other key as the framework's. A manifest the adopter already had is never rewritten. This is the same rule as package.json (D-030) and devcontainer.json (D-034).
+- `harness-upgrade` is unchanged: it already keeps the adopter's `productRoots` (feat-019).
+**Alternatives considered:**
+- Move the framework's two entries out of `productRoots` (classify them as INSTANCE instead) — rejected: they are this repository's distribution files, which is what `productRoots` is for, and the `instance` list ships to adopters too, so the leak would only move.
+- Filter `productRoots` to the paths that exist in the target — rejected: an adopter that happens to have a `publish.yml` would still inherit an exemption it never declared.
+**Consequences:**
+- Positive: a fresh adopter's manifest only exempts what the adopter declares.
+- Negative: adopters created before this change keep the two stale entries until they remove them; the upgrade does not touch `productRoots`.
