@@ -728,6 +728,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-028",
+      "name": "Adopter CI sets up Python for a Python product",
+      "behavior": "When create-harness places .github/workflows/ci.yml in a target that already holds a Python product (pyproject.toml or requirements.txt), it adds an actions/setup-python step before the setup step, so npm run setup can pip-install the product's dependencies on the runner (Ubuntu's system Python refuses, PEP 668). The version comes from .python-version when present, else 3.12. Other stacks and an existing ci.yml are left unchanged.",
+      "verification": "npm run check passes including create-harness tests (a python target's workflow has setup-python before the setup step, .python-version is honored, a go/none target gets none, an existing ci.yml is never rewritten) and the adoption-matrix workflow assertions; npm run check-arch passes.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/create-harness.test.mjs tests/adoption-matrix.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }
