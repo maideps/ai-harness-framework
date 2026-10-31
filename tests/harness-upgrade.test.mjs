@@ -190,3 +190,25 @@ test("missingHarnessScripts: nothing to report without a package.json", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("harness-upgrade: refreshes the shipped skills and never touches a project skill (feat-026)", () => {
+  const root = adopter();
+  try {
+    write(root, "skills/verification/SKILL.md", "# verification skill from an older harness\n");
+    write(root, "skills/our-deploy/SKILL.md", "# our own project skill\n");
+    const report = upgrade(root);
+    const shipped = JSON.parse(harnessFile(".harness/manifest.json")).shippedSkills;
+    assert.ok(shipped.includes("verification"));
+    assert.ok(report.overwritten.includes("skills/verification/"), JSON.stringify(report.overwritten));
+    for (const name of shipped) {
+      assert.equal(readFileSync(path.join(root, "skills", name, "SKILL.md"), "utf8"), harnessFile(`skills/${name}/SKILL.md`));
+    }
+    assert.equal(readFileSync(path.join(root, "skills/our-deploy/SKILL.md"), "utf8"), "# our own project skill\n");
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, ".harness/manifest.json"), "utf8")).shippedSkills, shipped);
+    // The older copy is in the backup, as for every other surface the upgrade overwrites.
+    const backup = readFileSync(path.join(root, ".harness", "backups", report.backup.id, "manifest.json"), "utf8");
+    assert.match(backup, /skills\/verification\/SKILL\.md/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

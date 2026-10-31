@@ -23,6 +23,7 @@
     ".harness/manifest.json",
     ".harness/arch-rules.json"
   ],
+  "shippedSkills": ["adopt", "commit", "feature-cycle", "parallel-lanes", "release", "review", "session-handoff", "update-docs", "verification", "write-skill"],
   "templates": [
     { "from": "templates/LICENSE", "to": "LICENSE" },
     { "from": "templates/nvmrc", "to": ".nvmrc" },

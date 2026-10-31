@@ -251,6 +251,20 @@ test("ensureManifest: fails when a declared CORE surface does not exist on disk"
   }
 });
 
+test("ensureManifest: fails when a shipped skill named in shippedSkills has no SKILL.md (feat-026)", () => {
+  const manifest = baseManifest({ core: [...baseManifest().core, "skills/"], shippedSkills: ["verification", "gone"] });
+  const root = manifestFixture(manifest, {
+    extraTrackedFiles: { "skills/verification/SKILL.md": "---\nname: verification\ndescription: x\n---\n## When to Use\n" },
+  });
+  try {
+    const result = run(root, "manifest");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /manifest shipped skill is missing: skills\/gone\/SKILL\.md/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("ensureManifest: fails when a git-tracked file is not classified by the manifest", () => {
   const root = manifestFixture(baseManifest(), { extraTrackedFiles: { "stray.txt": "unclassified\n" } });
   try {

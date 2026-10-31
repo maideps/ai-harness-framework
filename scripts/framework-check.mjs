@@ -881,6 +881,18 @@ function ensureManifest() {
   if (templates.some((entry) => entry === null)) {
     fail("manifest template entries must be paths or { from, to | keep } objects");
   }
+  // The shipped skill packs are what harness-upgrade refreshes inside skills/ (feat-026), so a
+  // listed name without its SKILL.md would make the upgrade silently skip it.
+  if ("shippedSkills" in manifest) {
+    if (!Array.isArray(manifest.shippedSkills) || manifest.shippedSkills.some((name) => typeof name !== "string" || !name)) {
+      fail("manifest shippedSkills must be an array of skill folder names");
+    }
+    for (const name of manifest.shippedSkills) {
+      if (!existsSync(path.join("skills", name, "SKILL.md"))) {
+        fail("manifest shipped skill is missing: skills/" + name + "/SKILL.md");
+      }
+    }
+  }
   // Every declared surface must exist in the repository.
   for (const surface of manifest.core) {
     if (!existsSync(surface)) {
