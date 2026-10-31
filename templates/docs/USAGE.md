@@ -141,7 +141,7 @@ Mutation testing has no preset because each stack's tool reports differently. St
 
 A gate is any number with a floor, so the same mechanism fits an LLM eval score (`{ "name": "eval-accuracy", "cmd": "python -m evals.run", "metric": { "file": "evals/results/latest.json", "path": "accuracy" }, "min": 0.8 }`).
 
-Reports go to `.harness/quality/`, a folder that ignores itself. `npm run lint` fails on a malformed `.harness/quality.json` even while it is disabled. To make a metric part of a feature's evidence, add `{ "label": "Layer 4: Quality gates", "cmd": "npm run quality" }` to its layers. After `harness-upgrade`, an existing adopter gets the disabled file and the new `quality` script is listed for `package.json`; append `&& npm run quality` to your `check` script so `npm run check` matches `make check`.
+Reports go to `.harness/quality/`, a folder that ignores itself. `npm run lint` fails on a malformed `.harness/quality.json` even while it is disabled. To make a metric part of a feature's evidence, add `{ "label": "Layer 4: Quality gates", "cmd": "npm run quality" }` to its layers. After `harness-upgrade`, an existing adopter gets the disabled file, and the upgrade prints the `quality` npm script and make target to add: `Makefile` and `package.json` are adopter-owned, so add both, then append `quality` to the `check` target and `&& npm run quality` to the `check` script, and run `npm run harness-docs`. Until the make target exists, `npm run build` fails with `Makefile is missing target quality`.
 
 ## Dev Container (optional)
 
