@@ -55,6 +55,39 @@ test("adopt: an already-customized package.json is never rewritten", () => {
   }
 });
 
+// feat-027: the framework's own productRoots (publish.yml, repo-completion-plan.md) used to
+// land in every new adopter's manifest, exempting files the adopter does not have.
+test("adopt: a brand-new target starts with empty productRoots and the framework's classification", () => {
+  const root = fixture("manifest");
+  try {
+    adopt(root, { skipExisting: true });
+    const manifest = JSON.parse(readFileSync(path.join(root, ".harness", "manifest.json"), "utf8"));
+    const frameworkManifest = JSON.parse(readFileSync(path.join(HARNESS_ROOT, ".harness", "manifest.json"), "utf8"));
+
+    assert.deepEqual(manifest.productRoots, []);
+    assert.deepEqual({ ...manifest, productRoots: frameworkManifest.productRoots }, frameworkManifest);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: an existing adopter manifest keeps its productRoots", () => {
+  const root = fixture("existing-manifest");
+  try {
+    adopt(root, { skipExisting: true });
+    const manifestPath = path.join(root, ".harness", "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.productRoots = ["src/"];
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+    adopt(root, { skipExisting: true });
+
+    assert.deepEqual(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots, ["src/"]);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("adopt: the sanitized name is derived from the target directory name", () => {
   const parent = fixture("naming");
   const root = path.join(parent, "My Cool Project!!");
