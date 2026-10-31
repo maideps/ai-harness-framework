@@ -250,7 +250,7 @@ Adoption steps:
    | templates/evaluator-rubric.md | (keep — reference) |
    | templates/clean-state-checklist.md | (keep — reference) |
 3. The generated CI workflow uses your `.nvmrc`, runs `npm run setup --if-present`, then `npm run check` and `npm run check-arch`. Edit `.nvmrc` to choose the Node version for your project. The workflow skips the framework's adoption matrix, which runs in this repository's CI; configure your own e2e script to run project-specific end-to-end tests.
-4. Add your product directories to `productRoots` in `.harness/manifest.json`.
+4. Add your product directories to `productRoots` in `.harness/manifest.json` (a new adopter starts with an empty list).
 5. Add project-specific architecture rules to `.harness/arch-rules.json` as your codebase grows.
 6. Run `./init.sh`, then `npm run check` — you are now on the harness.
 

@@ -132,6 +132,18 @@ function instantiatePackageJson(root, { wasFreshlyCreated }) {
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
+// The manifest is CORE, but its productRoots list the framework repository's own
+// product-owned files (publish.yml, repo-completion-plan.md), which an adopter does not
+// have. A fresh adopter starts with none and declares its own (feat-027). Same rule as
+// package.json: only a manifest this adopt() run just created is touched.
+function instantiateManifest(root, { wasFreshlyCreated }) {
+  if (!wasFreshlyCreated) return;
+  const manifestPath = path.join(root, ".harness", "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.productRoots = [];
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
 // Create the runtime/generated instance surfaces the manifest expects to
 // exist in an operating repository.
 export function createRuntimeSurfaces(root) {
@@ -194,6 +206,7 @@ export function adopt(root, { skipExisting = false, components = [] } = {}) {
   mkdirSync(root, { recursive: true });
   const core = copyCore(root, { skipExisting });
   instantiatePackageJson(root, { wasFreshlyCreated: core.includes("package.json") });
+  instantiateManifest(root, { wasFreshlyCreated: core.includes(".harness/manifest.json") });
   const templates = placeTemplates(root, { skipExisting, components });
   instantiateDevcontainer(root, { wasFreshlyCreated: templates.includes(".devcontainer/devcontainer.json") });
   createRuntimeSurfaces(root);
