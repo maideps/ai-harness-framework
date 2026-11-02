@@ -200,6 +200,24 @@ function instantiateDevcontainer(root, { wasFreshlyCreated }) {
   writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
+// The CI template only sets up Node. For a python product, `npm run setup` runs
+// `pip install -e ".[dev]"`, which the runner's system Python refuses (PEP 668), so a
+// freshly placed workflow gets actions/setup-python before the setup step (feat-028).
+// Other stacks' runners already have a toolchain their install command works with.
+// A ci.yml the adopter already had is never rewritten.
+const CI_SETUP_STEP = "      - name: Install and set up project\n";
+
+function instantiateCiWorkflow(root, { wasFreshlyCreated }) {
+  if (!wasFreshlyCreated || detectRuntime(root) !== "python") return;
+  const file = path.join(root, ".github", "workflows", "ci.yml");
+  const version = existsSync(path.join(root, ".python-version"))
+    ? "python-version-file: .python-version"
+    : 'python-version: "3.12"';
+  const step = `      - uses: actions/setup-python@v5\n        with:\n          ${version}\n\n`;
+  const workflow = readFileSync(file, "utf8");
+  writeFileSync(file, workflow.replace(CI_SETUP_STEP, `${step}${CI_SETUP_STEP}`), "utf8");
+}
+
 // Full adoption: CORE + templates + runtime surfaces. `components` opts into optional
 // components (by name, e.g. "multi-repo"); omit it for a plain single-repo adopter.
 export function adopt(root, { skipExisting = false, components = [] } = {}) {
@@ -209,6 +227,7 @@ export function adopt(root, { skipExisting = false, components = [] } = {}) {
   instantiateManifest(root, { wasFreshlyCreated: core.includes(".harness/manifest.json") });
   const templates = placeTemplates(root, { skipExisting, components });
   instantiateDevcontainer(root, { wasFreshlyCreated: templates.includes(".devcontainer/devcontainer.json") });
+  instantiateCiWorkflow(root, { wasFreshlyCreated: templates.includes(".github/workflows/ci.yml") });
   createRuntimeSurfaces(root);
   return { core, templates };
 }
