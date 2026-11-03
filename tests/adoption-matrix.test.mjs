@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { normalizeFixtureScripts } from "../scripts/adoption-matrix.mjs";
+import { cellEnv, normalizeFixtureScripts } from "../scripts/adoption-matrix.mjs";
 import { adopt, HARNESS_ROOT, loadManifest } from "../scripts/create-harness.mjs";
 import { upgrade } from "../scripts/harness-upgrade.mjs";
 
@@ -93,6 +93,14 @@ test("normalizeFixtureScripts: tolerates a package.json with no scripts block", 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("cellEnv: drops an inherited CW_INIT_SH and marks the cell, keeping the rest", () => {
+  const env = cellEnv({ CW_INIT_SH: "1", CW_SKIP_ADOPTION_MATRIX: "1", PATH: "/bin" });
+  assert.equal(env.CW_INIT_SH, undefined);
+  assert.equal(env.CW_ADOPTION_CELL, "1");
+  assert.equal(env.CW_SKIP_ADOPTION_MATRIX, "1");
+  assert.equal(env.PATH, "/bin");
 });
 
 test("adopt: installs default line-ending rules and upgrades preserve adopter rules", () => {
