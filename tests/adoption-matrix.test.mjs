@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { cellEnv, normalizeFixtureScripts } from "../scripts/adoption-matrix.mjs";
+import { cellEnv, normalizeFixtureScripts, spawnRunner } from "../scripts/adoption-matrix.mjs";
 import { adopt, HARNESS_ROOT, loadManifest } from "../scripts/create-harness.mjs";
 import { upgrade } from "../scripts/harness-upgrade.mjs";
 
@@ -101,6 +101,17 @@ test("cellEnv: drops an inherited CW_INIT_SH and marks the cell, keeping the res
   assert.equal(env.CW_ADOPTION_CELL, "1");
   assert.equal(env.CW_SKIP_ADOPTION_MATRIX, "1");
   assert.equal(env.PATH, "/bin");
+});
+
+test("spawnRunner: a timed-out cell reports a failure with the spawn error, instead of throwing", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "cw-matrix-test-"));
+  try {
+    const result = spawnRunner(root, ["lint"], 1);
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /ETIMEDOUT/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("adopt: installs default line-ending rules and upgrades preserve adopter rules", () => {

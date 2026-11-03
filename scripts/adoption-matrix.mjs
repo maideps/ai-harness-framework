@@ -149,7 +149,7 @@ export function cellEnv(baseEnv = process.env) {
   return env;
 }
 
-function spawnRunner(root, args, timeoutMs = 180000) {
+export function spawnRunner(root, args, timeoutMs = 180000) {
   const result = spawnSync(process.execPath, [RUNNER, ...args], {
     cwd: root,
     encoding: "utf8",
@@ -157,7 +157,8 @@ function spawnRunner(root, args, timeoutMs = 180000) {
     env: cellEnv(),
   });
   const stdout = result.stdout ?? "";
-  const stderr = result.stderr ?? "";
+  // let, not const: a spawn error (e.g. a cell timeout) is appended below.
+  let stderr = result.stderr ?? "";
   const exit = result.error ? 1 : (result.status ?? 1);
   if (result.error) stderr += `\n${result.error.message}`;
   return { exit, output: `${stdout}${stderr}` };
