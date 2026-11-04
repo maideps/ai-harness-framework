@@ -71,4 +71,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 051 — 2026-10-30 — Quality-gate presets checked with real tools](progress/051-2026-10-30.md)
 - [Session 052 — 2026-10-30 — New adopters start with empty productRoots (feat-027)](progress/052-2026-10-30.md)
 - [Session 053 — 2026-10-30 — Adopter CI sets up Python for a Python product (feat-028)](progress/053-2026-10-30.md)
+- [Session 054 — 2026-11-03 — Adoption-matrix cells no longer inherit CW_INIT_SH](progress/054-2026-11-03.md)
 <!-- END GENERATED PROGRESS -->

@@ -139,15 +139,26 @@ function fillFeatureList(root) {
   writeFileSync(path.join(root, "feature_list.json"), `${JSON.stringify({ features: [feature] }, null, 2)}\n`, "utf8");
 }
 
-function spawnRunner(root, args, timeoutMs = 180000) {
+// The environment each cell's runner sees. ./init.sh runs the whole chain, e2e
+// included, with CW_INIT_SH=1, which turns lint's unfilled-docs check into a
+// warning; a cell must not inherit that, or it would stop proving that lint
+// fails on an unfilled doc (D-039, same rule as run() in the tests, D-032).
+export function cellEnv(baseEnv = process.env) {
+  const env = { ...baseEnv, CW_ADOPTION_CELL: "1" };
+  delete env.CW_INIT_SH;
+  return env;
+}
+
+export function spawnRunner(root, args, timeoutMs = 180000) {
   const result = spawnSync(process.execPath, [RUNNER, ...args], {
     cwd: root,
     encoding: "utf8",
     timeout: timeoutMs,
-    env: { ...process.env, CW_ADOPTION_CELL: "1" },
+    env: cellEnv(),
   });
   const stdout = result.stdout ?? "";
-  const stderr = result.stderr ?? "";
+  // let, not const: a spawn error (e.g. a cell timeout) is appended below.
+  let stderr = result.stderr ?? "";
   const exit = result.error ? 1 : (result.status ?? 1);
   if (result.error) stderr += `\n${result.error.message}`;
   return { exit, output: `${stdout}${stderr}` };

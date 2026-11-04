@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { normalizeFixtureScripts } from "../scripts/adoption-matrix.mjs";
+import { cellEnv, normalizeFixtureScripts, spawnRunner } from "../scripts/adoption-matrix.mjs";
 import { adopt, HARNESS_ROOT, loadManifest } from "../scripts/create-harness.mjs";
 import { upgrade } from "../scripts/harness-upgrade.mjs";
 
@@ -90,6 +90,25 @@ test("normalizeFixtureScripts: tolerates a package.json with no scripts block", 
   try {
     normalizeFixtureScripts(root);
     assert.equal(scriptsOf(root).lint, "node scripts/framework-check.mjs lint");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cellEnv: drops an inherited CW_INIT_SH and marks the cell, keeping the rest", () => {
+  const env = cellEnv({ CW_INIT_SH: "1", CW_SKIP_ADOPTION_MATRIX: "1", PATH: "/bin" });
+  assert.equal(env.CW_INIT_SH, undefined);
+  assert.equal(env.CW_ADOPTION_CELL, "1");
+  assert.equal(env.CW_SKIP_ADOPTION_MATRIX, "1");
+  assert.equal(env.PATH, "/bin");
+});
+
+test("spawnRunner: a timed-out cell reports a failure with the spawn error, instead of throwing", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "cw-matrix-test-"));
+  try {
+    const result = spawnRunner(root, ["lint"], 1);
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /ETIMEDOUT/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
