@@ -85,6 +85,19 @@ function upgradeTemplates(root) {
 // templates when missing, as create-harness would; existing files are never touched, and
 // optional components (such as repositories/example) are not instance surfaces, so they are
 // never recreated. From then on the files are the adopter's.
+// Older harnesses wrote these instance files as empty placeholders. A file that still holds
+// exactly the placeholder was never customised, so it counts as missing (feat-031, D-042).
+export const PLACEHOLDER_INSTANCE_FILES = { ".claude/settings.json": "{}" };
+
+function isPlaceholder(rel, dest) {
+  if (!(rel in PLACEHOLDER_INSTANCE_FILES)) return false;
+  try {
+    return readFileSync(dest, "utf8").trim() === PLACEHOLDER_INSTANCE_FILES[rel];
+  } catch {
+    return false;
+  }
+}
+
 function createMissingInstanceFiles(root) {
   const manifest = readJson(path.join(HARNESS_ROOT, ".harness", "manifest.json")) ?? {};
   const instance = new Set(manifest.instance ?? []);
@@ -93,7 +106,7 @@ function createMissingInstanceFiles(root) {
     if (!entry || typeof entry !== "object" || !entry.to || !instance.has(entry.to)) continue;
     const src = path.join(HARNESS_ROOT, entry.from);
     const dest = path.join(root, entry.to);
-    if (existsSync(dest) || !existsSync(src)) continue;
+    if ((existsSync(dest) && !isPlaceholder(entry.to, dest)) || !existsSync(src)) continue;
     mkdirSync(path.dirname(dest), { recursive: true });
     copyFileSync(src, dest);
     created.push(entry.to);
@@ -250,6 +263,10 @@ function main() {
     if (report.created.includes(".gitattributes")) {
       console.log("    Line-ending rules are new: apply them once, as their own commit, with");
       console.log('      git add --renormalize . && git commit -m "Normalize line endings"');
+    }
+    if (report.created.includes(".claude/settings.json")) {
+      console.log("    Claude Code permission rules are new (they replace an empty {}): review the deny");
+      console.log("      list before committing; docs/TOOLS.md explains each rule.");
     }
   }
   console.log("  Never overwritten (adopter-owned):");

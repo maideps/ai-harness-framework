@@ -622,3 +622,23 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a bound `passing` names the exact commit that passed. Stale evidence is visible in every `check` and cannot satisfy a dependency.
 - Negative: the feature loop gains a commit: code and docs, then the gate, then the shard and session notes. A layer that writes unignored files now fails the gate until the output is ignored or committed. An adopter project inside a larger repository is judged only on its own directory. Existing evidence is not re-checked; it stays as recorded. Adopters get the behavior through `harness-upgrade` (`scripts/`, `tests/`, `AGENTS.md` are CORE; skills are refreshed per feat-026).
+
+### D-042: The harness ships Claude Code deny rules for secret files, and nothing more
+
+**Date:** 2026-11-05
+**Status:** accepted
+**Context:** AGENTS.md said "Tool access is scoped via `.claude/settings.json`" and "Default permission for sensitive tools is `ask`", but `create-harness` wrote `{}` to that file, and this repository's own copy held Cline settings that Claude Code ignores. Nothing enforced either claim. `docs/TOOLS.md` listed Cline tool names (`read_file`, `write_to_file`) as if they were the harness's tools. The containment work behind the improvement brief puts the real boundary in the environment, and treats permission prompts as weak: people approve most of them.
+**Decision:**
+- New template `templates/claude-settings.json`, placed at `.claude/settings.json` (still INSTANCE, so adopter-owned). It holds only `permissions.deny` rules for reading secrets: `.env` variants at any depth in the project, and credential stores in the home directory (`~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.kube`, `~/.gnupg`, `~/.docker/config.json`, `~/.git-credentials`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`). Deny rules apply before folder trust and also stop `cat`/`head`/`tail`/`sed` and shell redirections from reading those paths.
+- `.env.*` is not denied as a wildcard: it would hide `.env.example` and `.env.sample`, which agents need. The common secret-bearing variants are listed instead.
+- No `allow` rules, no `defaultMode` and no `sandbox` block. Claude Code's defaults already ask before edits and commands. An allow rule in a committed file applies to every teammate. The sandbox does not run on native Windows, so one committed setting would behave differently across a team; `docs/TOOLS.md` gives an opt-in snippet.
+- `harness-upgrade` treats a `.claude/settings.json` that is exactly `{}` (whitespace ignored) as missing, replaces it from the template and says so in its report. Any other content is never touched (`PLACEHOLDER_INSTANCE_FILES`). No backup is taken: the replaced content is the literal placeholder.
+- AGENTS.md and `docs/TOOLS.md` now say what is enforced, its limits (not a boundary: scripts can still open the files), and how to get comparable protection in Codex and Gemini CLI, for which the harness ships nothing. Codex documents no rule to deny reading a file, so for both the advice is to keep secrets out of the workspace.
+- This repository's own `.claude/settings.json` gains the same deny rules next to the existing Cline keys, so AGENTS.md is true here too.
+**Alternatives considered:**
+- Ship per-adapter files for Codex (`.codex/config.toml`) and Gemini (`.gemini/settings.json`) — rejected for now: Codex already recommends workspace-write with approval on request when it opens a version-controlled folder, so a file would change little; it has no rule to deny reading a file; and its project config only loads after trust. Gemini CLI's settings format changed between versions, and the CLI page now says it was replaced by Antigravity CLI.
+- Build a canonical policy file and a policy engine that generates each adapter's rules (brief WP-06) — deferred: a custom security component is the kind the containment article warns about, and only Claude Code has a per-file read rule to generate today.
+- Correct the AGENTS.md claims without shipping anything — rejected: the deny rules cost nothing for agents and remove the easiest secret leak (an agent reading `.env` into its context).
+**Consequences:**
+- Positive: new adopters and upgraded `{}` adopters get secret-read protection in Claude Code by default. The docs no longer promise enforcement that does not exist.
+- Negative: an agent that needs a real value from `.env` must ask the human. Projects that keep secrets elsewhere must add their own rules. The protection is Claude Code only and is not an OS boundary; scripts and tests the agent runs can still read the files.
