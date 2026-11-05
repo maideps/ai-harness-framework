@@ -1159,11 +1159,191 @@ test("verify-feature: records passing evidence in the shard, never rewrites feat
     assert.equal(cleanEvidence.layers[1].log, ".harness/logs/feat-001/02-optional.log");
     assert.match(readFileSync(path.join(root, cleanEvidence.layers[1].log), "utf8"), /\[SKIP\] optional/);
 
+    assert.equal(cleanEvidence.bound, true);
+    assert.match(cleanEvidence.checksHash, /^[0-9a-f]{16}$/);
+
     write(root, "dirty-marker.txt", "dirty\n");
-    const dirtyResult = run(root, "verify-feature", ["feat-001"]);
+    const dirtyResult = run(root, "verify-feature", ["feat-001", "--allow-dirty"]);
     assert.equal(dirtyResult.exit, 0, dirtyResult.output);
     const dirtyShard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
-    assert.equal(JSON.parse(dirtyShard.evidence).dirty, true);
+    const dirtyEvidence = JSON.parse(dirtyShard.evidence);
+    assert.equal(dirtyEvidence.dirty, true);
+    assert.equal(dirtyEvidence.bound, false);
+    assert.match(dirtyEvidence.summary, /unbound: verified with uncommitted changes/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-030 (D-041): evidence is bound to committed code ----------------
+
+function evidenceFeature(overrides = {}) {
+  return {
+    id: "feat-001",
+    name: "One",
+    behavior: "b",
+    verification: "v",
+    dependencies: [],
+    layers: [{ label: "L", cmd: `${NODE} -e "process.exit(0)"`, repair: "r" }],
+    ...overrides,
+  };
+}
+
+function readEvidence(root, featureId = "feat-001") {
+  const shard = JSON.parse(readFileSync(path.join(root, `.harness/state/${featureId}.json`), "utf8"));
+  return { state: shard.state, evidence: shard.evidence ? JSON.parse(shard.evidence) : null };
+}
+
+function writeDeclarations(root, features) {
+  write(root, "feature_list.json", `${JSON.stringify({ features }, null, 2)}\n`);
+}
+
+test("verify-feature: uncommitted code refuses before any layer runs (feat-030)", () => {
+  const root = gitFeatureFixture([
+    evidenceFeature({ state: "active", layers: [{ label: "L", cmd: `${NODE} -e "require('fs').writeFileSync('layer-ran.txt','x')"`, repair: "r" }] }),
+  ]);
+  try {
+    write(root, "src/app.js", "console.log('uncommitted');\n");
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /1 uncommitted change\(s\) outside harness bookkeeping/);
+    assert.match(result.output, /src\/app\.js/);
+    assert.match(result.output, /--allow-dirty/);
+    assert.equal(existsSync(path.join(root, "layer-ran.txt")), false, "no layer may run on a refused tree");
+    assert.equal(readEvidence(root).state, "active");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a modified tracked file refuses too, not only untracked ones (feat-030)", () => {
+  const root = gitFeatureFixture([evidenceFeature({ state: "active" })]);
+  try {
+    write(root, "feature_list.json", `${readFileSync(path.join(root, "feature_list.json"), "utf8")}\n`);
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /feature_list\.json/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: uncommitted harness bookkeeping does not block, and the evidence is bound (feat-030)", () => {
+  const root = gitFeatureFixture([evidenceFeature({ state: "active" })]);
+  try {
+    // activate rewrote the shard; a session note and dashboard are in progress
+    write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "active", evidence: "" }, null, 2)}\n`);
+    write(root, "progress/001-2026-11-05.md", "### Session 001\n");
+    write(root, "PROGRESS.md", "# Progress\n");
+    write(root, "session-handoff.md", "notes\n");
+    write(root, ".harness/traces/session-start-1.json", "{}\n");
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    const { state, evidence } = readEvidence(root);
+    assert.equal(state, "passing");
+    assert.equal(evidence.bound, true);
+    assert.equal(evidence.dirty, false);
+    assert.doesNotMatch(evidence.summary, /unbound/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a layer that leaves a new file behind fails instead of recording evidence (feat-030)", () => {
+  const root = gitFeatureFixture([
+    evidenceFeature({ state: "active", layers: [{ label: "Writes", cmd: `${NODE} -e "require('fs').writeFileSync('coverage.out','x')"`, repair: "r" }] }),
+  ]);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /verification layers left 1 uncommitted change/);
+    assert.match(result.output, /coverage\.out/);
+    assert.equal(readEvidence(root).state, "active");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: outside a git repository the evidence is recorded unbound with a NOTE (feat-030)", () => {
+  const root = fixture();
+  writeDeclarations(root, [evidenceFeature()]);
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /NOTE: not a git repository/);
+    const { evidence } = readEvidence(root);
+    assert.equal(evidence.bound, false);
+    assert.match(evidence.summary, /unbound: not a git repository/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: an unknown option fails instead of being taken as the feature id (feat-030)", () => {
+  const root = fixture();
+  writeDeclarations(root, [evidenceFeature()]);
+  try {
+    const result = run(root, "verify-feature", ["feat-001", "--alow-dirty"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /unknown verify-feature option --alow-dirty/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: warns when a passing feature's label, cmd or required changed after it was verified, not its repair hint (feat-030)", () => {
+  const root = fixture();
+  const layer = { label: "L", cmd: `${NODE} -e "process.exit(0)"`, repair: "r" };
+  writeDeclarations(root, [evidenceFeature({ layers: [layer] })]);
+  try {
+    assert.equal(run(root, "verify-feature", ["feat-001"]).exit, 0);
+    const fresh = run(root, "typecheck");
+    assert.equal(fresh.exit, 0, fresh.output);
+    assert.doesNotMatch(fresh.output, /\[WARN\]/);
+
+    writeDeclarations(root, [evidenceFeature({ layers: [{ ...layer, repair: "a different hint" }] })]);
+    assert.doesNotMatch(run(root, "typecheck").output, /\[WARN\]/, "repair text is not a check");
+
+    for (const changed of [{ ...layer, cmd: `${NODE} -e "process.exit(0) // changed"` }, { ...layer, label: "Renamed" }, { ...layer, required: false }]) {
+      writeDeclarations(root, [evidenceFeature({ layers: [changed] })]);
+      const stale = run(root, "typecheck");
+      assert.equal(stale.exit, 0, "stale evidence warns, it does not fail the layer");
+      assert.match(stale.output, /\[WARN\] feat-001 is passing, but its verification layers changed after it was verified/);
+    }
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: evidence recorded before feat-030 (no checksHash) is never reported stale", () => {
+  const root = featureListFixture([
+    evidenceFeature({ state: "passing", evidence: JSON.stringify({ summary: "old", commit: "abc1234", dirty: true, layers: [] }) }),
+    evidenceFeature({ id: "feat-002", state: "passing", evidence: "Verified by hand on 2026-01-01" }),
+  ]);
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 0, result.output);
+    assert.doesNotMatch(result.output, /\[WARN\]/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a dependency whose layers changed after it passed blocks its dependents (feat-030)", () => {
+  const root = fixture();
+  const dependency = evidenceFeature();
+  const dependent = evidenceFeature({ id: "feat-002", name: "Two", dependencies: ["feat-001"] });
+  writeDeclarations(root, [dependency, dependent]);
+  try {
+    assert.equal(run(root, "verify-feature", ["feat-001"]).exit, 0);
+    writeDeclarations(root, [evidenceFeature({ layers: [{ ...dependency.layers[0], cmd: `${NODE} -e "process.exit(0) // v2"` }] }), dependent]);
+    const blocked = run(root, "verify-feature", ["feat-002"]);
+    assert.equal(blocked.exit, 1, blocked.output);
+    assert.match(blocked.output, /depends on features whose verification layers changed after they passed: feat-001/);
+
+    assert.equal(run(root, "verify-feature", ["feat-001"]).exit, 0, "re-verifying the dependency refreshes its evidence");
+    const unblocked = run(root, "verify-feature", ["feat-002"]);
+    assert.equal(unblocked.exit, 0, unblocked.output);
   } finally {
     cleanup(root);
   }

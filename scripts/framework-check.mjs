@@ -2,6 +2,7 @@
 
 import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync } from "node:fs";
 import { execSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderHarnessDocs } from "./harness-docs.mjs";
@@ -1242,9 +1243,97 @@ function checkArch() {
   }
 }
 
-function verifyFeature(featureId) {
+// Files the harness itself writes during a feature cycle (activate, verify-feature,
+// session traces, progress notes). They may be uncommitted when verify-feature runs:
+// they record the verification, they are not what is being verified (feat-030, D-041).
+const BOOKKEEPING_PATHS = [
+  ".harness/state/",
+  ".harness/logs/",
+  ".harness/traces/",
+  ".harness/trails/",
+  "progress/",
+  "PROGRESS.md",
+  "progress.md",
+  "claude-progress.md",
+  "session-handoff.md",
+];
+
+function isBookkeepingPath(file) {
+  return BOOKKEEPING_PATHS.some((entry) => (entry.endsWith("/") ? file.startsWith(entry) : file === entry));
+}
+
+// Uncommitted paths (modified, staged, deleted, renamed or untracked-not-ignored) under the
+// current directory, relative to it, minus harness bookkeeping. null outside a git repository.
+// Scoped to the current directory so an adopter inside a larger repository is judged on its
+// own files only.
+function uncommittedCodePaths() {
+  const prefix = gitCapture(["rev-parse", "--show-prefix"]);
+  if (prefix === null) return null;
+  const result = spawnSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], { encoding: "utf8" });
+  if (result.error || (result.status ?? 1) !== 0) return null;
+  const entries = (result.stdout ?? "").split("\0");
+  const paths = [];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (entry.length < 4) continue;
+    paths.push(entry.slice(3));
+    // -z prints a rename or copy as "XY <new>\0<old>"; the old path is the next entry.
+    if (/[RC]/.test(entry.slice(0, 2))) {
+      i += 1;
+      if (entries[i]) paths.push(entries[i]);
+    }
+  }
+  return [...new Set(paths.map((file) => (prefix && file.startsWith(prefix) ? file.slice(prefix.length) : file)))]
+    .filter((file) => !isBookkeepingPath(file))
+    .sort();
+}
+
+function printPathList(paths, limit = 10) {
+  for (const file of paths.slice(0, limit)) console.log(`         ${file}`);
+  if (paths.length > limit) console.log(`         ...and ${paths.length - limit} more`);
+}
+
+// A fingerprint of what verify-feature runs for a feature. The repair hint is advice, not a
+// check, so editing it does not make evidence stale.
+function featureChecksHash(feature) {
+  const checks = (feature.layers ?? []).map((layer) => ({
+    label: layer.label,
+    cmd: layer.cmd,
+    required: layer.required !== false,
+  }));
+  return createHash("sha256").update(JSON.stringify(checks)).digest("hex").slice(0, 16);
+}
+
+function parseEvidence(feature) {
+  if (typeof feature.evidence !== "string") return null;
+  try {
+    const parsed = JSON.parse(feature.evidence);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null; // older evidence is a plain string
+  }
+}
+
+// A passing feature whose declared layers changed after it was verified. Evidence recorded
+// before feat-030 carries no checksHash and is never reported stale.
+function hasStaleEvidence(feature) {
+  if (getFeatureState(feature) !== "passing") return false;
+  const evidence = parseEvidence(feature);
+  return typeof evidence?.checksHash === "string" && evidence.checksHash !== featureChecksHash(feature);
+}
+
+function warnStaleEvidence() {
+  const { features } = loadFeaturesWithState();
+  for (const feature of features.filter(hasStaleEvidence)) {
+    console.log(
+      `[WARN] ${feature.id} is passing, but its verification layers changed after it was verified — re-run: node scripts/framework-check.mjs verify-feature ${feature.id}`,
+    );
+  }
+}
+
+function verifyFeature(featureId, { allowDirty = false } = {}) {
   if (!featureId) {
-    fail("usage: node scripts/framework-check.mjs verify-feature <feature-id>");
+    fail("usage: node scripts/framework-check.mjs verify-feature <feature-id> [--allow-dirty]");
   }
 
   console.log(`=== Verifying feature: ${featureId} ===`);
@@ -1267,6 +1356,33 @@ function verifyFeature(featureId) {
   if (unmet.length > 0) {
     console.log(`[FAIL] Feature ${featureId} has unmet dependencies: ${unmet.join(", ")}`);
     console.log("Complete and verify the dependency features first.");
+    console.log("");
+    console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
+    process.exit(1);
+  }
+  const stale = (feature.dependencies ?? []).filter((dependencyId) =>
+    hasStaleEvidence(features.find((item) => item.id === dependencyId)),
+  );
+  if (stale.length > 0) {
+    console.log(`[FAIL] Feature ${featureId} depends on features whose verification layers changed after they passed: ${stale.join(", ")}`);
+    console.log(`Re-verify them first: ${stale.map((id) => `verify-feature ${id}`).join(", ")}`);
+    console.log("");
+    console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
+    process.exit(1);
+  }
+
+  // Evidence names a commit, so the commit must hold the code that passed (feat-030, D-041).
+  const uncommittedBefore = uncommittedCodePaths();
+  if (uncommittedBefore === null) {
+    console.log("NOTE: not a git repository — evidence will be recorded unbound (no commit to tie it to)");
+    console.log("");
+  } else if (uncommittedBefore.length > 0 && !allowDirty) {
+    console.log(`[FAIL] ${uncommittedBefore.length} uncommitted change(s) outside harness bookkeeping — evidence must name the commit that holds the verified code:`);
+    printPathList(uncommittedBefore);
+    console.log("");
+    console.log("Commit the feature's code and docs first, then re-run verify-feature. The state shard and");
+    console.log("progress notes it writes are bookkeeping: they may stay uncommitted and go in the next commit.");
+    console.log("To record evidence for uncommitted code anyway (marked bound: false), add --allow-dirty.");
     console.log("");
     console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
     process.exit(1);
@@ -1347,23 +1463,42 @@ function verifyFeature(featureId) {
     }
   }
 
+  // A layer that writes files (a formatter, a generated file, a coverage report that is not
+  // ignored) leaves a tree the recorded commit does not contain.
+  const uncommittedAfter = uncommittedBefore === null ? null : uncommittedCodePaths();
+  if (uncommittedAfter !== null && uncommittedAfter.length > 0 && !allowDirty) {
+    console.log(`[FAIL] The verification layers left ${uncommittedAfter.length} uncommitted change(s) outside harness bookkeeping:`);
+    printPathList(uncommittedAfter);
+    console.log("");
+    console.log("The recorded commit would not match the verified tree. Commit the files, add generated");
+    console.log("output to .gitignore, or stop the layer from writing them; then re-run verify-feature.");
+    console.log("");
+    console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
+    process.exit(1);
+  }
+
   console.log(`=== Feature ${featureId}: ALL LAYERS PASS ===`);
   if (skippedLayers.length > 0) {
     console.log(`Note: these layers reported SKIP inside a passing run: ${skippedLayers.join(", ")}`);
   }
   const skipNote = skippedLayers.length > 0 ? ` (SKIP reported in: ${skippedLayers.join(", ")})` : "";
   const commit = tryGit("rev-parse --short HEAD");
-  let dirty = true;
-  try {
-    dirty = execSync("git status --porcelain", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim().length > 0;
-  } catch {
-    // A missing Git repository cannot be confirmed clean.
+  const dirty = uncommittedAfter === null || uncommittedBefore.length > 0 || uncommittedAfter.length > 0;
+  const bound = !dirty;
+  let boundNote = "";
+  if (uncommittedAfter === null) {
+    boundNote = " — unbound: not a git repository";
+  } else if (dirty) {
+    boundNote = " — unbound: verified with uncommitted changes (--allow-dirty)";
+    console.log("Note: evidence recorded with bound: false — the commit it names does not hold all of the verified code");
   }
   const evidence = JSON.stringify({
-    summary: `All verification layers passed via node scripts/framework-check.mjs verify-feature${skipNote}`,
+    summary: `All verification layers passed via node scripts/framework-check.mjs verify-feature${skipNote}${boundNote}`,
     timestamp: new Date().toISOString(),
     commit,
     dirty,
+    bound,
+    checksHash: featureChecksHash(feature),
     layers: layerResults,
   });
   recordFeaturePass(featureId, evidence);
@@ -2064,7 +2199,7 @@ function printHelp() {
   console.log("  e2e            Layer 3b: end-to-end tests");
   console.log("  quality        Opt-in metric gates from .harness/quality.json (coverage, mutation, …)");
   console.log("  check-arch     Architecture constraint enforcement");
-  console.log("  verify-feature F=<id>  Run all verification layers for a feature");
+  console.log("  verify-feature F=<id>  Run all verification layers for a feature (commit its code first)");
   console.log("  activate F=<id>        Activate a feature when dependencies allow");
   console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
@@ -2118,6 +2253,9 @@ switch (mode) {
   case "typecheck": {
     ensureFeatureShape();
     pass("Feature tracker schema is consistent");
+    // A warning, not a failure: re-verifying needs a clean tree, and the commit that changes
+    // a feature's layers must itself pass check first (feat-030, D-041).
+    warnStaleEvidence();
     break;
   }
   case "test": {
@@ -2221,7 +2359,11 @@ switch (mode) {
     break;
   }
   case "verify-feature": {
-    verifyFeature(args[0]);
+    const unknown = args.filter((arg) => arg.startsWith("--") && arg !== "--allow-dirty");
+    if (unknown.length > 0) {
+      fail(`unknown verify-feature option ${unknown[0]} (expected --allow-dirty)`);
+    }
+    verifyFeature(args.find((arg) => !arg.startsWith("--")), { allowDirty: args.includes("--allow-dirty") });
     break;
   }
   case "session-trace": {

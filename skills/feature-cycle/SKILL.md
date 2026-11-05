@@ -20,11 +20,12 @@ The core workflow of this harness. Everything else serves this loop.
 4. Confirm the contract: at most one active feature (WIP=1), and every dependency of the active feature must already be `passing`. `npm run test` enforces both.
 5. Implement only that feature. Stay in scope — do not touch files unrelated to it.
 6. Run `npm run check` before every commit. A layer that reports SKIP does not count as verified; a FAIL stops the chain.
-7. When the behavior is implemented, run the gate:
+7. When the behavior is implemented, commit the code and its docs (after `npm run check`), then run the gate:
    ```bash
    npm run verify-feature -- <feature-id>
    ```
    The gate runs the feature's own verification layers, refuses to pass it while dependencies are unmet, and records evidence in `.harness/state/<feature-id>.json` — feature_list.json itself is never rewritten. Never mark `passing` by hand.
+   The evidence names a commit, so the gate refuses while code is uncommitted. Harness bookkeeping (`.harness/state/`, `progress/`, `PROGRESS.md`, …) doesn't count; commit the shard it writes, with the session notes, in the next commit. Use `--allow-dirty` only when a human agrees: the evidence is then marked `bound: false`.
 8. Record a full-run trail: `npm run vcr` (check + check-arch + trail in `.harness/trails/`).
 9. Update docs in the same commit as the code change — no stale documentation.
 
@@ -33,6 +34,6 @@ The core workflow of this harness. Everything else serves this loop.
 - [ ] Exactly one feature active before starting
 - [ ] Dependencies of the active feature are passing
 - [ ] `npm run check` before each commit
-- [ ] `npm run verify-feature -- <id>` after implementation
+- [ ] Code and docs committed, then `npm run verify-feature -- <id>`
 - [ ] Evidence recorded in `.harness/state/<id>.json`
 - [ ] Docs updated in the same commit

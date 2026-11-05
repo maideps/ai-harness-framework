@@ -35,6 +35,8 @@ If baseline verification is failing, repair that first before adding new scope.
 - **MUST** run `make check` (or equivalent verification) before every commit
   <!-- source: harness-engineering-template L03 — repo must have a verifiable consistent-state predicate -->
 - **MUST NOT** mark a feature as `passing` manually — use `make verify-feature F=<id>` or the documented verification path
+- **MUST** commit the feature's code and docs before `verify-feature` — it refuses uncommitted changes outside harness bookkeeping, so its evidence names the commit that passed; the state shard it writes goes in the next commit
+  <!-- source: feat-030, D-041 — evidence recorded on a dirty tree named a commit that did not hold the verified code -->
   <!-- source: harness-engineering-template L08 — state transitions must go through the harness gate -->
 - **MUST** add session notes under `progress/` and regenerate `PROGRESS.md` at session end
   <!-- source: harness-engineering-template L05 — durable cross-session continuity requires written handoff -->
