@@ -844,6 +844,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-032",
+      "name": "Upgrade dry run with a per-file plan",
+      "behavior": "harness-upgrade <dir> --dry-run (and upgrade(root, { dryRun: true })) computes the full upgrade without writing anything: no file copied, no manifest rewrite, no instance file created, no .harness/backups snapshot. Both modes report a per-file plan of the framework-owned files (scripts/, tests/, the agent shims, shipped skills, templates/ except keep ones): which would be added, which would be updated because their content differs, and how many are unchanged, plus whether the manifest classification changes and which instance files would be created. A real run applies exactly that plan. Unknown options fail.",
+      "verification": "npm run check passes including harness-upgrade tests: a dry run leaves every file in the adopter byte-identical and creates no backup, yet reports the same added/updated/created lists a real run then applies; an unchanged repository reports zero updates on a second upgrade; an edited CORE file is listed as updated; the CLI accepts --dry-run and rejects an unknown option; npm run check-arch passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/harness-upgrade.test.mjs tests/adoption-matrix.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }
