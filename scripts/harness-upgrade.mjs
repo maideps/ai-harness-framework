@@ -43,21 +43,6 @@ const FRAMEWORK_MANIFEST_KEYS = [
   "customizationPoints",
 ];
 
-function copyRecursive(src, dest, { keepExisting = () => false } = {}) {
-  mkdirSync(dest, { recursive: true });
-  for (const entry of readdirSync(src, { withFileTypes: true })) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyRecursive(srcPath, destPath, { keepExisting });
-    } else if (existsSync(destPath) && keepExisting(destPath)) {
-      continue;
-    } else {
-      copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
 function readJson(file) {
   try {
     return JSON.parse(readFileSync(file, "utf8"));
@@ -66,18 +51,42 @@ function readJson(file) {
   }
 }
 
+// What copying src over dest would do: "add" (dest absent), "update" (content differs) or
+// "same". Line endings are ignored, so a CRLF checkout of an unchanged file reads as "same".
+function fileAction(src, dest) {
+  if (!existsSync(dest)) return "add";
+  const normalize = (file) => readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  return normalize(src) === normalize(dest) ? "same" : "update";
+}
+
+// Every file a recursive copy of src into dest would write, as { rel, src, dest, action }.
+// Files the adopter keeps (`keep` templates that already exist) are left out (feat-032).
+function planCopy(src, dest, rel, { keepExisting = () => false } = {}, plan = []) {
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    const relPath = `${rel}/${entry.name}`;
+    if (entry.isDirectory()) {
+      planCopy(srcPath, destPath, relPath, { keepExisting }, plan);
+    } else if (!(existsSync(destPath) && keepExisting(destPath))) {
+      plan.push({ rel: relPath, src: srcPath, dest: destPath, action: fileAction(srcPath, destPath) });
+    }
+  }
+  return plan;
+}
+
 // Templates are framework skeletons and follow the framework, except those the manifest marks
 // `keep` (the sprint contract, rubric and checklist), which adopters customise in place.
-function upgradeTemplates(root) {
+function planTemplates(root, plan) {
   const manifest = readJson(path.join(HARNESS_ROOT, ".harness", "manifest.json")) ?? {};
   const kept = new Set(
     (manifest.templates ?? [])
       .filter((entry) => entry && typeof entry === "object" && entry.keep)
       .map((entry) => path.resolve(root, entry.from)),
   );
-  copyRecursive(path.join(HARNESS_ROOT, "templates"), path.join(root, "templates"), {
+  planCopy(path.join(HARNESS_ROOT, "templates"), path.join(root, "templates"), "templates", {
     keepExisting: (destPath) => kept.has(path.resolve(destPath)),
-  });
+  }, plan);
   return [...kept].map((file) => path.relative(root, file).split(path.sep).join("/"));
 }
 
@@ -98,7 +107,7 @@ function isPlaceholder(rel, dest) {
   }
 }
 
-function createMissingInstanceFiles(root) {
+function createMissingInstanceFiles(root, { dryRun = false } = {}) {
   const manifest = readJson(path.join(HARNESS_ROOT, ".harness", "manifest.json")) ?? {};
   const instance = new Set(manifest.instance ?? []);
   const created = [];
@@ -107,8 +116,10 @@ function createMissingInstanceFiles(root) {
     const src = path.join(HARNESS_ROOT, entry.from);
     const dest = path.join(root, entry.to);
     if ((existsSync(dest) && !isPlaceholder(entry.to, dest)) || !existsSync(src)) continue;
-    mkdirSync(path.dirname(dest), { recursive: true });
-    copyFileSync(src, dest);
+    if (!dryRun) {
+      mkdirSync(path.dirname(dest), { recursive: true });
+      copyFileSync(src, dest);
+    }
     created.push(entry.to);
   }
   return created;
@@ -119,18 +130,20 @@ function createMissingInstanceFiles(root) {
 // directories, so an adopter who committed before this fixed earlier has a trails/ directory
 // that exists locally but vanishes on a fresh clone, failing check-arch there. Backfill it
 // exactly once, the same way create-harness does for a brand-new adopter.
-function ensureTrailsGitkeep(root) {
+function ensureTrailsGitkeep(root, { dryRun = false } = {}) {
   const dir = path.join(root, ".harness", "trails");
   const gitkeep = path.join(dir, ".gitkeep");
   if (existsSync(gitkeep)) return false;
   const hasOtherFiles = existsSync(dir) && readdirSync(dir).length > 0;
   if (hasOtherFiles) return false;
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(gitkeep, "", "utf8");
+  if (!dryRun) {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(gitkeep, "", "utf8");
+  }
   return true;
 }
 
-function upgradeManifest(root) {
+function upgradeManifest(root, { dryRun = false } = {}) {
   const file = path.join(root, ".harness", "manifest.json");
   const theirs = readJson(file);
   const ours = readJson(path.join(HARNESS_ROOT, ".harness", "manifest.json"));
@@ -141,7 +154,7 @@ function upgradeManifest(root) {
   }
   const text = `${JSON.stringify(merged, null, 2)}\n`;
   if (text === readFileSync(file, "utf8")) return false;
-  writeFileSync(file, text, "utf8");
+  if (!dryRun) writeFileSync(file, text, "utf8");
   return true;
 }
 
@@ -204,31 +217,50 @@ function shippedSkillSurfaces() {
     .map((name) => `skills/${name}/`);
 }
 
-export function upgrade(root) {
+// `dryRun` computes the same plan and report without writing anything, backups included
+// (feat-032). A real run applies exactly the plan it reports.
+export function upgrade(root, { dryRun = false } = {}) {
   const skills = shippedSkillSurfaces();
+  const report = { dryRun, overwritten: [], preserved: [] };
+  const plan = [];
+  for (const surface of [...MUST_NOT_EDIT_SURFACES, ...skills]) {
+    const src = path.join(HARNESS_ROOT, surface);
+    if (!existsSync(src)) continue;
+    const rel = surface.replace(/\/$/, "");
+    const dest = path.join(root, rel);
+    if (surface.endsWith("/")) {
+      planCopy(src, dest, rel, {}, plan);
+    } else {
+      plan.push({ rel, src, dest, action: fileAction(src, dest) });
+    }
+    report.overwritten.push(surface);
+  }
+  const keptTemplates = planTemplates(root, plan);
+  report.overwritten.push("templates/ (framework skeletons)");
+  report.files = {
+    added: plan.filter((item) => item.action === "add").map((item) => item.rel),
+    updated: plan.filter((item) => item.action === "update").map((item) => item.rel),
+    unchanged: plan.filter((item) => item.action === "same").length,
+  };
+
   // Snapshot what's about to be overwritten before touching anything — a
   // safety net independent of git, for a dirty tree or a mustNotEdit file an
   // adopter edited against policy (feat-012, backups live in
   // .harness/backups/, gitignored).
-  const backup = createBackup(root, [...MUST_NOT_EDIT_SURFACES, ...skills, "templates/", ".harness/manifest.json"], HARNESS_ROOT);
-  const report = { overwritten: [], preserved: [], backup };
-  for (const surface of [...MUST_NOT_EDIT_SURFACES, ...skills]) {
-    const src = path.join(HARNESS_ROOT, surface);
-    const dest = path.join(root, surface);
-    if (!existsSync(src)) continue;
-    if (surface.endsWith("/")) {
-      copyRecursive(src, dest.replace(/[\\/]$/, ""));
-      report.overwritten.push(surface);
-    } else {
-      copyFileSync(src, dest);
-      report.overwritten.push(surface);
+  report.backup = dryRun
+    ? { skipped: true, reason: "dry run" }
+    : createBackup(root, [...MUST_NOT_EDIT_SURFACES, ...skills, "templates/", ".harness/manifest.json"], HARNESS_ROOT);
+  if (!dryRun) {
+    // Every planned file is copied, unchanged ones included, as before the plan existed:
+    // a copy also carries the file mode.
+    for (const item of plan) {
+      mkdirSync(path.dirname(item.dest), { recursive: true });
+      copyFileSync(item.src, item.dest);
     }
   }
-  const keptTemplates = upgradeTemplates(root);
-  report.overwritten.push("templates/ (framework skeletons)");
-  if (upgradeManifest(root)) report.overwritten.push(".harness/manifest.json classification (productRoots kept)");
-  report.created = createMissingInstanceFiles(root);
-  if (ensureTrailsGitkeep(root)) report.created.push(".harness/trails/.gitkeep");
+  if (upgradeManifest(root, { dryRun })) report.overwritten.push(".harness/manifest.json classification (productRoots kept)");
+  report.created = createMissingInstanceFiles(root, { dryRun });
+  if (ensureTrailsGitkeep(root, { dryRun })) report.created.push(".harness/trails/.gitkeep");
   report.preserved.push(
     `Makefile, package.json, init.sh, .harness/manifest.json productRoots, .harness/arch-rules.json, project skills in skills/, docs/, README.md, the customisable templates (${keptTemplates.join(", ")}), all INSTANCE state`,
   );
@@ -242,23 +274,37 @@ export function upgrade(root) {
 }
 
 function main() {
-  const target = process.argv[2];
-  if (!target) {
-    console.error("usage: node scripts/harness-upgrade.mjs <adopter-dir>");
+  const args = process.argv.slice(2);
+  const unknown = args.filter((arg) => arg.startsWith("--") && arg !== "--dry-run");
+  const target = args.find((arg) => !arg.startsWith("--"));
+  if (!target || unknown.length > 0) {
+    if (unknown.length > 0) console.error(`unknown option ${unknown[0]}`);
+    console.error("usage: node scripts/harness-upgrade.mjs <adopter-dir> [--dry-run]");
     process.exit(1);
   }
   const root = path.resolve(target);
-  const report = upgrade(root);
-  console.log(`=== harness-upgrade: ${root} ===`);
-  if (report.backup.skipped) {
+  const dryRun = args.includes("--dry-run");
+  const report = upgrade(root, { dryRun });
+  console.log(`=== harness-upgrade: ${root}${dryRun ? " (dry run: nothing was written)" : ""} ===`);
+  if (dryRun) {
+    console.log("  Backup: none (dry run)");
+  } else if (report.backup.skipped) {
     console.log(`  Backup: skipped (${report.backup.reason})`);
   } else {
     console.log(`  Backup: ${report.backup.id} (${report.backup.fileCount} file(s)) — restore with: node scripts/harness-backup.mjs restore ${report.backup.id}`);
   }
-  console.log("  Overwritten (mustNotEdit CORE):");
+  const { added, updated, unchanged } = report.files;
+  console.log(
+    dryRun
+      ? `  Framework-owned files: ${updated.length} would change, ${added.length} would be added, ${unchanged} unchanged`
+      : `  Framework-owned files: ${updated.length} changed, ${added.length} added, ${unchanged} unchanged`,
+  );
+  for (const file of updated) console.log(`    update  ${file}`);
+  for (const file of added) console.log(`    add     ${file}`);
+  console.log(dryRun ? "  Would overwrite (mustNotEdit CORE):" : "  Overwritten (mustNotEdit CORE):");
   for (const surface of report.overwritten) console.log(`    ${surface}`);
   if (report.created.length > 0) {
-    console.log("  Created (new instance files, yours from now on):");
+    console.log(dryRun ? "  Would create (new instance files, yours from then on):" : "  Created (new instance files, yours from now on):");
     for (const file of report.created) console.log(`    ${file}`);
     if (report.created.includes(".gitattributes")) {
       console.log("    Line-ending rules are new: apply them once, as their own commit, with");
@@ -288,6 +334,10 @@ function main() {
     console.log("    node scripts/framework-check.mjs progress-migrate");
   }
   console.log("");
+  if (dryRun) {
+    console.log(`  Nothing was written. Apply with: node scripts/harness-upgrade.mjs ${target}`);
+    return;
+  }
   console.log(
     "  Verify the upgraded repo: node scripts/framework-check.mjs selftest && npm run check && npm run check-arch",
   );

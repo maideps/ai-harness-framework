@@ -642,3 +642,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: new adopters and upgraded `{}` adopters get secret-read protection in Claude Code by default. The docs no longer promise enforcement that does not exist.
 - Negative: an agent that needs a real value from `.env` must ask the human. Projects that keep secrets elsewhere must add their own rules. The protection is Claude Code only and is not an OS boundary; scripts and tests the agent runs can still read the files.
+
+### D-043: harness-upgrade plans per file and can stop at the plan (--dry-run)
+
+**Date:** 2026-11-05
+**Status:** accepted
+**Context:** An upgrade wrote first and reported after, and the report named whole surfaces ("Overwritten: scripts/") whether or not anything in them changed. An adopter could not see beforehand which of their files would be replaced, for example a CORE script they had edited against policy, or tell an upgrade that changes three files from one that changes forty. The improvement brief (WP-05) asks for a preview that writes nothing.
+**Decision:**
+- `upgrade(root)` first builds a plan of every framework-owned file it would copy (the mustNotEdit surfaces, the shipped skills, `templates/` except existing `keep` templates), each marked `add`, `update` or `same`. Content is compared with line endings normalized, so a CRLF checkout of an unchanged file is `same`.
+- `upgrade(root, { dryRun: true })` and `harness-upgrade <dir> --dry-run` stop at the plan: nothing is copied, the manifest is not rewritten, no instance file is created, and no backup is taken. The report is the same object a real run returns (`files.added`, `files.updated`, `files.unchanged`, `created`, `overwritten`), with `dryRun: true`.
+- A real run takes the backup, then copies every planned file, unchanged ones included, exactly as before (a copy also carries the file mode), so the dry run's lists are what the real run reports.
+- The CLI prints each changed and added file in both modes, and rejects an unknown option instead of ignoring it. `make harness-upgrade D="<dir> --dry-run"` passes the flag through; no Makefile or package.json change is needed.
+**Alternatives considered:**
+- Show a unified diff per file — rejected for now: the useful decision is which files change; `git diff` after a real run (with the automatic backup to restore from) shows the content.
+- A `harness-lock.json` pinning the framework version (brief WP-05) — not done: the manifest already records `version`, and adopters choose the version by which copy of the framework they run.
+**Consequences:**
+- Positive: an adopter can review an upgrade before it touches anything, and every real upgrade says exactly which files it changed.
+- Negative: an edited mustNotEdit file is reported as "update", the same as a file the framework changed; the plan cannot tell the two apart without the adopter's previous framework version.
