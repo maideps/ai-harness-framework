@@ -8,6 +8,7 @@
     "manifest": 3
   },
   "featureIdPattern": "^feat-\\d{3}$",
+  "frameworkRepository": true,
   "core": [
     "AGENTS.md",
     "CLAUDE.md",

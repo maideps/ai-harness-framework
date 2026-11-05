@@ -134,13 +134,16 @@ function instantiatePackageJson(root, { wasFreshlyCreated }) {
 
 // The manifest is CORE, but its productRoots list the framework repository's own
 // product-owned files (publish.yml, repo-completion-plan.md), which an adopter does not
-// have. A fresh adopter starts with none and declares its own (feat-027). Same rule as
-// package.json: only a manifest this adopt() run just created is touched.
+// have. A fresh adopter starts with none and declares its own (feat-027). It also loses
+// frameworkRepository, which makes the test and e2e layers test the harness itself on every
+// check (feat-029). Same rule as package.json: only a manifest this adopt() run just created
+// is touched.
 function instantiateManifest(root, { wasFreshlyCreated }) {
   if (!wasFreshlyCreated) return;
   const manifestPath = path.join(root, ".harness", "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.productRoots = [];
+  delete manifest.frameworkRepository;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 

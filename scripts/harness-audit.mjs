@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 // mode, docs/ARCHITECTURE.md's documented customization point). Dropping the harness's own
 // invocation from one of these loses everything that layer checks (skills structure,
 // progress log, placeholder docs, and command-surface drift for lint; feature-tracker shape
-// for typecheck; the dependency graph, WIP contract, and runner unit tests for test; Make
+// for typecheck; the dependency graph and WIP contract for test (plus the runner unit tests in
+// the framework repository; adopters run those from ./init.sh, feat-029); Make
 // target/shell-shim wiring for build) with no warning, since check-arch (arch-001..006)
 // does not cover any of that (#25). Warn, never fail: a layer intentionally chaining both
 // (`node scripts/framework-check.mjs lint && eslint .`, USAGE.md's documented pattern) is

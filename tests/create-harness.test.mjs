@@ -65,7 +65,24 @@ test("adopt: a brand-new target starts with empty productRoots and the framework
     const frameworkManifest = JSON.parse(readFileSync(path.join(HARNESS_ROOT, ".harness", "manifest.json"), "utf8"));
 
     assert.deepEqual(manifest.productRoots, []);
-    assert.deepEqual({ ...manifest, productRoots: frameworkManifest.productRoots }, frameworkManifest);
+    // feat-029: frameworkRepository marks the framework's own repository only.
+    const expected = { ...frameworkManifest };
+    delete expected.frameworkRepository;
+    assert.deepEqual({ ...manifest, productRoots: frameworkManifest.productRoots }, expected);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// feat-029: carried into an adopter, frameworkRepository would make its test and e2e layers run
+// the harness's own unit tests and adoption matrix on every check. In the framework repository
+// the harness root has the key, so this proves the drop; run inside an adopter it holds trivially.
+test("adopt: a brand-new target's manifest does not mark it as the framework repository", () => {
+  const root = fixture("framework-flag");
+  try {
+    adopt(root, { skipExisting: true });
+    const manifest = JSON.parse(readFileSync(path.join(root, ".harness", "manifest.json"), "utf8"));
+    assert.ok(!("frameworkRepository" in manifest), JSON.stringify(manifest.frameworkRepository));
   } finally {
     cleanup(root);
   }

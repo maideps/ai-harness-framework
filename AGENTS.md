@@ -9,7 +9,7 @@ Before writing code:
 1. **Confirm working directory** with `pwd`
 2. **Read this file** completely
 3. **Read project docs** (`docs/ARCHITECTURE.md`, `docs/PRODUCT.md`, README)
-4. **Run `./init.sh`** to verify environment is healthy
+4. **Run `./init.sh`** to verify environment is healthy (it also runs the harness self-tests, once per session)
 5. **Read `feature_list.json`** to see current feature state
 6. **Check for parallel work** — if more than one feature is `planned`, run `npm run lane-suggest` before picking just one. It is read-only; if it reports an independent set, propose that set (and the `parallel-lanes` skill's flow) to a human before defaulting to a single feature.
 7. **Review recent commits** with `git log --oneline -5`

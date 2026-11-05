@@ -29,6 +29,8 @@ export const MUST_NOT_EDIT_SURFACES = [
 
 // The manifest's classification belongs to the framework (customizationPoints.mustNotEdit);
 // the adopter's productRoots and any keys of its own (such as featureIdPattern) stay (feat-019).
+// frameworkRepository is deliberately not listed: it marks the framework's own repository, and
+// carried into an adopter it would run the harness's self-tests on every check (feat-029).
 const FRAMEWORK_MANIFEST_KEYS = [
   "harness",
   "version",
@@ -269,7 +271,9 @@ function main() {
     console.log("    node scripts/framework-check.mjs progress-migrate");
   }
   console.log("");
-  console.log("  Verify the upgraded repo: npm run check && npm run check-arch");
+  console.log(
+    "  Verify the upgraded repo: node scripts/framework-check.mjs selftest && npm run check && npm run check-arch",
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

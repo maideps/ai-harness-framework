@@ -5,7 +5,7 @@ This guide covers running the harness day-to-day and adopting it in a new projec
 ## Quick Start
 
 ```bash
-./init.sh        # check prerequisites, detect the project stack, install deps, run verification
+./init.sh        # check prerequisites, detect the project stack, install deps, run verification and the harness self-tests
 make check       # full verification: lint → typecheck → test → build → e2e → optional verify-all → optional quality
 make help        # list all available commands
 ```
@@ -264,7 +264,7 @@ Customization points (from the manifest):
 
 ### Replacing `lint`, `typecheck`, `test`, or `build` without losing the harness's own checks (#25)
 
-For a Node project, `lint`, `typecheck`, `test`, and `build` ship pointing at `node scripts/framework-check.mjs <layer>` — which is also how the harness checks itself: `lint` validates skills structure, the generated progress dashboard, and framework docs for unfilled template placeholders; `typecheck` validates `feature_list.json`'s shape; `test` validates the feature dependency graph, the WIP=1/lane contract, and runs the runner's own unit tests; `build` validates Make targets and shell shims. `npm run check-arch` (arch-001..006) does **not** duplicate any of this — replacing one of these four script values with your product tool entirely, instead of chaining it, silently drops that layer's harness checks from both `npm run check` and every `npm run verify-feature` run, with nothing to catch the gap.
+For a Node project, `lint`, `typecheck`, `test`, and `build` ship pointing at `node scripts/framework-check.mjs <layer>` — which is also how the harness checks itself: `lint` validates skills structure, the generated progress dashboard, and framework docs for unfilled template placeholders; `typecheck` validates `feature_list.json`'s shape; `test` validates the feature dependency graph and the WIP=1/lane contract (the runner's own unit tests run from `./init.sh` instead, see below); `build` validates Make targets and shell shims. `npm run check-arch` (arch-001..006) does **not** duplicate any of this — replacing one of these four script values with your product tool entirely, instead of chaining it, silently drops that layer's harness checks from both `npm run check` and every `npm run verify-feature` run, with nothing to catch the gap.
 
 **Chain the two instead of replacing:**
 
@@ -286,7 +286,8 @@ Forgot to chain one? `node scripts/harness-audit.mjs` warns, by layer name, the 
 - **PASS** — the layer ran and succeeded; it counts as verified.
 - **SKIP** — the layer is not configured; it does not count as verified.
 - **FAIL** — non-zero exit; the chain stops.
-- **The default `e2e` layer is the framework's adoption matrix.** It generates throwaway adopter repos and runs the harness in each — five stack cells, a simulated upgrade, the multi-repo component, and an existing-repo adoption check. It tests the harness, not your product, and is one of the slower layers: budget low-single-digit minutes locally (it spawns `git init`/`git add` and a nested `node --test` run per cell), and it can be the majority of a full `npm run check` until you have real end-to-end tests. Once you do, replace the `e2e` script with them. Until then, skip it locally with `CW_SKIP_ADOPTION_MATRIX=1 npm run check` — the templated CI workflow (`templates/ci.yml`) already sets this so CI exercises your project's own layers, not the framework's self-test, on every adopter's pipeline.
+- **The default `e2e` layer reports SKIP until you wire your own end-to-end tests.** Point the `e2e` script at them; until then a SKIP is the honest answer, and it does not count as verified. The framework's adoption matrix (throwaway adopter repos across five stacks, a simulated upgrade, the multi-repo component) tests the harness, not your product, so it runs only in the framework's own repository (feat-029, D-040).
+- **The harness self-tests run once per session, not on every check.** They are the runner's unit tests in `tests/`, which test CORE files you don't edit and that only change on `harness-upgrade`. `./init.sh` runs them at the start of each session, which catches a Node version or platform that breaks the harness; `node scripts/framework-check.mjs selftest` runs them on demand, for example right after an upgrade. Keeping them out of `test` and `e2e` keeps the harness's own share of a `verify-feature` run to a second or two.
 
 `npm run check-arch` enforces six rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, and feature declarations carry no leftover inline state (sharded state stays consistent).
 
