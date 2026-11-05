@@ -109,9 +109,10 @@ Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`)
 
 ## Tools and MCP
 
-- Tool access is scoped via `.claude/settings.json`
+- `.claude/settings.json` denies Claude Code reads of secret files (`.env` variants, `~/.ssh`, `~/.aws`, …); every other permission stays at the tool's own default. It is not a security boundary: scripts can still open those files
+- Codex and Gemini CLI get no shipped permission file; `docs/TOOLS.md` says how to get the same protection there, and how to opt into Claude Code's OS sandbox
+- Never add `allow` rules for sensitive actions (writes outside the project, network, installs, pushes) to the shared settings file — it applies to every teammate
 - MCP integrations and permitted capabilities are documented in `docs/TOOLS.md`
-- Default permission for sensitive tools is `ask`, not `allow`
 
 ## Skills
 

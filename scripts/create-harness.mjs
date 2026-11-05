@@ -164,7 +164,6 @@ export function createRuntimeSurfaces(root) {
   }
   write(".harness/traces/.gitkeep", "");
   write(".harness/trails/.gitkeep", "");
-  write(".claude/settings.json", "{}\n");
   write("package-lock.json", "{}\n");
   write("claude-progress.md", "# Claude Progress\n\nCompatibility alias for PROGRESS.md.\n");
 }
