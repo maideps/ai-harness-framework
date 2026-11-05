@@ -37,6 +37,14 @@ jobs:
       - name: Architecture rules
         run: npm run check-arch
 
+      # Agent-compliance evals (feat-033): the graders against scripted runs, and every task's
+      # fixture building. No model is called; real trials run by hand (evals/README.md). Kept
+      # out of `npm run check`, which they would slow by about a minute.
+      - name: Eval graders and fixtures (no model)
+        run: |
+          node --test evals/graders.test.mjs
+          node evals/run.mjs --fixtures-only --trials 1
+
       # The Makefile surface delegates to the same runner; prove it on Linux
       # where make is available (the primary dev machine lacks make).
       - name: Makefile surface

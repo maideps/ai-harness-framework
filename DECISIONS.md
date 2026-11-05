@@ -659,3 +659,25 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: an adopter can review an upgrade before it touches anything, and every real upgrade says exactly which files it changed.
 - Negative: an edited mustNotEdit file is reported as "update", the same as a file the framework changed; the plan cannot tell the two apart without the adopter's previous framework version.
+
+### D-044: Agent-compliance evals run Claude Code in throwaway adopters and grade outcomes
+
+**Date:** 2026-11-05
+**Status:** accepted
+**Context:** The unit tests and the adoption matrix prove the harness's scripts work. Nothing tested whether an agent following `AGENTS.md` actually does what it says: commits before the gate, keeps WIP=1, leaves feature state to `verify-feature`, refuses shortcuts. The evals article behind the improvement brief (WP-02) says to start with 20–50 tasks drawn from real failures, isolate every trial, grade outcomes rather than step sequences, prefer deterministic graders, and report consistency (pass^k) across trials. The human chose Claude Code as the first agent.
+**Decision:**
+- `evals/` lives in the framework repository only (`productRoots`; not in the npm package, never placed in adopters).
+- Each trial builds a fresh fixture with `create-harness`, filled docs, the task's files and features (declared through the runner's own `add-feature`, and `passing` ones verified through the real gate), and a clean commit. The template's placeholder feature is dropped, and product tests are chained into `test` the way USAGE documents.
+- The agent runs as `claude -p` with `--permission-mode dontAsk` and a scoped `--allowedTools` list (no push, network or delete commands), `--setting-sources project,local`, `--strict-mcp-config` with no servers, `--no-session-persistence`, and auto memory off. The fixture's `CLAUDE.md` and `.claude/settings.json` load as for a real adopter, since that is what is evaluated. `--bare` is not used because it skips `CLAUDE.md`. `--fresh-config` (an empty `CLAUDE_CONFIG_DIR`, API key only) also keeps the developer's `~/.claude/CLAUDE.md` out.
+- Graders are deterministic and check outcomes: `no-state-edits`, `wip-1`, `gate-only-passing` (verify-feature evidence, bound, naming a real commit), `feature-state`, `session-note`, `check-green`, and `command` (with hidden files copied in only at grading). No LLM judge yet.
+- Five first tasks, two "comply" and three "hold back": implement a feature; repair a red baseline before new scope; refuse to mark a failing feature passing by hand; refuse a second active feature; refuse to finish a feature whose dependency isn't done. Doing the work properly through the gate also passes a hold-back task.
+- The report gives per-task pass^k and pass@k, graders that flip between trials, and the CLI's cost estimate. Results go to `evals/results/` (self-ignoring).
+- `evals/graders.test.mjs` plays compliant and corner-cutting agents against a real fixture with no model. CI runs it and `--fixtures-only`. Both stay out of `npm run check`, which they would slow by about a minute (D-040 keeps the check short).
+**Alternatives considered:**
+- Compare the same tasks with and without the harness (the brief's WP-02 benchmark) — deferred: first find out whether agents follow the harness at all; an A/B comparison needs many more trials and a matched no-harness setup.
+- An LLM rubric judge for answer quality — deferred: every grader so far can be checked from repository state and tool calls.
+- `--dangerously-skip-permissions` in a container, as in the C compiler article — rejected as the default: a scoped allow list works anywhere; the README says to use the dev container when isolation matters.
+- Run the grader tests in the framework's `test` layer — rejected: about a minute more on every local check and every `verify-feature`.
+**Consequences:**
+- Positive: harness changes can be measured against agent behavior, not only script behavior; corner-cutting has a test for each grader.
+- Negative: real trials cost tokens and need the CLI, so they run by hand, not in CI. Five tasks are far from the 20–50 the article recommends; more should come from real failures. `no-state-edits` recognizes shell writes by pattern, so an unusual write command can slip past (`gate-only-passing` still catches state with no gate evidence). No real trial has run yet.
