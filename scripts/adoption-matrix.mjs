@@ -8,7 +8,9 @@
 // feature cycle through verify-feature. Cells whose toolchain is absent report
 // SKIP (honest degradation) instead of failing. The upgrade test adopts,
 // customizes, simulates a harness upgrade, and asserts the customizations
-// survive while mustNotEdit surfaces are refreshed (D-010).
+// survive while mustNotEdit surfaces are refreshed (D-010). The cells' test
+// layers do not run the harness's own unit tests (an adopter runs them from
+// ./init.sh, feat-029), so one adopter runs them once through `selftest`.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -461,6 +463,31 @@ function runExistingRepoTest() {
   }
 }
 
+// ---- Shipped self-tests (feat-029, D-040) -----------------------------------
+
+// An adopter's test layer no longer runs the harness's own unit tests; ./init.sh runs them
+// once per session through `selftest`. The cells above therefore never run them, so prove once
+// here that the tests/ an adopter receives pass from an adopter's layout (its manifest has no
+// frameworkRepository, its package.json and productRoots are its own).
+function runShippedSelfTests() {
+  let root = "";
+  try {
+    root = buildAdopter("selftest", "node");
+    const result = spawnRunner(root, ["selftest"]);
+    const ok = result.exit === 0 && result.output.includes("PASS: Runner unit tests pass");
+    if (!ok) {
+      console.log(result.output
+        .split(/\r?\n/)
+        .slice(-15)
+        .map((line) => `    | ${line}`)
+        .join("\n"));
+    }
+    return { ok };
+  } finally {
+    if (root) rmSync(root, { recursive: true, force: true });
+  }
+}
+
 // ---- Entry point ----------------------------------------------------------
 
 function main() {
@@ -515,6 +542,15 @@ function main() {
   } else {
     failures += 1;
     console.log("  [FAIL] existing-repo adoption test failed — see assertions above");
+  }
+
+  console.log("=== Shipped Self-Tests ===");
+  const selfTests = runShippedSelfTests();
+  if (selfTests.ok) {
+    console.log("  [PASS] the harness self-tests an adopter receives pass in an adopter layout");
+  } else {
+    failures += 1;
+    console.log("  [FAIL] shipped self-tests failed in an adopter — see output above");
   }
 
   console.log("");

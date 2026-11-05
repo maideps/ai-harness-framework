@@ -27,12 +27,14 @@ function write(root, rel, content) {
   writeFileSync(dest, content, "utf8");
 }
 
-function run(root, mode, args = [], env = {}) {
+function run(root, mode, args = [], env = {}, { unset = [] } = {}) {
   // ./init.sh runs this suite with CW_INIT_SH=1 set, which turns lint's placeholder check
   // into a warning. Drop it from the inherited environment so a test only sees it when it
   // passes it explicitly; otherwise the #23 lint assertions pass alone but fail under init.sh.
+  // `unset` drops more inherited variables for the tests that depend on their absence.
   const inheritedEnv = { ...process.env };
   delete inheritedEnv.CW_INIT_SH;
+  for (const name of unset) delete inheritedEnv[name];
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
     encoding: "utf8",
@@ -174,6 +176,127 @@ test("e2e: adopter CI skips the framework adoption matrix", () => {
   }
 });
 
+// ---- feat-029: harness self-tests leave an adopter's per-feature path ------
+//
+// A fixture is an adopter unless its manifest sets frameworkRepository: true. Its tests/ holds a
+// failing *.test.mjs, so a mode that runs the harness self-tests fails and one that skips them
+// passes; its scripts/adoption-matrix.mjs is a stub that only prints a marker. The matrix runs
+// this suite inside adoption cells (CW_ADOPTION_CELL=1), and CI may set CW_SKIP_ADOPTION_MATRIX,
+// so the tests that depend on their absence unset both. node:test marks this file's process with
+// NODE_TEST_CONTEXT, and a nested `node --test` that inherits it skips every file and exits 0, so
+// the tests that need the fixture's self-test to really run unset it too.
+
+const MATRIX_VARS = ["CW_ADOPTION_CELL", "CW_SKIP_ADOPTION_MATRIX"];
+const NESTED_TEST_VARS = ["NODE_TEST_CONTEXT"];
+
+function selfTestFixture({ framework = false, failing = true } = {}) {
+  const root = fixture();
+  write(root, "feature_list.json", `${JSON.stringify({ features: [] }, null, 2)}\n`);
+  write(
+    root,
+    "tests/harness.test.mjs",
+    `import { test } from "node:test";\nimport assert from "node:assert/strict";\ntest("harness self-test", () => assert.equal(1, ${failing ? 2 : 1}));\n`,
+  );
+  write(root, "scripts/adoption-matrix.mjs", "console.log('STUB ADOPTION MATRIX RAN');\n");
+  if (framework) {
+    write(root, ".harness/manifest.json", `${JSON.stringify({ frameworkRepository: true }, null, 2)}\n`);
+  }
+  return root;
+}
+
+test("test: in an adopter the layer checks the feature graph but does not run the harness self-tests", () => {
+  const root = selfTestFixture();
+  try {
+    const result = run(root, "test", [], {}, { unset: NESTED_TEST_VARS });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /PASS: Feature dependency graph and WIP contract are valid/);
+    assert.match(result.stdout, /NOTE: harness self-tests are not part of this layer/);
+    assert.doesNotMatch(result.output, /Runner unit tests|runner unit tests failed/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("test: in the framework repository the layer still runs the harness self-tests", () => {
+  const root = selfTestFixture({ framework: true });
+  try {
+    const result = run(root, "test", [], {}, { unset: NESTED_TEST_VARS });
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /FAIL: runner unit tests failed/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("selftest: runs tests/*.test.mjs on demand and fails when one fails", () => {
+  const failing = selfTestFixture();
+  const passing = selfTestFixture({ failing: false });
+  try {
+    const failed = run(failing, "selftest", [], {}, { unset: NESTED_TEST_VARS });
+    assert.equal(failed.exit, 1, failed.output);
+    assert.match(failed.output, /FAIL: runner unit tests failed/);
+    const passed = run(passing, "selftest", [], {}, { unset: NESTED_TEST_VARS });
+    assert.equal(passed.exit, 0, passed.output);
+    assert.match(passed.stdout, /PASS: Runner unit tests pass/);
+  } finally {
+    cleanup(failing);
+    cleanup(passing);
+  }
+});
+
+test("selftest: reports SKIP when there are no harness self-tests", () => {
+  const root = fixture();
+  try {
+    const result = run(root, "selftest");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] No harness self-tests found/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-chain: an adopter runs the harness self-tests once per session (./init.sh)", () => {
+  const adopterRoot = selfTestFixture();
+  const frameworkRoot = selfTestFixture({ framework: true });
+  try {
+    const adopterRun = run(adopterRoot, "verify-chain", [], {}, { unset: NESTED_TEST_VARS });
+    assert.equal(adopterRun.exit, 1, adopterRun.output);
+    assert.match(adopterRun.stdout, /--- Running: harness self-tests/);
+    assert.match(adopterRun.output, /FAIL: runner unit tests failed/);
+    // In the framework repository the test layer of the project chain runs them instead; this
+    // fixture has no runtime, so the chain is empty and nothing runs the failing test.
+    const frameworkRun = run(frameworkRoot, "verify-chain", [], {}, { unset: NESTED_TEST_VARS });
+    assert.equal(frameworkRun.exit, 0, frameworkRun.output);
+    assert.doesNotMatch(frameworkRun.stdout, /harness self-tests/);
+  } finally {
+    cleanup(adopterRoot);
+    cleanup(frameworkRoot);
+  }
+});
+
+test("e2e: an adopter reports SKIP instead of running the framework's adoption matrix", () => {
+  const root = selfTestFixture();
+  try {
+    const result = run(root, "e2e", [], {}, { unset: MATRIX_VARS });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] No end-to-end tests configured/);
+    assert.doesNotMatch(result.stdout, /STUB ADOPTION MATRIX RAN/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("e2e: the framework repository still runs its adoption matrix", () => {
+  const root = selfTestFixture({ framework: true });
+  try {
+    const result = run(root, "e2e", [], {}, { unset: MATRIX_VARS });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /STUB ADOPTION MATRIX RAN/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 // ---- ensureManifest (mode: "manifest") -------------------------------------
 
 function baseManifest(overrides = {}) {
@@ -213,6 +336,22 @@ test("ensureManifest: passes on a fully classified, self-consistent manifest", (
     assert.match(result.stdout, /PASS: Harness manifest is valid/);
   } finally {
     cleanup(root);
+  }
+});
+
+// feat-029: a quoted "true" would read as false and silently turn the framework's self-tests off.
+test("ensureManifest: frameworkRepository must be a boolean", () => {
+  const valid = manifestFixture(baseManifest({ frameworkRepository: true }));
+  const invalid = manifestFixture(baseManifest({ frameworkRepository: "true" }));
+  try {
+    const ok = run(valid, "manifest");
+    assert.equal(ok.exit, 0, ok.output);
+    const bad = run(invalid, "manifest");
+    assert.equal(bad.exit, 1, bad.output);
+    assert.match(bad.output, /manifest frameworkRepository must be true or false/);
+  } finally {
+    cleanup(valid);
+    cleanup(invalid);
   }
 });
 

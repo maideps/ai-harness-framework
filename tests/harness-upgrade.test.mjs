@@ -51,6 +51,19 @@ test("harness-upgrade: refreshes the runner's own tests along with the runner (f
   }
 });
 
+// feat-029: frameworkRepository makes the test and e2e layers run the harness's own unit tests
+// and adoption matrix; it must never reach an adopter through an upgrade.
+test("harness-upgrade: never marks an adopter as the framework repository", () => {
+  const root = adopter();
+  try {
+    upgrade(root);
+    const theirs = JSON.parse(readFileSync(path.join(root, ".harness/manifest.json"), "utf8"));
+    assert.ok(!("frameworkRepository" in theirs), JSON.stringify(theirs.frameworkRepository));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("harness-upgrade: refreshes template skeletons but keeps the customisable templates", () => {
   const root = adopter();
   try {
