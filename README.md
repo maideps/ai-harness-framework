@@ -89,7 +89,7 @@ cd my-project
 npm run check
 ```
 
-Then open the project in your agent and ask it to work on the next feature. It reads `AGENTS.md` (Claude Code reads `CLAUDE.md`, Gemini CLI reads `GEMINI.md`; both point to `AGENTS.md`) and follows the loop: pick one feature, `npm run activate -- <id>`, implement it, `npm run verify-feature -- <id>`, write the session notes.
+Then open the project in your agent and ask it to work on the next feature. It reads `AGENTS.md` (Claude Code reads `CLAUDE.md`, Gemini CLI reads `GEMINI.md`; both point to `AGENTS.md`) and follows the loop: pick one feature, `npm run activate -- <id>`, implement and commit it, `npm run verify-feature -- <id>`, write the session notes.
 
 - **Adding it to a project you already have?** `create-harness` never overwrites a file that already exists, so if your project has its own `package.json`, the harness scripts aren't added to it. Copy them from this repository's [`package.json`](package.json). Where you already have a `lint`, `typecheck`, `test` or `build` script, chain the two instead of replacing yours ([how](docs/USAGE.md#replacing-lint-typecheck-test-or-build-without-losing-the-harnesss-own-checks-25)).
 - **On Windows?** Use Git Bash for `./init.sh`.
