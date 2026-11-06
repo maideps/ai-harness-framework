@@ -58,6 +58,23 @@ export function loadTasks(dir = TASKS_DIR, ids = []) {
   return tasks.filter((task) => ids.includes(task.id));
 }
 
+// Why the agent did not work on the task at all, or null when it did. A result event can
+// report an error with subtype "success" (for example a failed login), so is_error counts too.
+export function agentErrorOf(agent) {
+  if (agent.error) {
+    const hint = /ENOENT/.test(agent.error) ? " (Claude Code CLI not found: set CLAUDE_BIN to claude, or claude.exe on Windows)" : "";
+    return `${agent.error}${hint}`;
+  }
+  if (!agent.result) return `no result event (exit ${agent.exit})`;
+  if (agent.result.isError && agent.toolCalls.length === 0) return agent.result.text || `error result (${agent.result.subtype})`;
+  return null;
+}
+
+// Errors no later trial can get past: a missing CLI or a failed login.
+export function isFatalAgentError(message) {
+  return /ENOENT|CLI not found|authenticat|log ?in|OAuth|API key|credential/i.test(message);
+}
+
 // pass^k (every trial passed) is the consistency measure; pass@k (any trial passed) shows the
 // agent can do it at all. A grader "flips" when it passed in some trials and failed in others.
 export function summarize(trials) {
@@ -78,6 +95,7 @@ export function summarize(trials) {
       id,
       expect: runs[0].expect,
       trials: runs.length,
+      agentErrors: runs.filter((run) => run.agentError).length,
       passes,
       passAll: passes === runs.length,
       passAny: passes > 0,
@@ -125,7 +143,9 @@ function printSummary(summary) {
   console.log("=== Agent compliance evals ===");
   for (const task of summary.tasks) {
     const cost = task.costUsd === null ? "" : `  $${task.costUsd.toFixed(2)}`;
-    console.log(`  ${task.passAll ? "[PASS]" : "[FAIL]"} ${task.id} (${task.expect}): ${task.passes}/${task.trials} trials${cost}`);
+    const errors = task.agentErrors ? `, ${task.agentErrors} where the agent did not run` : "";
+    const status = task.agentErrors === task.trials ? "[ERROR]" : task.passAll ? "[PASS]" : "[FAIL]";
+    console.log(`  ${status} ${task.id} (${task.expect}): ${task.passes}/${task.trials} trials${errors}${cost}`);
     if (task.failing.length) console.log(`         failing graders: ${task.failing.join(", ")}`);
     if (task.flips.length) console.log(`         flipped between trials: ${task.flips.join(", ")}`);
   }
@@ -139,7 +159,7 @@ async function main() {
   const runDir = mkdtempSync(path.join(os.tmpdir(), "harness-eval-run-"));
   const trials = [];
   try {
-    for (const task of tasks) {
+    outer: for (const task of tasks) {
       for (let trial = 1; trial <= options.trials; trial += 1) {
         const trialDir = path.join(runDir, `${task.id}-${trial}`);
         mkdirSync(trialDir, { recursive: true });
@@ -150,13 +170,21 @@ async function main() {
         }
         console.log(`--- ${task.id} #${trial} ---`);
         const agent = runAgent(root, task.prompt, options);
-        if (agent.error || !agent.result) {
-          const hint = /ENOENT/.test(agent.error ?? "") ? " (Claude Code CLI not found: set CLAUDE_BIN to claude, or claude.exe on Windows)" : "";
-          console.log(`  agent run failed: ${agent.error ?? `no result event (exit ${agent.exit})`}${hint}`);
+        const agentError = agentErrorOf(agent);
+        if (agentError) {
+          // The agent never worked on the task: grading the untouched fixture would report a
+          // compliance failure that did not happen.
+          console.log(`  [ERROR] agent did not run: ${agentError}`);
           if (agent.stderr) console.log(agent.stderr.split(/\r?\n/).slice(-5).map((line) => `    ${line}`).join("\n"));
+          trials.push({ task: task.id, expect: task.expect, trial, pass: false, agentError, grades: [], agent: { ...agent.result, toolCalls: agent.toolCalls.length }, fixture: options.keep ? root : null });
+          if (isFatalAgentError(agentError)) {
+            console.log("  Stopping: every remaining trial would fail the same way.");
+            break outer;
+          }
+          continue;
         }
         const grades = gradeTrial({ root, task, baseline, toolCalls: agent.toolCalls });
-        const pass = Boolean(agent.result) && grades.every((grade) => grade.pass);
+        const pass = grades.every((grade) => grade.pass);
         for (const grade of grades) console.log(`  ${grade.pass ? "[PASS]" : "[FAIL]"} ${grade.label}: ${grade.detail.split("\n")[0]}`);
         trials.push({
           task: task.id,
@@ -182,7 +210,8 @@ async function main() {
   const file = path.join(RESULTS_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
   writeFileSync(file, `${JSON.stringify({ options: { ...options }, summary, trials }, null, 2)}\n`, "utf8");
   console.log(`  results: ${path.relative(process.cwd(), file)}`);
-  process.exitCode = summary.tasksPassAll === summary.tasks.length ? 0 : 1;
+  // 2: the agent never ran in some trial (a setup problem, not a compliance result); 1: a task failed.
+  process.exitCode = trials.some((trial) => trial.agentError) ? 2 : summary.tasksPassAll === summary.tasks.length ? 0 : 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

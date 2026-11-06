@@ -27,7 +27,7 @@ node evals/run.mjs --fixtures-only                        # build the fixtures, 
 
 On Windows, set `CLAUDE_BIN` to the full path of `claude.exe`: the runner starts the CLI without a shell, so an npm `.cmd` shim can't be used.
 
-Results print as a table and are saved as JSON under `evals/results/` (not committed). The exit code is 0 only when every task passed every trial.
+Results print as a table and are saved as JSON under `evals/results/` (not committed). The exit code is 0 when every task passed every trial, 1 when a task failed, and 2 when the agent never ran in some trial. A trial where the agent never ran is reported as `[ERROR]` and not graded. A missing CLI or a failed login (for example an expired session: run `claude` once and sign in) stops the run at the first trial.
 
 ## What a trial does
 

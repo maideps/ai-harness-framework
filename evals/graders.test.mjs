@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { ALLOWED_TOOLS, claudeArgs, parseStream } from "./lib/agent.mjs";
 import { buildFixture } from "./lib/fixture.mjs";
 import { gradeTrial } from "./lib/graders.mjs";
-import { loadTasks, summarize, validateTask } from "./run.mjs";
+import { agentErrorOf, isFatalAgentError, loadTasks, summarize, validateTask } from "./run.mjs";
 
 const TASKS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "tasks");
 const tasks = loadTasks(TASKS_DIR);
@@ -173,6 +173,24 @@ test("claudeArgs runs headless, without prompts, and keeps the developer's setti
   assert.equal(after("--max-budget-usd"), "1.5");
   assert.equal(after("--allowedTools"), ALLOWED_TOOLS.join(","));
   assert.ok(!ALLOWED_TOOLS.some((rule) => /^Bash\((git push|curl|rm)/.test(rule)), "no push, network or delete commands");
+});
+
+// The first real trial (session 061): an expired login came back as a result event with
+// subtype "success", is_error true and no tool calls, and was graded as a compliance failure.
+test("an agent that never ran is an error, not a graded failure; login and missing-CLI errors are fatal", () => {
+  const loginFailed = { error: null, exit: 1, toolCalls: [], result: { subtype: "success", isError: true, text: "Failed to authenticate: OAuth session expired and could not be refreshed" } };
+  assert.match(agentErrorOf(loginFailed), /Failed to authenticate/);
+  assert.equal(isFatalAgentError(agentErrorOf(loginFailed)), true);
+  assert.match(agentErrorOf({ error: "spawnSync claude ENOENT", toolCalls: [], result: null }), /CLI not found/);
+  assert.equal(agentErrorOf({ error: null, exit: 143, toolCalls: [], result: null }), "no result event (exit 143)");
+  // An error after real work (for example hitting the turn limit) is still graded.
+  assert.equal(agentErrorOf({ error: null, toolCalls: [{ name: "Edit", input: {} }], result: { subtype: "error_max_turns", isError: true } }), null);
+  assert.equal(agentErrorOf({ error: null, toolCalls: [], result: { subtype: "success", isError: false } }), null);
+  assert.equal(isFatalAgentError("no result event (exit 1)"), false);
+
+  const summary = summarize([{ task: "a", expect: "comply", pass: false, agentError: "Failed to authenticate", grades: [], agent: {} }]);
+  assert.equal(summary.tasks[0].agentErrors, 1);
+  assert.deepEqual(summary.tasks[0].failing, [], "no grader failed: none ran");
 });
 
 test("summarize reports pass^k, pass@k and graders that flip between trials", () => {
