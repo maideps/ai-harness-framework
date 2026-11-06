@@ -79,4 +79,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 059 — 2026-11-05 — harness-upgrade plans per file; --dry-run stops at the plan (feat-032)](progress/059-2026-11-05.md)
 - [Session 060 — 2026-11-05 — Agent-compliance evals for Claude Code (feat-033)](progress/060-2026-11-05.md)
 - [Session 061 — 2026-11-06 — First real eval trials: three eval bugs, then a full pass (feat-033 follow-up)](progress/061-2026-11-06.md)
+- [Session 062 — 2026-11-06 — First full eval suite: 14/15 trials, one eval-caused failure, one harness gap](progress/062-2026-11-06.md)
 <!-- END GENERATED PROGRESS -->
