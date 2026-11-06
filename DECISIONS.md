@@ -698,4 +698,5 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 - Have `session-end` run `vcr` — rejected: a second full check after the gate's own adds minutes and proves nothing new.
 **Consequences:**
 - Positive: the trail exists whenever a feature passes, with no step to forget; the quality document is checked where agents already look.
-- Negative: mentioning a feature id is a proxy; it does not prove the ratings are thoughtful. A trail file per verification adds one more bookkeeping file to commit. Not yet measured: whether agents now rate modules; the next eval run of the comply tasks will show it.
+- Negative: mentioning a feature id is a proxy; it does not prove the ratings are thoughtful. A trail file per verification adds one more bookkeeping file to commit.
+- Measured (session 064, the two comply tasks, 3 trials each): in every trial where the agent had a working shell, the quality document named the feature (5/5, was 1/5) and the gate's trail was committed (5/5, was 0/5). Agents wrote a Notes line or a table row naming the feature, what changed and the files.
