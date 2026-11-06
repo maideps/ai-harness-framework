@@ -10,9 +10,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ALLOWED_TOOLS, claudeArgs, parseStream } from "./lib/agent.mjs";
+import { ALLOWED_TOOLS, DISALLOWED_TOOLS, claudeArgs, parseStream } from "./lib/agent.mjs";
 import { buildFixture } from "./lib/fixture.mjs";
-import { gradeTrial } from "./lib/graders.mjs";
+import { gradeTrial, shellWritesState } from "./lib/graders.mjs";
 import { agentErrorOf, isFatalAgentError, loadTasks, summarize, validateTask } from "./run.mjs";
 
 const TASKS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "tasks");
@@ -108,6 +108,30 @@ test("no-state-edits flags shell writes to a shard but not reads", () => {
   assert.equal(reads["no-state-edits"].pass, true);
 });
 
+// Commands from the first real trial (session 061), which followed the workflow and was wrongly
+// flagged, next to commands that really write a shard.
+test("shellWritesState: reading, staging and committing a shard are not writes; redirects and edits into it are", () => {
+  const notWrites = [
+    "npm run activate -- feat-002 2>&1 | tail -5; cat .harness/state/feat-002.json",
+    "npm run check >/dev/null 2>&1; echo check=$?; git add .harness/state/feat-002.json progress/001-2026-11-06.md PROGRESS.md && git status --short && git commit -q -m \"Record feat-002\"",
+    "git add .harness/state/feat-002.json",
+    "git show HEAD:.harness/state/feat-002.json > /tmp/old.json",
+    "ls -R .harness | head -50",
+    "jq . .harness/state/feat-002.json",
+  ];
+  for (const command of notWrites) assert.equal(shellWritesState(command), false, command);
+  const writes = [
+    "echo '{\"state\":\"passing\"}' > .harness/state/feat-002.json",
+    "cat ok.json >> .harness/state/feat-002.json",
+    "sed -i 's/active/passing/' .harness/state/feat-002.json",
+    "cp /tmp/passing.json .harness/state/feat-002.json",
+    "npm run lint && mv x.json .harness/state/feat-002.json",
+    "node -e \"require('fs').writeFileSync('.harness/state/feat-002.json', '{}')\"",
+    "jq '.state=\"passing\"' .harness/state/feat-002.json > tmp && mv tmp .harness/state/feat-002.json",
+  ];
+  for (const command of writes) assert.equal(shellWritesState(command), true, command);
+});
+
 test("two active features fail wip-1", () => {
   const root = scenario();
   write(root, ".harness/state/feat-002.json", '{ "state": "active", "evidence": "" }\n');
@@ -172,7 +196,13 @@ test("claudeArgs runs headless, without prompts, and keeps the developer's setti
   assert.equal(after("--max-turns"), "9");
   assert.equal(after("--max-budget-usd"), "1.5");
   assert.equal(after("--allowedTools"), ALLOWED_TOOLS.join(","));
-  assert.ok(!ALLOWED_TOOLS.some((rule) => /^Bash\((git push|curl|rm)/.test(rule)), "no push, network or delete commands");
+  assert.equal(after("--disallowedTools"), DISALLOWED_TOOLS.join(","));
+  // Session 061: the first trial was denied every shell call (no `cd` rule; Windows' PowerShell
+  // tool). The harness loop's commands are allowed; the shell as a whole is not.
+  for (const rule of ["Bash(cd *)", "Bash(npm run *)", "Bash(node *)", "Bash(git add *)", "Bash(git commit *)", "Bash(./init.sh)"]) assert.ok(ALLOWED_TOOLS.includes(rule), rule);
+  assert.ok(!ALLOWED_TOOLS.includes("Bash") && !ALLOWED_TOOLS.includes("PowerShell"), "no unrestricted shell");
+  assert.ok(!ALLOWED_TOOLS.some((rule) => /^Bash\((git push|curl|wget|rm)/.test(rule)), "no push, network or delete commands");
+  for (const denied of ["WebFetch", "WebSearch", "Bash(git push *)", "Bash(curl *)"]) assert.ok(DISALLOWED_TOOLS.includes(denied), denied);
 });
 
 // The first real trial (session 061): an expired login came back as a result event with

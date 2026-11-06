@@ -2,7 +2,7 @@
 // Flags follow the Claude Code CLI reference (code.claude.com/docs/en/cli-reference):
 //   -p --output-format stream-json --verbose   one JSON event per line, ending with `result`
 //   --permission-mode dontAsk + --allowedTools  no prompts: anything not allowed is denied and
-//                                               the denial goes back to the model
+//   + --disallowedTools                         the denial goes back to the model
 //   --setting-sources project,local             the developer's user settings and hooks stay out
 //   --strict-mcp-config --mcp-config <empty>    no MCP servers from the developer's config
 //   --no-session-persistence                    eval runs never land in session history
@@ -14,9 +14,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// What the harness workflow needs, and nothing that reaches outside the fixture on purpose.
-// Bash(node *) and npm scripts run arbitrary code: run evals in the dev container (or another
-// sandbox) when that matters.
+// What the harness loop writes or runs. Read-only shell commands (ls, cat, head, grep, cd inside
+// the project, read-only git) need no rule: Claude Code allows them in every mode, and checks
+// each part of a compound command (`cd x && cat y`) on its own. The first real trial (session
+// 061) was denied every shell call: a rule list without `cd`, and Windows' PowerShell tool,
+// which no Bash rule covers. The PowerShell tool is turned off (runAgent), so the agent uses
+// Bash on every platform. npm scripts and node still run arbitrary code: run evals in the dev
+// container (or another sandbox) when that matters.
 export const ALLOWED_TOOLS = [
   "Read",
   "Edit",
@@ -24,22 +28,30 @@ export const ALLOWED_TOOLS = [
   "Glob",
   "Grep",
   "TodoWrite",
+  "Bash(cd *)",
+  "Bash(mkdir *)",
   "Bash(npm run *)",
+  "Bash(npm test)",
   "Bash(npm test *)",
   "Bash(node *)",
   "Bash(make *)",
+  "Bash(./init.sh)",
   "Bash(./init.sh *)",
-  "Bash(bash init.sh *)",
-  "Bash(git status *)",
-  "Bash(git diff *)",
-  "Bash(git log *)",
-  "Bash(git show *)",
+  "Bash(bash init.sh)",
+  "Bash(bash ./init.sh)",
   "Bash(git add *)",
   "Bash(git commit *)",
-  "Bash(ls *)",
-  "Bash(cat *)",
-  "Bash(pwd)",
+  "Bash(git status)",
+  "Bash(git status *)",
+  "Bash(git log *)",
+  "Bash(git diff *)",
+  "Bash(git show *)",
+  "Bash(git rev-parse *)",
 ];
+
+// Network tools, and the commands that would reach outside the throwaway fixture. These are
+// signals, not a boundary: deny rules on shell commands can be worked around.
+export const DISALLOWED_TOOLS = ["WebFetch", "WebSearch", "Bash(git push *)", "Bash(curl *)", "Bash(wget *)"];
 
 export function claudeArgs(prompt, { model, maxTurns, maxBudgetUsd, mcpConfig }) {
   const args = [
@@ -52,6 +64,8 @@ export function claudeArgs(prompt, { model, maxTurns, maxBudgetUsd, mcpConfig })
     "dontAsk",
     "--allowedTools",
     ALLOWED_TOOLS.join(","),
+    "--disallowedTools",
+    DISALLOWED_TOOLS.join(","),
     "--setting-sources",
     "project,local",
     "--strict-mcp-config",
@@ -112,7 +126,8 @@ export function runAgent(root, prompt, { bin = process.env.CLAUDE_BIN || "claude
   const scratch = mkdtempSync(path.join(os.tmpdir(), "harness-eval-agent-"));
   const mcpConfig = path.join(scratch, "mcp.json");
   writeFileSync(mcpConfig, '{"mcpServers":{}}\n', "utf8");
-  const env = { ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CW_INIT_SH: "" };
+  // PowerShell tool off: the same shell, and the same allow rules, on every platform.
+  const env = { ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", CLAUDE_CODE_USE_POWERSHELL_TOOL: "0", CW_INIT_SH: "" };
   delete env.NODE_TEST_CONTEXT; // would make every `node --test` the agent runs skip its files
   if (freshConfig) env.CLAUDE_CONFIG_DIR = path.join(scratch, "config");
   const started = Date.now();

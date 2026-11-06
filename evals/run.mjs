@@ -193,8 +193,11 @@ async function main() {
           pass,
           grades,
           agent: { ...agent.result, toolCalls: agent.toolCalls.length, denials: agent.denials, error: agent.error },
+          // Read this before blaming the agent or the harness: a failure can come from the task.
+          transcript: agent.toolCalls.map((call) => ({ name: call.name, input: JSON.stringify(call.input).slice(0, 400) })),
           fixture: options.keep ? root : null,
         });
+        if (agent.denials.length > 0) console.log(`  note: ${agent.denials.length} tool call(s) denied by the eval's permissions — check they are not what failed the trial`);
       }
     }
   } finally {

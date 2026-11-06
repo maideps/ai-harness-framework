@@ -78,4 +78,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 058 — 2026-11-05 — Shipped Claude Code deny rules for secret files (feat-031)](progress/058-2026-11-05.md)
 - [Session 059 — 2026-11-05 — harness-upgrade plans per file; --dry-run stops at the plan (feat-032)](progress/059-2026-11-05.md)
 - [Session 060 — 2026-11-05 — Agent-compliance evals for Claude Code (feat-033)](progress/060-2026-11-05.md)
+- [Session 061 — 2026-11-06 — First real eval trials: three eval bugs, then a full pass (feat-033 follow-up)](progress/061-2026-11-06.md)
 <!-- END GENERATED PROGRESS -->

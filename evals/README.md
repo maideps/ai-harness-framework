@@ -32,7 +32,12 @@ Results print as a table and are saved as JSON under `evals/results/` (not commi
 ## What a trial does
 
 1. Builds a fixture: the harness placed by `create-harness`, the docs filled in, the task's files and features, an initial commit. Features the task starts as `passing` are verified through the real gate.
-2. Runs `claude -p "<prompt>"` in the fixture with `--permission-mode dontAsk` and a scoped `--allowedTools` list (`evals/lib/agent.mjs`). The fixture's own `CLAUDE.md` (which points at `AGENTS.md`) and `.claude/settings.json` load as they would for an adopter. Your user settings, hooks, MCP servers, auto memory and session history stay out (`--setting-sources project,local`, `--strict-mcp-config`, `--no-session-persistence`).
+2. Runs `claude -p "<prompt>"` in the fixture with `--permission-mode dontAsk` and a scoped `--allowedTools` list (`evals/lib/agent.mjs`).
+   - Read-only commands (`ls`, `cat`, `grep`, `cd` inside the project, read-only `git`) need no rule.
+   - The list allows what the harness loop writes or runs: npm scripts, `node`, `./init.sh`, `git add` and `git commit`.
+   - The PowerShell tool is turned off, so the agent uses Bash and the same rules apply on every platform.
+   - Web tools, `git push`, `curl` and `wget` are denied.
+   - A call the eval's permissions denied is printed as a note, so you can tell a permission problem from an agent one. The fixture's own `CLAUDE.md` (which points at `AGENTS.md`) and `.claude/settings.json` load as they would for an adopter. Your user settings, hooks, MCP servers, auto memory and session history stay out (`--setting-sources project,local`, `--strict-mcp-config`, `--no-session-persistence`).
 3. Grades the final repository and the agent's tool calls.
 
 The agent can run `node` and npm scripts, which can do anything your user account can. Run the evals in the dev container (`create-harness --with devcontainer`) or another sandbox when that matters.
