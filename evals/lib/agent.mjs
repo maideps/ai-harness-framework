@@ -53,6 +53,15 @@ export const ALLOWED_TOOLS = [
 // signals, not a boundary: deny rules on shell commands can be worked around.
 export const DISALLOWED_TOOLS = ["WebFetch", "WebSearch", "Bash(git push *)", "Bash(curl *)", "Bash(wget *)"];
 
+// Facts about the unattended run, not about the harness. Claude Code denies a compound command
+// that starts with `cd` and contains a pipe (`cd "<fixture>" && … | head -50`), or that `cd`s
+// into a subfolder, whatever the allow rules say (session 065 probes; explicit rules for every
+// part did not help). Interactively that would be a prompt; here it is a silent denial, and in 3
+// of 21 trials the agent concluded the shell was blocked for the whole session and stopped short
+// of the gate.
+export const RUN_NOTE =
+  "This is an unattended run: no one can answer permission prompts. Your shell already starts in the project directory, so you don't need to cd into it. If a command is denied, only that command was denied: run a simpler form of it (for example without cd or pipes) rather than assuming the shell is unavailable.";
+
 export function claudeArgs(prompt, { model, maxTurns, maxBudgetUsd, mcpConfig }) {
   const args = [
     "-p",
@@ -72,6 +81,8 @@ export function claudeArgs(prompt, { model, maxTurns, maxBudgetUsd, mcpConfig })
     "--mcp-config",
     mcpConfig,
     "--no-session-persistence",
+    "--append-system-prompt",
+    RUN_NOTE,
     "--max-turns",
     String(maxTurns),
   ];

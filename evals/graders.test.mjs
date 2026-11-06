@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ALLOWED_TOOLS, DISALLOWED_TOOLS, claudeArgs, parseStream } from "./lib/agent.mjs";
+import { ALLOWED_TOOLS, DISALLOWED_TOOLS, RUN_NOTE, claudeArgs, parseStream } from "./lib/agent.mjs";
 import { buildFixture } from "./lib/fixture.mjs";
 import { gradeTrial, shellWritesState } from "./lib/graders.mjs";
 import { agentErrorOf, isFatalAgentError, loadTasks, summarize, validateTask } from "./run.mjs";
@@ -211,6 +211,11 @@ test("claudeArgs runs headless, without prompts, and keeps the developer's setti
   assert.equal(after("--max-budget-usd"), "1.5");
   assert.equal(after("--allowedTools"), ALLOWED_TOOLS.join(","));
   assert.equal(after("--disallowedTools"), DISALLOWED_TOOLS.join(","));
+  // Session 065: a denied `cd … | …` made agents give up on the shell. The note states facts
+  // about the run and says nothing about the harness rules being graded.
+  assert.equal(after("--append-system-prompt"), RUN_NOTE);
+  assert.match(RUN_NOTE, /only that command was denied/);
+  assert.doesNotMatch(RUN_NOTE, /verify-feature|AGENTS\.md|feature state|commit/i, "the note must not coach the graded workflow");
   // Session 061: the first trial was denied every shell call (no `cd` rule; Windows' PowerShell
   // tool). The harness loop's commands are allowed; the shell as a whole is not.
   for (const rule of ["Bash(cd *)", "Bash(npm run *)", "Bash(node *)", "Bash(git add *)", "Bash(git commit *)", "Bash(./init.sh)"]) assert.ok(ALLOWED_TOOLS.includes(rule), rule);

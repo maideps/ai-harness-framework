@@ -82,4 +82,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 062 — 2026-11-06 — First full eval suite: 14/15 trials, one eval-caused failure, one harness gap](progress/062-2026-11-06.md)
 - [Session 063 — 2026-11-06 — End-of-session steps agents skipped become mechanical (feat-034)](progress/063-2026-11-06.md)
 - [Session 064 — 2026-11-06 — Measuring feat-034 with the comply evals](progress/064-2026-11-06.md)
+- [Session 065 — 2026-11-06 — Why the eval's first command was denied, and the fix](progress/065-2026-11-06.md)
 <!-- END GENERATED PROGRESS -->
