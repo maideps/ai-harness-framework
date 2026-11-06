@@ -20,4 +20,4 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 
 ---
 
-_Update this document at session close for modules touched in the session._
+_Update this document at session close: name each feature that passed (for example `feat-002`) under Notes and rate the modules it touched. `npm run clean-check` fails until every gate-verified feature is mentioned._

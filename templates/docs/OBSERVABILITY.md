@@ -30,11 +30,11 @@ After completing a sprint, score it against `templates/evaluator-rubric.md`. Eve
 
 ## Quality Document
 
-After touching any module, update `docs/quality-document.md` with ratings (A/B/C/D) per dimension: test coverage, type safety, documentation, architecture compliance, performance.
+After a feature passes, name it in `docs/quality-document.md` and rate the modules it touched (A/B/C/D) per dimension: test coverage, type safety, documentation, architecture compliance, performance. `npm run clean-check` fails while any gate-verified feature is not mentioned.
 
 ## Verification Trail
 
-`make vcr` / `npm run vcr` records a verification trail to `.harness/trails/` after check and check-arch pass. A plain `make check` does not write trails — only a successful VCR run does.
+`verify-feature` records a trail on every bound pass: `.harness/trails/<stamp>-verify-feature-<id>.json`, naming the feature, the commit and the `checksHash` of its layers. Commit it with the state shard. `make vcr` / `npm run vcr` records a full-run trail after check and check-arch pass, for work no feature gate covers. A plain `make check` does not write trails.
 
 Record evidence in that feature's `.harness/state/<id>.json` under its `evidence` field.
 

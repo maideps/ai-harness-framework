@@ -62,6 +62,12 @@
       "feature": "feat-003",
       "state": "passing"
     },
+    {
+      "id": "command",
+      "label": "clean-check",
+      "cmd": "npm run -s clean-check",
+      "exit": 0
+    },
     "check-green"
   ]
 }

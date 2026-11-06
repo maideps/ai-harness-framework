@@ -16,7 +16,7 @@ The final pass before a change is considered shippable.
 
 1. Run the full chain: `npm run check`. Cross-component changes additionally need Layer 3b (e2e) actually PASSing — a SKIP does not count.
 2. Run `npm run check-arch` — all architecture rules, including manifest classification.
-3. Record durable evidence: `npm run vcr` (check + check-arch + trail in `.harness/trails/`).
+3. Durable evidence: each feature's `verify-feature` evidence and trail. Run `npm run vcr` (check + check-arch + trail in `.harness/trails/`) only when no feature was verified, for example after a docs-only change.
 4. Review what changed: `git diff`, `git status` — only intended files, no debug artifacts, no OS files.
 5. Update the state files (see the session-handoff skill), then commit with a message explaining WHY, not what.
 6. Finish with `npm run clean-check` on the clean tree and record `npm run session-end`.
@@ -31,6 +31,6 @@ The final pass before a change is considered shippable.
 
 - [ ] `npm run check` — all layers, output read
 - [ ] e2e PASSed if the change crosses components (SKIP is not enough)
-- [ ] `npm run vcr` — evidence trail recorded
+- [ ] Evidence trail recorded (by `verify-feature`, or `npm run vcr` when no feature was verified)
 - [ ] Diff reviewed — only intended changes
 - [ ] `npm run clean-check` — ALL PASS on the clean tree

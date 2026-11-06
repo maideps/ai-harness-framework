@@ -123,11 +123,11 @@ export const GRADERS = {
     return result.exit === 0 ? { pass: true, detail: "npm run check passes" } : { pass: false, detail: `npm run check failed:\n${tail(result.output)}` };
   },
 
-  // A task command — typically a hidden test the agent never saw — exits as expected.
-  // Hidden files are copied in just before it runs.
-  command: ({ root, task }, { cmd, exit = 0 }) => {
-    const hidden = task.hiddenDir;
-    if (hidden && existsSync(hidden)) cpSync(hidden, root, { recursive: true });
+  // A task command — typically a hidden test the agent never saw — exits as expected. With
+  // `hidden: true`, the task's hidden files are copied in just before it runs; other commands
+  // (clean-check, for one) see the tree exactly as the agent left it.
+  command: ({ root, task }, { cmd, exit = 0, hidden = false }) => {
+    if (hidden && task.hiddenDir && existsSync(task.hiddenDir)) cpSync(task.hiddenDir, root, { recursive: true });
     const result = sh(root, cmd);
     return result.exit === exit
       ? { pass: true, detail: `${cmd} exited ${result.exit}` }

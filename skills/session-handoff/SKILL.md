@@ -17,7 +17,7 @@ How to end a session so the next one can pick up without confusion.
 1. Add this session's notes to `progress/NNN-YYYY-MM-DD.md`, then regenerate the current state and index with `node scripts/framework-check.mjs progress-update`. `PROGRESS.md` is generated; do not edit its block by hand.
 2. Update `session-handoff.md` — current objective, completed items, verification evidence, files changed, decisions, risks, recommended next step.
 3. Record decisions in `DECISIONS.md` (template at the top of the file); expand long records into `docs/decisions/`.
-4. Update `docs/quality-document.md` for every module touched (A/B/C/D per dimension).
+4. Update `docs/quality-document.md`: name each feature that passed this session and rate every module touched (A/B/C/D per dimension). `npm run clean-check` fails while a gate-verified feature is not mentioned.
 5. Update the feature's `.harness/state/<id>.json` with the new state (only via `npm run verify-feature -- <id>`).
 6. Record the trace: `npm run session-end` (merges end state, files modified, decisions, verification into the session start trace in `.harness/traces/`).
 7. Run `npm run clean-check`, then commit — one logical operation per commit, message explaining WHY.

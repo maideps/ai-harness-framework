@@ -681,3 +681,21 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: harness changes can be measured against agent behavior, not only script behavior; corner-cutting has a test for each grader.
 - Negative: real trials cost tokens and need the CLI, so they run by hand, not in CI. Five tasks are far from the 20–50 the article recommends; more should come from real failures. `no-state-edits` recognizes shell writes by pattern, so an unusual write command can slip past (`gate-only-passing` still catches state with no gate evidence). No real trial has run yet.
+
+### D-045: The end-of-session steps agents skip are done by the gate or checked by clean-check
+
+**Date:** 2026-11-06
+**Status:** accepted
+**Context:** The first full run of the agent-compliance evals (session 062) gave a consistent picture across five passing comply trials: the mechanical end-of-session steps were done every time (session note, regenerated `PROGRESS.md`, clean committed tree), but `docs/quality-document.md` was updated in one trial and the `npm run vcr` trail recorded in none. One agent said so in its final message. A step agents skip four or five times out of five is a step the workflow does not really have.
+**Decision:**
+- The trail: since feat-030, `verify-feature`'s bound evidence names the commit and every layer it ran, including the full `npm run check`. So the gate itself writes the trail on every bound pass: `.harness/trails/<stamp>-verify-feature-<id>.json` with the feature, commit and `checksHash`. `npm run vcr` stays for a full-run record when no feature was verified; it is no longer a per-feature step. No trail is written for unbound evidence, which names no commit.
+- The quality document: rating modules is a judgment call and can't be automated, but it can be checked. `clean-check`, which agents already run at the end of a session, fails while `docs/quality-document.md` does not mention, by id, every feature whose evidence is bound, and its message says what to add. Features verified before feat-030 (no `bound` field) are not checked. A missing quality document is a warning.
+- AGENTS.md (end of session, step 4), the feature-cycle, review, release and session-handoff skills, OBSERVABILITY (both copies) and the quality-document template describe the new steps.
+- The comply eval tasks gain a `clean-check` grader. The `command` grader copies a task's hidden files only when the grader asks (`"hidden": true`); before, every command saw them, so `clean-check` would have failed on the untracked `hidden/` folder.
+**Alternatives considered:**
+- Drop the quality document from the checklist — rejected: it is the only place a session records a judgment about quality, and the OpenAI harness-engineering practice keeps such a score current; a check is cheap.
+- Fail `lint` instead of `clean-check` — rejected: lint runs in every `check`, including the one before the bookkeeping commit, so it would fail in the middle of the normal sequence (verify, then write notes and ratings, then commit).
+- Have `session-end` run `vcr` — rejected: a second full check after the gate's own adds minutes and proves nothing new.
+**Consequences:**
+- Positive: the trail exists whenever a feature passes, with no step to forget; the quality document is checked where agents already look.
+- Negative: mentioning a feature id is a proxy; it does not prove the ratings are thoughtful. A trail file per verification adds one more bookkeeping file to commit. Not yet measured: whether agents now rate modules; the next eval run of the comply tasks will show it.

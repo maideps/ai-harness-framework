@@ -44,7 +44,7 @@ Every dimension must reach B or above before the feature is considered complete.
 
 ## Quality Document
 
-After touching any module, update `docs/quality-document.md` with ratings (A/B/C/D) per dimension:
+After a feature passes, name it in `docs/quality-document.md` and rate the modules it touched (A/B/C/D) per dimension. `npm run clean-check` fails while any gate-verified feature is not mentioned (feat-034). The dimensions:
 - Test coverage
 - Type safety
 - Documentation
@@ -53,7 +53,7 @@ After touching any module, update `docs/quality-document.md` with ratings (A/B/C
 
 ## Verification Trail
 
-`make vcr` / `npm run vcr` records a verification trail to `.harness/trails/` after check and check-arch pass. `make check` itself does not write trails — only a successful VCR run does. This is the proof that each layer was actually exercised:
+`verify-feature` records a trail on every bound pass: `.harness/trails/<stamp>-verify-feature-<id>.json`, naming the feature, the commit and the `checksHash` of its layers (feat-034). Commit it with the state shard. `make vcr` / `npm run vcr` records a full-run trail after check and check-arch pass, for work no feature gate covers. `make check` itself does not write trails. Together they are the proof that each layer was actually exercised:
 - Layer 1: Lint/type-check output
 - Layer 2: Test run summary
 - Layer 3: Build artifact or e2e result

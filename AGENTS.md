@@ -138,7 +138,7 @@ Before ending a session:
 1. Run `make clean-check` — confirms build passes, no debug artifacts, progress updated
 2. Add the session notes to `progress/NNN-YYYY-MM-DD.md` and regenerate the dashboard with `node scripts/framework-check.mjs progress-update`
 3. Keep `feature_list.json` declaration-only; feature state belongs in `.harness/state/<id>.json`
-4. Update `docs/quality-document.md` for modules touched (A/B/C/D per dimension)
+4. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
 5. Record any unresolved risks or blockers
 6. Commit with descriptive message explaining WHY, not just what
 7. Leave repo clean enough for next session to run `./init.sh` immediately

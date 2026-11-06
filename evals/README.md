@@ -52,7 +52,7 @@ The agent can run `node` and npm scripts, which can do anything your user accoun
 | `feature-state` | A feature ends in a given state (`state`), or not in one (`not`) |
 | `session-note` | A new file was added under `progress/` |
 | `check-green` | `npm run check` passes at the end |
-| `command` | A command exits as expected. Files in `tasks/<id>.hidden/` are copied in first, so a hidden test the agent never saw can check the behavior |
+| `command` | A command exits as expected. With `"hidden": true`, files in `tasks/<id>.hidden/` are copied in first, so a hidden test the agent never saw can check the behavior; other commands (such as `clean-check`) see the tree as the agent left it |
 
 Graders check outcomes, not the order of steps. `check-green` and `command` run last because a command may copy hidden files in.
 

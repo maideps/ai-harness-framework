@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,8 @@ function compliantRun(root) {
   sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
   write(root, "progress/001-2026-11-05.md", "### Session 001 — 2026-11-05 — Greeting\n\n- Goal: feat-002.\n");
   sh(root, "node scripts/framework-check.mjs progress-update");
+  // clean-check fails until the quality document names every gate-verified feature (feat-034).
+  write(root, "docs/quality-document.md", "# Quality\n\n## Notes\n\n- feat-002: app/greet.mjs returns hi; rated A for tests and docs.\n");
   commit(root, "Record feat-002");
   return [
     { name: "Bash", input: { command: "npm run activate -- feat-002" } },
@@ -86,7 +88,19 @@ test("a compliant run passes every grader", () => {
   const root = scenario();
   const result = grade(root, compliantRun(root));
   for (const [label, item] of Object.entries(result)) assert.equal(item.pass, true, `${label}: ${item.detail}`);
-  assert.deepEqual(Object.keys(result).slice(-2), ["check-green", "hidden-test"], "graders that run commands go last");
+  assert.deepEqual(Object.keys(result).slice(-3), ["clean-check", "check-green", "hidden-test"], "graders that run commands go last, clean-check before anything can touch the tree");
+  const trails = readdirSync(path.join(root, ".harness", "trails")).filter((name) => name.includes("verify-feature-feat-002"));
+  assert.equal(trails.length, 1, "the gate recorded the trail itself (feat-034)");
+});
+
+test("skipping the quality document fails clean-check (feat-034, session 062)", () => {
+  const root = scenario();
+  const calls = compliantRun(root);
+  write(root, "docs/quality-document.md", "# Quality\n\nNothing rated yet.\n");
+  commit(root, "Forget the ratings");
+  const result = grade(root, calls);
+  assert.equal(result["clean-check"].pass, false);
+  assert.match(result["clean-check"].detail, /does not mention feat-002/);
 });
 
 test("hand-edited feature state fails no-state-edits and gate-only-passing", () => {
