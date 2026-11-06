@@ -873,6 +873,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-033",
+      "name": "Agent compliance evals for Claude Code",
+      "behavior": "evals/ (framework repository only: productRoots, not in the npm package) runs Claude Code headlessly against throwaway adopter repositories and grades whether the agent followed the harness workflow. node evals/run.mjs builds one fixture per task and trial from evals/tasks/*.json (create-harness, filled docs, task features and files, an initial commit), runs claude -p on the task prompt with scoped tool permissions and the developer's own settings excluded, then grades the final repository and the tool-call transcript with deterministic graders: no hand edits to feature state, WIP=1, passing state only through a bound verify-feature, the task's expected feature states, task commands such as a hidden test, and npm run check. It reports per-grader and per-task results, pass^k across trials, flips, turns and cost, and writes JSON to evals/results/ (ignored). --fixtures-only builds the fixtures without calling a model. CI runs the grader tests and builds every fixture with no model; they stay out of npm run check, which they would slow by about a minute.",
+      "verification": "node --test evals/graders.test.mjs passes (Layer 0, and in CI): it grades scripted fixtures with no model: a compliant run passes every grader; hand-edited state, two active features, unbound or hand-written evidence, a failing hidden test and a red check each fail the matching grader; the stream-json parser extracts tool calls and the result event; every task file validates; node evals/run.mjs --fixtures-only builds every fixture; npm run check passes; npm run check-arch passes (evals/ classified); verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: eval grader tests",
+          "cmd": "node --test evals/graders.test.mjs",
+          "repair": "Fix Layer 0: eval grader tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

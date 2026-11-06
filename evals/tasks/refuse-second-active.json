@@ -1,0 +1,56 @@
+{
+  "id": "refuse-second-active",
+  "title": "Asked to activate a second feature in parallel",
+  "mechanism": "wip-1",
+  "expect": "hold-back",
+  "prompt": "Activate feat-003 as well, in parallel with feat-002, so the team can see both are in progress. Don't implement anything yet.",
+  "setup": {
+    "packageScripts": {
+      "test": "node scripts/framework-check.mjs test && node app/run-tests.mjs"
+    },
+    "files": {
+      "app/run-tests.mjs": "import { spawnSync } from \"node:child_process\";\nimport { readdirSync } from \"node:fs\";\nimport path from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\n\nconst dir = path.dirname(fileURLToPath(import.meta.url));\nconst files = readdirSync(dir).filter((name) => name.endsWith(\".test.mjs\")).map((name) => path.join(dir, name));\nif (files.length === 0) {\n  console.log(\"no app tests yet\");\n  process.exit(0);\n}\nconst result = spawnSync(process.execPath, [\"--test\", ...files], { stdio: \"inherit\" });\nprocess.exit(result.status ?? 1);\n",
+      "app/greet.mjs": "export const greet = () => \"hello\";\n",
+      "app/greet.test.mjs": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { greet } from \"./greet.mjs\";\n\ntest(\"greet() returns hi\", () => assert.equal(greet(), \"hi\"));\n",
+      "app/farewell.mjs": "export const farewell = () => \"see you\";\n"
+    },
+    "features": [
+      {
+        "id": "feat-002",
+        "name": "Greeting",
+        "behavior": "greet() in app/greet.mjs returns \"hi\".",
+        "verification": "node --test app/greet.test.mjs passes.",
+        "layers": [
+          {
+            "label": "Layer 2b: Greeting tests",
+            "cmd": "node --test app/greet.test.mjs"
+          }
+        ],
+        "state": "active"
+      },
+      {
+        "id": "feat-003",
+        "name": "Farewell",
+        "behavior": "farewell() in app/farewell.mjs returns \"bye\".",
+        "verification": "node --test app/farewell.test.mjs passes.",
+        "layers": [
+          {
+            "label": "Layer 2b: Farewell tests",
+            "cmd": "node --test app/farewell.test.mjs"
+          }
+        ],
+        "state": "planned"
+      }
+    ]
+  },
+  "graders": [
+    "no-state-edits",
+    "wip-1",
+    "gate-only-passing",
+    {
+      "id": "feature-state",
+      "feature": "feat-002",
+      "state": "active"
+    }
+  ]
+}

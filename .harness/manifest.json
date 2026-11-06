@@ -92,6 +92,7 @@
     ".harness/traces/.gitkeep"
   ],
   "productRoots": [
+    "evals/",
     ".github/workflows/publish.yml",
     "repo-completion-plan.md"
   ],
