@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -106,6 +107,87 @@ test("harness-upgrade: creates missing instance files from templates, never over
     assert.equal(readFileSync(path.join(root, "LICENSE"), "utf8"), "Copyright (c) Adopter\n");
     assert.ok(!report.created.includes("LICENSE"));
     assert.ok(!report.created.some((file) => file.startsWith("repositories/")), JSON.stringify(report.created));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---- feat-032 (D-043): --dry-run plans the upgrade and writes nothing -----
+
+// Every file under root with its content, so a test can prove nothing changed.
+function snapshotTree(root, rel = "") {
+  const files = {};
+  for (const entry of readdirSync(path.join(root, rel), { withFileTypes: true })) {
+    const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) Object.assign(files, snapshotTree(root, relPath));
+    else files[relPath] = readFileSync(path.join(root, relPath), "utf8");
+  }
+  return files;
+}
+
+test("harness-upgrade --dry-run: writes nothing, takes no backup, and reports the plan a real run applies", () => {
+  const root = adopter();
+  write(root, ".claude/settings.json", "{}\n");
+  try {
+    const before = snapshotTree(root);
+    const dry = upgrade(root, { dryRun: true });
+    assert.deepEqual(snapshotTree(root), before, "a dry run must leave every file byte-identical");
+    assert.ok(!existsSync(path.join(root, ".harness", "backups")), "a dry run takes no backup");
+    assert.equal(dry.dryRun, true);
+    assert.equal(dry.backup.reason, "dry run");
+    assert.ok(dry.files.added.length > 0, "a bare adopter is missing framework files");
+    assert.ok(dry.files.updated.includes("tests/framework-check.test.mjs"), JSON.stringify(dry.files.updated));
+
+    const real = upgrade(root);
+    assert.equal(real.dryRun, false);
+    assert.deepEqual(real.files, dry.files);
+    assert.deepEqual(real.created, dry.created);
+    assert.deepEqual(real.overwritten, dry.overwritten);
+    for (const file of [...dry.files.added, ...dry.files.updated]) {
+      assert.ok(existsSync(path.join(root, file)), `the real run did not write ${file}`);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("harness-upgrade: a second upgrade reports nothing to change, and an edited CORE file as an update", () => {
+  const root = adopter();
+  try {
+    upgrade(root);
+    const again = upgrade(root, { dryRun: true });
+    assert.deepEqual(again.files.updated, []);
+    assert.deepEqual(again.files.added, []);
+    assert.ok(again.files.unchanged > 0);
+
+    write(root, "scripts/framework-check.mjs", "// edited against policy\n");
+    const edited = upgrade(root, { dryRun: true });
+    assert.deepEqual(edited.files.updated, ["scripts/framework-check.mjs"]);
+    // Line endings alone are not a change.
+    write(root, "scripts/framework-check.mjs", harnessFile("scripts/framework-check.mjs").replace(/\r?\n/g, "\r\n"));
+    assert.deepEqual(upgrade(root, { dryRun: true }).files.updated, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("harness-upgrade CLI: --dry-run prints the plan and writes nothing; an unknown option fails", () => {
+  const root = adopter();
+  const cli = (args) => spawnSync(process.execPath, [path.join(HARNESS_ROOT, "scripts", "harness-upgrade.mjs"), ...args], { encoding: "utf8" });
+  try {
+    const before = snapshotTree(root);
+    const dry = cli([root, "--dry-run"]);
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.match(dry.stdout, /dry run: nothing was written/);
+    assert.match(dry.stdout, /Framework-owned files: \d+ would change, \d+ would be added, \d+ unchanged/);
+    assert.match(dry.stdout, /update {2}tests\/framework-check\.test\.mjs/);
+    assert.match(dry.stdout, /Nothing was written\. Apply with:/);
+    assert.deepEqual(snapshotTree(root), before);
+
+    const bad = cli([root, "--dryrun"]);
+    assert.equal(bad.status, 1);
+    assert.match(bad.stderr, /unknown option --dryrun/);
+    assert.deepEqual(snapshotTree(root), before);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -185,12 +185,13 @@ Three tools read the manifest as the single source of truth (make and npm mirror
 | Tool | Purpose |
 |---|---|
 | `create-harness <dir>` | Generates an adopter repo: CORE as-is, templates placed per their `{from, to}` mapping, runtime surfaces created. Never overwrites existing files. |
-| `harness-upgrade <dir>` | Applies an upgrade per the D-010 contract: overwrites mustNotEdit CORE only, including the shipped skills named in the manifest's `shippedSkills`; every adopter-owned surface, project skills included, is never overwritten. Creates instance files a newer harness declares when they are missing, and replaces a `.claude/settings.json` that is still the `{}` an older harness wrote (feat-031). |
+| `harness-upgrade <dir> [--dry-run]` | Applies an upgrade per the D-010 contract: overwrites mustNotEdit CORE only, including the shipped skills named in the manifest's `shippedSkills`; every adopter-owned surface, project skills included, is never overwritten. Creates instance files a newer harness declares when they are missing, and replaces a `.claude/settings.json` that is still the `{}` an older harness wrote (feat-031). Reports each framework-owned file it changes or adds, and how many were already current; `--dry-run` prints that plan without writing anything, backups included (feat-032). |
 | `harness-audit [dir]` | Local health report: manifest validity, classification coverage, template placement status, skills structure. Exits non-zero on any failure. |
 
 ```bash
 node scripts/create-harness.mjs my-project    # or: npm run create-harness -- my-project
 node scripts/harness-audit.mjs my-project
+node scripts/harness-upgrade.mjs my-project --dry-run   # preview: lists each file it would change or add, writes nothing
 node scripts/harness-upgrade.mjs my-project
 ```
 
