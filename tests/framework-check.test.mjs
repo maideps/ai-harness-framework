@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1310,6 +1310,67 @@ test("typecheck: warns when a passing feature's label, cmd or required changed a
       assert.equal(stale.exit, 0, "stale evidence warns, it does not fail the layer");
       assert.match(stale.output, /\[WARN\] feat-001 is passing, but its verification layers changed after it was verified/);
     }
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-034 (D-045): the end-of-session steps agents skipped ------------
+
+test("verify-feature: a bound pass records a verify-feature trail; an unbound pass does not (feat-034)", () => {
+  const root = gitFeatureFixture([evidenceFeature({ state: "active" })]);
+  const unbound = fixture();
+  writeDeclarations(unbound, [evidenceFeature()]);
+  try {
+    assert.equal(run(root, "verify-feature", ["feat-001"]).exit, 0);
+    const trails = readdirSync(path.join(root, ".harness", "trails")).filter((name) => /-verify-feature-feat-001\.json$/.test(name));
+    assert.equal(trails.length, 1, "one trail named after the feature");
+    const trail = JSON.parse(readFileSync(path.join(root, ".harness", "trails", trails[0]), "utf8"));
+    const { evidence } = readEvidence(root);
+    assert.equal(trail.kind, "verify-feature");
+    assert.equal(trail.feature, "feat-001");
+    assert.equal(trail.commit, evidence.commit);
+    assert.equal(trail.checksHash, evidence.checksHash);
+
+    assert.equal(run(unbound, "verify-feature", ["feat-001"]).exit, 0);
+    assert.equal(existsSync(path.join(unbound, ".harness", "trails")), false, "no trail for evidence that names no commit");
+  } finally {
+    cleanup(root);
+    cleanup(unbound);
+  }
+});
+
+test("clean-state-check: fails until docs/quality-document.md mentions every gate-verified feature (feat-034)", () => {
+  const bound = JSON.stringify({ summary: "s", commit: "abc1234", dirty: false, bound: true, checksHash: "0123456789abcdef", layers: [] });
+  const legacy = JSON.stringify({ summary: "s", commit: "abc1234", dirty: true, layers: [] });
+  const root = featureListFixture([
+    evidenceFeature({ state: "passing", evidence: bound }),
+    evidenceFeature({ id: "feat-002", name: "Two", state: "passing", evidence: legacy }),
+  ]);
+  try {
+    const qualityLine = (result) => result.output.split(/\r?\n/).find((line) => line.includes("quality-document")) ?? "";
+    assert.match(qualityLine(run(root, "clean-state-check")), /\[WARN\] docs\/quality-document\.md is missing/);
+
+    write(root, "docs/quality-document.md", "# Quality\n\nNothing rated yet.\n");
+    const missing = run(root, "clean-state-check");
+    assert.equal(missing.exit, 1);
+    assert.match(qualityLine(missing), /\[FAIL\] docs\/quality-document\.md does not mention feat-001\. Add a line/);
+    assert.doesNotMatch(qualityLine(missing), /feat-002/, "evidence recorded before feat-030 is not checked");
+
+    write(root, "docs/quality-document.md", "# Quality\n\n## Notes\n\n- feat-001: greeting, app/greet.mjs rated A.\n");
+    assert.match(qualityLine(run(root, "clean-state-check")), /\[PASS\] docs\/quality-document\.md mentions every gate-verified feature \(1\)/);
+    // A longer id that merely contains the feature's id does not count.
+    write(root, "docs/quality-document.md", "- feat-0010 only\n");
+    assert.match(qualityLine(run(root, "clean-state-check")), /\[FAIL\]/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("clean-state-check: nothing to rate when no feature has gate evidence (feat-034)", () => {
+  const root = featureListFixture([evidenceFeature({ state: "planned" })]);
+  try {
+    assert.match(run(root, "clean-state-check").output, /\[PASS\] No gate-verified features to rate yet/);
   } finally {
     cleanup(root);
   }

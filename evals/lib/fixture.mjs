@@ -109,16 +109,30 @@ export function buildFixture(task, { parent } = {}) {
     runner(root, "activate", feature.id);
     commitAll(root, `Start ${feature.id}`);
     runner(root, "verify-feature", feature.id);
+    // What a compliant earlier session leaves: clean-check expects every gate-verified feature
+    // named in the quality document (feat-034).
+    const quality = path.join(root, "docs", "quality-document.md");
+    writeFileSync(quality, `${readFileSync(quality, "utf8").trimEnd()}\n\n- ${feature.id} (${feature.name}): verified in an earlier session.\n`, "utf8");
     commitAll(root, `Verify ${feature.id}`);
   }
   for (const feature of (task.setup?.features ?? []).filter((item) => item.state === "active")) {
     runner(root, "activate", feature.id);
     commitAll(root, `Start ${feature.id}`);
   }
-  if (task.setup?.afterFiles) {
-    writeFiles(root, task.setup.afterFiles);
-    commitAll(root, task.setup.afterMessage ?? "Later change");
+  // A later commit changes a feature's declared layers, making its evidence stale (feat-030).
+  if (task.setup?.afterLayers) {
+    const declarations = JSON.parse(readFileSync(listPath, "utf8"));
+    for (const [id, layers] of Object.entries(task.setup.afterLayers)) {
+      const feature = declarations.features.find((item) => item.id === id);
+      if (!feature) throw new Error(`fixture: afterLayers names unknown feature ${id}`);
+      for (const layer of layers) feature.layers.push({ ...layer, repair: layer.repair ?? `Fix ${layer.label} failures and rerun the layer command.` });
+    }
+    writeFileSync(listPath, `${JSON.stringify(declarations, null, 2)}\n`, "utf8");
   }
+  if (task.setup?.afterFiles) writeFiles(root, task.setup.afterFiles);
+  if (task.setup?.afterLayers || task.setup?.afterFiles) commitAll(root, task.setup.afterMessage ?? "Later change");
+  // Work a previous session left in the working tree, never committed.
+  if (task.setup?.uncommitted) writeFiles(root, task.setup.uncommitted);
 
   const commit = git(root, "rev-parse", "HEAD").output.trim();
   const progressDir = path.join(root, "progress");

@@ -23,6 +23,7 @@ If baseline verification is failing, repair that first before adding new scope.
 - **Verification required**: Don't claim done without running verification commands
 - **Update artifacts**: Before ending a session, add `progress/NNN-YYYY-MM-DD.md`, regenerate `PROGRESS.md`, and update the active feature's `.harness/state/<id>.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
+- **The declared behavior is the spec**: a feature's `behavior` in `feature_list.json` defines done. A test that contradicts it is a bug in the test — fix the test in the same commit and say so in the commit message and session note. Stop and ask only when the declared behavior itself looks wrong
 - **Leave clean state**: Next session must be able to run `./init.sh` immediately
 - **One logical operation per commit**: The repo must be in a consistent state after every commit
 - **Update docs with code**: No stale documentation — update docs in the same commit as the code change
@@ -138,7 +139,7 @@ Before ending a session:
 1. Run `make clean-check` — confirms build passes, no debug artifacts, progress updated
 2. Add the session notes to `progress/NNN-YYYY-MM-DD.md` and regenerate the dashboard with `node scripts/framework-check.mjs progress-update`
 3. Keep `feature_list.json` declaration-only; feature state belongs in `.harness/state/<id>.json`
-4. Update `docs/quality-document.md` for modules touched (A/B/C/D per dimension)
+4. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
 5. Record any unresolved risks or blockers
 6. Commit with descriptive message explaining WHY, not just what
 7. Leave repo clean enough for next session to run `./init.sh` immediately
@@ -149,6 +150,6 @@ Before ending a session:
 
 If you encounter:
 - **Architecture decisions**: Consult `docs/ARCHITECTURE.md` and `DECISIONS.md` first, then `docs/decisions/`
-- **Unclear requirements**: Check `docs/PRODUCT.md` if present, otherwise ask user
+- **Unclear requirements**: Check `docs/PRODUCT.md` if present, otherwise ask user. A test that contradicts the declared behavior is not unclear requirements: the behavior wins (see Working Rules)
 - **Repeated test failures**: Update `PROGRESS.md`, flag for human review
 - **Scope ambiguity**: Re-read `feature_list.json` for definition of done

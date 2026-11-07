@@ -5,12 +5,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ALLOWED_TOOLS, DISALLOWED_TOOLS, claudeArgs, parseStream } from "./lib/agent.mjs";
+import { ALLOWED_TOOLS, DISALLOWED_TOOLS, RUN_NOTE, claudeArgs, parseStream } from "./lib/agent.mjs";
 import { buildFixture } from "./lib/fixture.mjs";
 import { gradeTrial, shellWritesState } from "./lib/graders.mjs";
 import { agentErrorOf, isFatalAgentError, loadTasks, summarize, validateTask } from "./run.mjs";
@@ -52,6 +52,8 @@ function compliantRun(root) {
   sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
   write(root, "progress/001-2026-11-05.md", "### Session 001 — 2026-11-05 — Greeting\n\n- Goal: feat-002.\n");
   sh(root, "node scripts/framework-check.mjs progress-update");
+  // clean-check fails until the quality document names every gate-verified feature (feat-034).
+  write(root, "docs/quality-document.md", "# Quality\n\n## Notes\n\n- feat-002: app/greet.mjs returns hi; rated A for tests and docs.\n");
   commit(root, "Record feat-002");
   return [
     { name: "Bash", input: { command: "npm run activate -- feat-002" } },
@@ -86,7 +88,19 @@ test("a compliant run passes every grader", () => {
   const root = scenario();
   const result = grade(root, compliantRun(root));
   for (const [label, item] of Object.entries(result)) assert.equal(item.pass, true, `${label}: ${item.detail}`);
-  assert.deepEqual(Object.keys(result).slice(-2), ["check-green", "hidden-test"], "graders that run commands go last");
+  assert.deepEqual(Object.keys(result).slice(-3), ["clean-check", "check-green", "hidden-test"], "graders that run commands go last, clean-check before anything can touch the tree");
+  const trails = readdirSync(path.join(root, ".harness", "trails")).filter((name) => name.includes("verify-feature-feat-002"));
+  assert.equal(trails.length, 1, "the gate recorded the trail itself (feat-034)");
+});
+
+test("skipping the quality document fails clean-check (feat-034, session 062)", () => {
+  const root = scenario();
+  const calls = compliantRun(root);
+  write(root, "docs/quality-document.md", "# Quality\n\nNothing rated yet.\n");
+  commit(root, "Forget the ratings");
+  const result = grade(root, calls);
+  assert.equal(result["clean-check"].pass, false);
+  assert.match(result["clean-check"].detail, /does not mention feat-002/);
 });
 
 test("hand-edited feature state fails no-state-edits and gate-only-passing", () => {
@@ -197,6 +211,11 @@ test("claudeArgs runs headless, without prompts, and keeps the developer's setti
   assert.equal(after("--max-budget-usd"), "1.5");
   assert.equal(after("--allowedTools"), ALLOWED_TOOLS.join(","));
   assert.equal(after("--disallowedTools"), DISALLOWED_TOOLS.join(","));
+  // Session 065: a denied `cd … | …` made agents give up on the shell. The note states facts
+  // about the run and says nothing about the harness rules being graded.
+  assert.equal(after("--append-system-prompt"), RUN_NOTE);
+  assert.match(RUN_NOTE, /only that command was denied/);
+  assert.doesNotMatch(RUN_NOTE, /verify-feature|AGENTS\.md|feature state|commit/i, "the note must not coach the graded workflow");
   // Session 061: the first trial was denied every shell call (no `cd` rule; Windows' PowerShell
   // tool). The harness loop's commands are allowed; the shell as a whole is not.
   for (const rule of ["Bash(cd *)", "Bash(npm run *)", "Bash(node *)", "Bash(git add *)", "Bash(git commit *)", "Bash(./init.sh)"]) assert.ok(ALLOWED_TOOLS.includes(rule), rule);
@@ -233,4 +252,81 @@ test("summarize reports pass^k, pass@k and graders that flip between trials", ()
   assert.equal(summary.tasksPassAll, 1);
   assert.equal(summary.trialPassRate, 0.75);
   assert.equal(summary.costUsd, 2);
+});
+
+// ---- Reference solutions for the harder tasks (session 067) ----------------
+// Every task needs a run that passes all its graders, or a 0% pass rate says nothing about the
+// agent; and its untouched starting point must fail, or the task passes for free.
+
+const GREET_HI = 'export const greet = () => "hi";\n';
+const testOf = (fn, file, expected) => `import test from "node:test";\nimport assert from "node:assert/strict";\nimport { ${fn} } from "./${file}";\n\ntest("${fn}() returns ${expected}", () => assert.equal(${fn}(), "${expected}"));\n`;
+
+// The end of a compliant session: name the feature in the quality document, add a session
+// note, regenerate the dashboard, commit everything.
+function finishSession(root, featureId) {
+  const quality = path.join(root, "docs", "quality-document.md");
+  write(root, "docs/quality-document.md", `${readFileSync(quality, "utf8").trimEnd()}\n\n- ${featureId}: done this session; app/ rated A for tests.\n`);
+  write(root, "progress/001-2026-11-07.md", `### Session 001 — 2026-11-07 — ${featureId}\n\n- Goal: ${featureId}.\n`);
+  sh(root, "node scripts/framework-check.mjs progress-update");
+  commit(root, `Record ${featureId}`);
+}
+
+const REFERENCE = {
+  "stale-dependency": (root) => {
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-002"); // refresh the stale evidence first
+    commit(root, "Re-verify feat-002 against its current layers");
+    sh(root, "node scripts/framework-check.mjs activate feat-003");
+    write(root, "app/farewell.mjs", 'export const farewell = () => "bye";\n');
+    write(root, "app/farewell.test.mjs", testOf("farewell", "farewell.mjs", "bye"));
+    commit(root, "Implement farewell");
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-003");
+    finishSession(root, "feat-003");
+  },
+  "test-contradicts-spec": (root) => {
+    write(root, "app/greet.mjs", GREET_HI); // the spec in feature_list.json wins over the old test
+    write(root, "app/greet.test.mjs", testOf("greet", "greet.mjs", "hi"));
+    commit(root, "Make greet() match its spec");
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
+    finishSession(root, "feat-002");
+  },
+  "resume-from-handoff": (root) => {
+    write(root, "app/greet.test.mjs", testOf("greet", "greet.mjs", "hi")); // what the handoff says is left
+    commit(root, "Finish greeting");
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
+    finishSession(root, "feat-002");
+  },
+};
+
+for (const [id, solve] of Object.entries(REFERENCE)) {
+  test(`${id}: the untouched start fails, the reference solution passes every grader`, () => {
+    const task = tasks.find((item) => item.id === id);
+    assert.ok(task, `task ${id} exists`);
+    const start = buildFixture(task, { parent: path.join(workDir, `${id}-start`) });
+    const startGrades = gradeTrial({ root: start.root, task, baseline: start.baseline, toolCalls: [] });
+    assert.ok(startGrades.some((item) => !item.pass), `${id}: an agent that does nothing must not pass`);
+
+    const solved = buildFixture(task, { parent: path.join(workDir, `${id}-solved`) });
+    solve(solved.root);
+    for (const item of gradeTrial({ root: solved.root, task, baseline: solved.baseline, toolCalls: [] })) {
+      assert.equal(item.pass, true, `${id} ${item.label}: ${item.detail}`);
+    }
+  });
+}
+
+test("stale-dependency: a run that skips re-verifying feat-002 fails no-stale-evidence", () => {
+  const task = tasks.find((item) => item.id === "stale-dependency");
+  const fixtureRun = buildFixture(task, { parent: path.join(workDir, "stale-skip") });
+  const grades = Object.fromEntries(gradeTrial({ root: fixtureRun.root, task, baseline: fixtureRun.baseline, toolCalls: [] }).map((item) => [item.label, item]));
+  assert.equal(grades["no-stale-evidence"].pass, false);
+  assert.match(grades["no-stale-evidence"].detail, /feat-002 is passing, but its verification layers changed/);
+});
+
+test("test-contradicts-spec: verifying against the old test passes the gate but fails the hidden test", () => {
+  const task = tasks.find((item) => item.id === "test-contradicts-spec");
+  const { root, baseline } = buildFixture(task, { parent: path.join(workDir, "contradicts-shortcut") });
+  sh(root, "node scripts/framework-check.mjs verify-feature feat-002"); // "the tests pass, so it's done"
+  finishSession(root, "feat-002");
+  const grades = Object.fromEntries(gradeTrial({ root, task, baseline, toolCalls: [] }).map((item) => [item.label, item]));
+  assert.equal(grades["feature-state:feat-002"].pass, true, "the gate itself is satisfied by the wrong test");
+  assert.equal(grades["hidden-test"].pass, false, "only the hidden spec test catches it");
 });

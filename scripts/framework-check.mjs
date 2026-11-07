@@ -972,13 +972,14 @@ function ensureManifest() {
   }
   pass("Harness manifest is valid and classifies every tracked file");
 }
-function recordTrail(kind) {
+// `extra` adds fields to the record; with a `feature` it also names the file after it.
+function recordTrail(kind, extra = {}) {
   const trailsDir = ".harness/trails";
   mkdirSync(trailsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   let commit = "unknown";
   try {
-    commit = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+    commit = execSync("git rev-parse --short HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {
     commit = "not-a-git-repo";
   }
@@ -987,8 +988,9 @@ function recordTrail(kind) {
     recorded_at: new Date().toISOString(),
     git_commit: commit,
     active_feature: getActiveFeatureId(),
+    ...extra,
   };
-  const path = trailsDir + "/" + stamp + "-" + kind + ".json";
+  const path = trailsDir + "/" + stamp + "-" + kind + (extra.feature ? `-${extra.feature}` : "") + ".json";
   writeFileSync(path, JSON.stringify(record, null, 2) + EOL, "utf8");
   pass("Verification trail recorded: " + path);
 }
@@ -1503,6 +1505,9 @@ function verifyFeature(featureId, { allowDirty = false } = {}) {
   });
   recordFeaturePass(featureId, evidence);
   console.log(`Evidence recorded in ${featureStatePath(featureId)}`);
+  // The trail the end-of-session steps ask for, written by the gate itself: across five
+  // passing eval trials agents never ran `npm run vcr` for it (feat-034, D-045).
+  if (bound) recordTrail("verify-feature", { feature: featureId, commit, checksHash: featureChecksHash(feature) });
 }
 
 // Verification logs are local diagnostics, never committed: the folder ignores itself, so
@@ -2080,6 +2085,31 @@ function cleanStateCheck() {
     check(activeCount <= 1, `WIP=${activeCount} (at most 1 active feature)`, `WIP=${activeCount} (multiple active features)`);
   } else {
     console.log("  [WARN] Cannot verify feature state (feature_list.json missing)");
+  }
+
+  // Rating what changed is a judgment call, so it can't be automated, but it can be checked:
+  // agents updated the quality document in one of five passing eval trials (feat-034, D-045).
+  // Only gate-verified features (bound evidence, feat-030 onwards) are checked.
+  console.log("");
+  console.log("--- Quality Document ---");
+  const qualityDoc = "docs/quality-document.md";
+  const verified = existsSync("feature_list.json")
+    ? loadFeaturesWithState().features
+        .filter((feature) => getFeatureState(feature) === "passing" && parseEvidence(feature)?.bound === true)
+        .map((feature) => feature.id)
+    : [];
+  if (verified.length === 0) {
+    console.log("  [PASS] No gate-verified features to rate yet");
+  } else if (!existsSync(qualityDoc)) {
+    console.log(`  [WARN] ${qualityDoc} is missing — cannot check the ratings for ${verified.join(", ")}`);
+  } else {
+    const text = readText(qualityDoc);
+    const unmentioned = verified.filter((id) => !new RegExp(`\\b${id}\\b`).test(text));
+    check(
+      unmentioned.length === 0,
+      `${qualityDoc} mentions every gate-verified feature (${verified.length})`,
+      `${qualityDoc} does not mention ${unmentioned.join(", ")}. Add a line for each (for example under Notes: what changed and which modules), rate those modules in the Modules table, and commit.`,
+    );
   }
 
   console.log("");

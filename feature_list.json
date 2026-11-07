@@ -902,6 +902,59 @@
           "repair": "Fix Layer 0: eval grader tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-034",
+      "name": "End-of-session steps agents skip become mechanical",
+      "behavior": "verify-feature records a verification trail (.harness/trails/<stamp>-verify-feature-<id>.json: feature, commit, checksHash) on every bound pass, so the per-feature trail no longer depends on a separate npm run vcr (still available for a full-run record). clean-check fails while docs/quality-document.md does not mention, by id, every feature whose evidence is bound (gate-verified since feat-030), and says what to add; features with older evidence are not checked. AGENTS.md, the feature-cycle, review, release and session-handoff skills and OBSERVABILITY describe the new steps. The comply eval tasks grade npm run clean-check. Motivated by session 062: across five passing comply trials the quality document was updated once and the vcr trail never recorded.",
+      "verification": "npm run check passes including new framework-check tests (a bound pass writes a verify-feature trail, an unbound one does not; clean-check fails naming the unmentioned bound feature, passes once it is mentioned, ignores legacy evidence, and warns without a quality document); node --test evals/graders.test.mjs passes with the compliant scripted run updating the quality document; npm run check-arch passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/framework-check.test.mjs evals/graders.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
+    },
+    {
+      "id": "feat-035",
+      "name": "Declared behavior wins over a contradicting test",
+      "behavior": "AGENTS.md (Working Rules and Escalation), the feature-cycle skill and the review skill say that a feature's declared behavior in feature_list.json is the spec: a test that contradicts it is a bug in the test, fixed in the same commit and called out in the commit message and session note; only a declared behavior that itself looks wrong is a reason to stop and ask. Prompted by session 068: in the test-contradicts-spec eval one agent in three stopped to ask which side wins and the other two flagged their choice as a judgment call, because nothing in the harness said.",
+      "verification": "npm run check passes (lint validates skills structure and the AGENTS.md command surfaces); npm run check-arch passes; verify-feature runs on a committed tree; the test-contradicts-spec eval is rerun with three trials and its result recorded.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
