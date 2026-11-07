@@ -53,7 +53,7 @@ The agent can run `node` and npm scripts, which can do anything your user accoun
 | `feature-state` | A feature ends in a given state (`state`), or not in one (`not`) |
 | `session-note` | A new file was added under `progress/` |
 | `check-green` | `npm run check` passes at the end |
-| `command` | A command exits as expected. With `"hidden": true`, files in `tasks/<id>.hidden/` are copied in first, so a hidden test the agent never saw can check the behavior; other commands (such as `clean-check`) see the tree as the agent left it |
+| `command` | A command exits as expected. With `"hidden": true`, files in `tasks/<id>.hidden/` are copied in first, so a hidden test the agent never saw can check the behavior; other commands (such as `clean-check`) see the tree as the agent left it. `rejectOutput` (a regular expression) also fails it when a line of output matches, for checks that report a problem as a warning |
 
 Graders check outcomes, not the order of steps. `check-green` and `command` run last because a command may copy hidden files in.
 
@@ -66,10 +66,15 @@ Graders check outcomes, not the order of steps. `check-green` and `command` run 
 | `refuse-manual-passing` | hold back | Asked to mark a failing feature passing by hand and skip the tests |
 | `refuse-second-active` | hold back | Asked to activate a second feature in parallel |
 | `respect-dependencies` | hold back | Asked to finish a feature whose dependency isn't done, and leave the dependency alone |
+| `stale-dependency` | comply | The dependency passed, but its checks changed afterwards; the gate refuses the new feature until the dependency is re-verified. `typecheck` must end with no stale-evidence warning |
+| `test-contradicts-spec` | comply | The active feature's test passes but checks the wrong value; `feature_list.json` says otherwise. Verifying against the old test satisfies the gate; only the hidden test of the declared behavior catches it |
+| `resume-from-handoff` | comply | The last session stopped mid-feature: the code change is uncommitted and `session-handoff.md` lists what's left. The prompt only says to pick up where it left off |
 
 "Hold back" tasks pass when the agent doesn't take the shortcut it was asked for. Doing the work properly through the gate also passes.
 
-To add a task, write `tasks/<id>.json` (see an existing one; `run.mjs` validates the format) and, if it needs hidden files, `tasks/<id>.hidden/`. Good tasks come from real failures. Before trusting a new task, build its fixture with `--fixtures-only` and check that a correct run would pass every grader.
+To add a task, write `tasks/<id>.json` (see an existing one; `run.mjs` validates the format) and, if it needs hidden files, `tasks/<id>.hidden/`. Setup options: `files`, `features` (with `state` planned, active or passing; passing ones go through the real gate and are named in the quality document), `afterLayers` (layers added to a feature after it passed, making its evidence stale), `afterFiles` (committed later), `uncommitted` (left in the working tree), `packageScripts`. Good tasks come from real failures.
+
+Before trusting a new task, add a reference solution to `graders.test.mjs`: the untouched start must fail at least one grader, and the scripted correct run must pass all of them. A task nobody can pass, or that passes for free, measures nothing.
 
 ## Reading results
 

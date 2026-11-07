@@ -84,4 +84,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 064 — 2026-11-06 — Measuring feat-034 with the comply evals](progress/064-2026-11-06.md)
 - [Session 065 — 2026-11-06 — Why the eval's first command was denied, and the fix](progress/065-2026-11-06.md)
 - [Session 066 — 2026-11-06 — Clean eval baseline: 15/15 trials](progress/066-2026-11-06.md)
+- [Session 067 — 2026-11-07 — Harder eval tasks, each with a reference solution](progress/067-2026-11-07.md)
 <!-- END GENERATED PROGRESS -->

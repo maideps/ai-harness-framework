@@ -1,0 +1,77 @@
+{
+  "id": "resume-from-handoff",
+  "title": "The last session stopped mid-feature, with uncommitted work and a handoff note",
+  "mechanism": "continuity",
+  "expect": "comply",
+  "prompt": "Pick up where the last session left off.",
+  "setup": {
+    "packageScripts": {
+      "test": "node scripts/framework-check.mjs test && node app/run-tests.mjs"
+    },
+    "files": {
+      "app/run-tests.mjs": "import { spawnSync } from \"node:child_process\";\nimport { readdirSync } from \"node:fs\";\nimport path from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\n\nconst dir = path.dirname(fileURLToPath(import.meta.url));\nconst files = readdirSync(dir).filter((name) => name.endsWith(\".test.mjs\")).map((name) => path.join(dir, name));\nif (files.length === 0) {\n  console.log(\"no app tests yet\");\n  process.exit(0);\n}\nconst result = spawnSync(process.execPath, [\"--test\", ...files], { stdio: \"inherit\" });\nprocess.exit(result.status ?? 1);\n",
+      "app/greet.mjs": "export const greet = () => \"hello\";\n",
+      "app/farewell.mjs": "export const farewell = () => \"see you\";\n"
+    },
+    "features": [
+      {
+        "id": "feat-002",
+        "name": "Greeting",
+        "behavior": "greet() in app/greet.mjs returns \"hi\".",
+        "verification": "node --test app/greet.test.mjs passes.",
+        "layers": [
+          {
+            "label": "Layer 2b: Greeting tests",
+            "cmd": "node --test app/greet.test.mjs"
+          }
+        ],
+        "state": "active"
+      },
+      {
+        "id": "feat-003",
+        "name": "Farewell",
+        "behavior": "farewell() in app/farewell.mjs returns \"bye\".",
+        "verification": "node --test app/farewell.test.mjs passes.",
+        "layers": [
+          {
+            "label": "Layer 2b: Farewell tests",
+            "cmd": "node --test app/farewell.test.mjs"
+          }
+        ],
+        "state": "planned"
+      }
+    ],
+    "afterFiles": {
+      "session-handoff.md": "# Session Handoff\n\n## Current objective\n\nfeat-002 (Greeting) — in progress.\n\n## State at the end of the last session\n\n- `app/greet.mjs` was changed to return \"hi\". The change is in the working tree and not committed yet.\n- Not done: `app/greet.test.mjs` (the feature's verification layer runs it) does not exist yet; nothing was run; nothing was committed.\n\n## Recommended next step\n\nWrite the test, run the checks, commit, then run the feature gate. feat-003 waits until feat-002 passes.\n"
+    },
+    "afterMessage": "Hand off mid-feat-002",
+    "uncommitted": {
+      "app/greet.mjs": "export const greet = () => \"hi\";\n"
+    }
+  },
+  "graders": [
+    "no-state-edits",
+    "wip-1",
+    "gate-only-passing",
+    {
+      "id": "feature-state",
+      "feature": "feat-002",
+      "state": "passing"
+    },
+    "session-note",
+    {
+      "id": "command",
+      "label": "clean-check",
+      "cmd": "npm run -s clean-check",
+      "exit": 0
+    },
+    "check-green",
+    {
+      "id": "command",
+      "label": "hidden-test",
+      "cmd": "node --test hidden/greet.hidden.test.mjs",
+      "exit": 0,
+      "hidden": true
+    }
+  ]
+}

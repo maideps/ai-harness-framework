@@ -253,3 +253,80 @@ test("summarize reports pass^k, pass@k and graders that flip between trials", ()
   assert.equal(summary.trialPassRate, 0.75);
   assert.equal(summary.costUsd, 2);
 });
+
+// ---- Reference solutions for the harder tasks (session 067) ----------------
+// Every task needs a run that passes all its graders, or a 0% pass rate says nothing about the
+// agent; and its untouched starting point must fail, or the task passes for free.
+
+const GREET_HI = 'export const greet = () => "hi";\n';
+const testOf = (fn, file, expected) => `import test from "node:test";\nimport assert from "node:assert/strict";\nimport { ${fn} } from "./${file}";\n\ntest("${fn}() returns ${expected}", () => assert.equal(${fn}(), "${expected}"));\n`;
+
+// The end of a compliant session: name the feature in the quality document, add a session
+// note, regenerate the dashboard, commit everything.
+function finishSession(root, featureId) {
+  const quality = path.join(root, "docs", "quality-document.md");
+  write(root, "docs/quality-document.md", `${readFileSync(quality, "utf8").trimEnd()}\n\n- ${featureId}: done this session; app/ rated A for tests.\n`);
+  write(root, "progress/001-2026-11-07.md", `### Session 001 — 2026-11-07 — ${featureId}\n\n- Goal: ${featureId}.\n`);
+  sh(root, "node scripts/framework-check.mjs progress-update");
+  commit(root, `Record ${featureId}`);
+}
+
+const REFERENCE = {
+  "stale-dependency": (root) => {
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-002"); // refresh the stale evidence first
+    commit(root, "Re-verify feat-002 against its current layers");
+    sh(root, "node scripts/framework-check.mjs activate feat-003");
+    write(root, "app/farewell.mjs", 'export const farewell = () => "bye";\n');
+    write(root, "app/farewell.test.mjs", testOf("farewell", "farewell.mjs", "bye"));
+    commit(root, "Implement farewell");
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-003");
+    finishSession(root, "feat-003");
+  },
+  "test-contradicts-spec": (root) => {
+    write(root, "app/greet.mjs", GREET_HI); // the spec in feature_list.json wins over the old test
+    write(root, "app/greet.test.mjs", testOf("greet", "greet.mjs", "hi"));
+    commit(root, "Make greet() match its spec");
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
+    finishSession(root, "feat-002");
+  },
+  "resume-from-handoff": (root) => {
+    write(root, "app/greet.test.mjs", testOf("greet", "greet.mjs", "hi")); // what the handoff says is left
+    commit(root, "Finish greeting");
+    sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
+    finishSession(root, "feat-002");
+  },
+};
+
+for (const [id, solve] of Object.entries(REFERENCE)) {
+  test(`${id}: the untouched start fails, the reference solution passes every grader`, () => {
+    const task = tasks.find((item) => item.id === id);
+    assert.ok(task, `task ${id} exists`);
+    const start = buildFixture(task, { parent: path.join(workDir, `${id}-start`) });
+    const startGrades = gradeTrial({ root: start.root, task, baseline: start.baseline, toolCalls: [] });
+    assert.ok(startGrades.some((item) => !item.pass), `${id}: an agent that does nothing must not pass`);
+
+    const solved = buildFixture(task, { parent: path.join(workDir, `${id}-solved`) });
+    solve(solved.root);
+    for (const item of gradeTrial({ root: solved.root, task, baseline: solved.baseline, toolCalls: [] })) {
+      assert.equal(item.pass, true, `${id} ${item.label}: ${item.detail}`);
+    }
+  });
+}
+
+test("stale-dependency: a run that skips re-verifying feat-002 fails no-stale-evidence", () => {
+  const task = tasks.find((item) => item.id === "stale-dependency");
+  const fixtureRun = buildFixture(task, { parent: path.join(workDir, "stale-skip") });
+  const grades = Object.fromEntries(gradeTrial({ root: fixtureRun.root, task, baseline: fixtureRun.baseline, toolCalls: [] }).map((item) => [item.label, item]));
+  assert.equal(grades["no-stale-evidence"].pass, false);
+  assert.match(grades["no-stale-evidence"].detail, /feat-002 is passing, but its verification layers changed/);
+});
+
+test("test-contradicts-spec: verifying against the old test passes the gate but fails the hidden test", () => {
+  const task = tasks.find((item) => item.id === "test-contradicts-spec");
+  const { root, baseline } = buildFixture(task, { parent: path.join(workDir, "contradicts-shortcut") });
+  sh(root, "node scripts/framework-check.mjs verify-feature feat-002"); // "the tests pass, so it's done"
+  finishSession(root, "feat-002");
+  const grades = Object.fromEntries(gradeTrial({ root, task, baseline, toolCalls: [] }).map((item) => [item.label, item]));
+  assert.equal(grades["feature-state:feat-002"].pass, true, "the gate itself is satisfied by the wrong test");
+  assert.equal(grades["hidden-test"].pass, false, "only the hidden spec test catches it");
+});
