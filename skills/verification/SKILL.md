@@ -22,7 +22,7 @@ How to run the gates and what the tri-state results mean.
 3. For architecture enforcement: `npm run check-arch` (required surfaces, WIP=1/dependency order, no placeholder docs, valid manifest, every tracked file classified).
 4. Before committing: `npm run clean-check` (harness files present, working tree clean, no debug artifacts, WIP ≤ 1, no OS artifacts staged).
 5. If the project enabled quality gates (`.harness/quality.json` has `"enabled": true`), `npm run quality` runs last in the chain. Read each gate line: `[PASS] coverage: 84.20 ≥ 80` counts; `[SKIP] mutation: disabled` does not; a `[FAIL]` names the metric and the floor it missed. Never lower a `min` to make a gate pass without saying so to a human.
-6. For a specific feature: `npm run verify-feature -- <feature-id>` — runs the feature's own layers in order, stops at the first failure, prints the repair hint, and records evidence only when all layers pass.
+6. For a specific feature: `npm run verify-feature -- <feature-id>` — runs the feature's own layers in order, stops at the first failure, prints the repair hint, and records evidence only when all layers pass. It refuses while code is uncommitted (harness bookkeeping excepted) and fails if a layer leaves files behind, so the commit in the evidence is the code that passed. A `[WARN] … layers changed after it was verified` line from `npm run typecheck` means that feature's evidence is stale: re-run its gate.
 
 ## Rules
 
