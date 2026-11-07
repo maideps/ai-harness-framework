@@ -714,3 +714,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 - Positive: one less judgment call; the gate's pass means the declared behavior, not just whatever the tests check.
 - Negative: a wrong declared behavior plus a correct test now leads the agent to "fix" the correct test, unless the behavior looks obviously wrong; the commit message and session note make that visible to a reviewer.
 - Measured (session 069, `test-contradicts-spec`, 3 trials): 3/3 passed (was 2/3). Every trial fixed the test, cited the rule in its final message, and none stopped to ask or flagged a judgment call (was one stop and two flagged judgment calls).
+
+### D-047: Session notes start from a generated skeleton
+
+**Date:** 2026-11-07
+**Status:** accepted
+**Context:** Lint requires each `progress/NNN-YYYY-MM-DD.md` to start with exactly `### Session NNN — YYYY-MM-DD` (three `#`, em dashes). In the eval transcripts agents wrote their own headings (`# Session 001 — …`, `## Feature` sections), found out only when lint failed, and spent turns fixing them; several fixes used `sed -i`, which the eval run denies. The format is strict for a reason: the generated dashboard indexes sessions by their headings.
+**Decision:**
+- New runner mode `node scripts/framework-check.mjs progress-new "<title>"`: the next session number, today's local date, the exact heading, the standard bullet sections (Goal, Sprint contract, Completed, Verification run, Files or artifacts updated, Known risk or unresolved issue, Next best step), then a dashboard refresh so lint passes at once. It refuses a blank or multi-line title and never overwrites an existing note.
+- A runner mode, like `progress-update`, not a make target or npm script, so adopter-owned `Makefile` and `package.json` need no change.
+- The progress lint error now spells out the format and names the command. AGENTS.md (end of session), the session-handoff skill, USAGE (both copies), README and ARCHITECTURE point to it.
+**Alternatives considered:**
+- Accept any heading level and any dash — rejected: the dashboard index and the session-number checks rely on one format, and a lenient parser is harder to keep consistent than a generator.
+- Ship a note template file to copy — rejected: copying still leaves the number and date to the agent, the two parts lint checks.
+**Consequences:**
+- Positive: starting a note is one command with nothing to get wrong; filling it in is the only judgment left.
+- Negative: one more runner mode to know about; a note written by hand still works, under the same strict check.

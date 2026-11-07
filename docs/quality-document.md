@@ -58,6 +58,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-11-05 (session 060, feat-033, D-044): agent-compliance evals in `evals/` (framework repository only): fixtures from `create-harness`, `claude -p` with scoped tools and the developer's settings excluded, deterministic outcome graders, five tasks (two comply, three hold back), pass^k and flip reporting. 12 grader tests with no model, run in CI with `--fixtures-only`; no real trial has run yet.
 - 2026-11-06 (session 063, feat-034, D-045): `verify-feature` writes the trail on every bound pass; `clean-check` fails until `docs/quality-document.md` names every gate-verified feature. Prompted by the first eval suite (quality document updated in 1/5 passing comply trials, vcr trail in 0/5). 3 new runner tests, 2 new eval tests; the eval `command` grader copies hidden files only when asked.
 - 2026-11-07 (session 069, feat-035, D-046): AGENTS.md and the feature-cycle and review skills say the declared behavior in feature_list.json wins over a test that contradicts it. Prompted by the test-contradicts-spec eval (session 068); measured by rerunning it.
+- 2026-11-07 (session 070, feat-036, D-047): `progress-new "<title>"` writes the next session note with the exact heading lint requires and the standard sections, then refreshes the dashboard; the progress lint error names it. 3 new runner tests.
 
 ---
 

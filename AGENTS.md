@@ -137,7 +137,7 @@ Skill structure is validated by the lint layer; see the `write-skill` skill for 
 Before ending a session:
 
 1. Run `make clean-check` — confirms build passes, no debug artifacts, progress updated
-2. Add the session notes to `progress/NNN-YYYY-MM-DD.md` and regenerate the dashboard with `node scripts/framework-check.mjs progress-update`
+2. Start the session note with `node scripts/framework-check.mjs progress-new "<title>"` (it picks the number, date and heading lint requires, writes the sections and refreshes `PROGRESS.md`), then fill in every section; after any later state change run `node scripts/framework-check.mjs progress-update`
 3. Keep `feature_list.json` declaration-only; feature state belongs in `.harness/state/<id>.json`
 4. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
 5. Record any unresolved risks or blockers

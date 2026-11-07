@@ -34,7 +34,7 @@ The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and
    ```
    The gate runs the feature's own verification layers, refuses to pass a feature whose dependencies are not `passing`, and records evidence in `.harness/state/<feature-id>.json` — `feature_list.json` itself is never rewritten (feat-011, D-017).
 5. Record durable evidence of a full run with `npm run vcr` (writes a trail to `.harness/trails/`).
-6. End the session: add `progress/NNN-YYYY-MM-DD.md`, regenerate `PROGRESS.md` with `node scripts/framework-check.mjs progress-update`, update `session-handoff.md` and `docs/quality-document.md`, then run `npm run clean-check` and commit.
+6. End the session: start the note with `node scripts/framework-check.mjs progress-new "<title>"` and fill it in (or write `progress/NNN-YYYY-MM-DD.md` yourself and run `node scripts/framework-check.mjs progress-update`), update `session-handoff.md` and `docs/quality-document.md`, then run `npm run clean-check` and commit.
 
 ## Session Lifecycle
 
@@ -295,4 +295,4 @@ Forgot to chain one? `node scripts/harness-audit.mjs` warns, by layer name, the 
 Two more checks worth knowing about, neither a numbered arch rule:
 
 - **`check-arch` warns (does not fail) on untracked files.** Coverage rules like arch-005 only see what `git ls-files` already tracks — a brand-new file silently passes coverage until it's `git add`ed, then fails once it is. `check-arch` prints a heads-up (`[WARN] N untracked file(s) exist…`) before evaluating rules, so a rule result you're about to read isn't misread as covering a file it can't see yet.
-- **`npm run lint` checks the generated `PROGRESS.md` dashboard and `progress/` archive.** The dashboard must match feature declarations/state shards and the dated session files; filenames/headings must agree, and session numbers must be unique and contiguous (file creation order does not matter). Run `node scripts/framework-check.mjs progress-update` to regenerate it.
+- **`npm run lint` checks the generated `PROGRESS.md` dashboard and `progress/` archive.** The dashboard must match feature declarations/state shards and the dated session files; filenames/headings must agree, and session numbers must be unique and contiguous (file creation order does not matter). Run `node scripts/framework-check.mjs progress-update` to regenerate it; `progress-new "<title>"` starts a note with a heading lint accepts (`### Session NNN — YYYY-MM-DD — <title>`, three `#` and em dashes).
