@@ -172,7 +172,7 @@ These files are the source of truth—not chat history:
 | `DECISIONS.md` | Architectural decisions log — why the codebase is structured this way |
 | `session-handoff.md` | Multi-session handoff starter artifact |
 
-`state` values are `planned`, `active`, `blocked`, and `passing`. `verify-feature` writes only the shard for the feature it just verified — `feature_list.json` itself is never rewritten by the gate (see [Sharded Feature State](docs/ARCHITECTURE.md#sharded-feature-state)). At session end, add a dated note under `progress/` and run `node scripts/framework-check.mjs progress-update`; lint rejects a stale dashboard or a broken session index.
+`state` values are `planned`, `active`, `blocked`, and `passing`. `verify-feature` writes only the shard for the feature it just verified — `feature_list.json` itself is never rewritten by the gate (see [Sharded Feature State](docs/ARCHITECTURE.md#sharded-feature-state)). At session end, start a dated note with `node scripts/framework-check.mjs progress-new "<title>"` and fill it in; lint rejects a stale dashboard or a broken session index.
 
 ### Reusability Contract
 

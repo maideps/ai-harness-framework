@@ -2127,3 +2127,62 @@ test("lint:progress-log: fails when the session filename and heading disagree", 
     cleanup(root);
   }
 });
+
+// ---- feat-036 (D-047): session notes start from a generated skeleton ------
+
+const todayLocal = () => {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+test("progress-new: writes the next note with the exact heading and sections, and lint's progress check passes right after (feat-036)", () => {
+  const root = progressFixture([], [{ id: "feat-001", name: "First", state: "planned" }]);
+  try {
+    const first = run(root, "progress-new", ["Greeting", "feature"]);
+    assert.equal(first.exit, 0, first.output);
+    const date = todayLocal();
+    const note = readFileSync(path.join(root, "progress", `001-${date}.md`), "utf8");
+    assert.equal(note.split("\n")[0], `### Session 001 — ${date} — Greeting feature`);
+    for (const section of ["Goal", "Sprint contract", "Completed", "Verification run", "Files or artifacts updated", "Known risk or unresolved issue", "Next best step"]) {
+      assert.match(note, new RegExp(`^- ${section}: `, "m"), section);
+    }
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+    assert.match(lint.output, /Progress dashboard is current \(1 session\)/);
+
+    assert.equal(run(root, "progress-new", ["Second"]).exit, 0);
+    assert.ok(existsSync(path.join(root, "progress", `002-${date}.md`)), "numbers continue");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("progress-new: refuses a blank or multi-line title, and never overwrites a note (feat-036)", () => {
+  const root = progressFixture([], []);
+  try {
+    assert.match(run(root, "progress-new").stderr, /usage: node scripts\/framework-check\.mjs progress-new/);
+    assert.match(run(root, "progress-new", ["two\nlines"]).stderr, /one-line session title/);
+    const date = todayLocal();
+    write(root, `progress/001-${date}.md`, `### Session 001 — ${date} — Mine\n\n- Goal: kept\n`);
+    // A second note today with number 001 would collide only if the index thought 001 was free.
+    const again = run(root, "progress-new", ["Next"]);
+    assert.equal(again.exit, 0, again.output);
+    assert.equal(readFileSync(path.join(root, "progress", `001-${date}.md`), "utf8"), `### Session 001 — ${date} — Mine\n\n- Goal: kept\n`);
+    assert.ok(existsSync(path.join(root, "progress", `002-${date}.md`)));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("progress lint: a hand-written '# Session' heading fails with the exact heading and the progress-new hint (feat-036)", () => {
+  const root = progressFixture([{ number: 1, date: "2026-10-01", heading: "# Session 001 - 2026-10-01" }], [], { generate: false });
+  try {
+    const result = run(root, "lint:progress-log");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /must start with a matching "### Session 001 — 2026-10-01" heading/);
+    assert.match(result.stderr, /progress-new "<title>" writes a new note with the right heading/);
+  } finally {
+    cleanup(root);
+  }
+});

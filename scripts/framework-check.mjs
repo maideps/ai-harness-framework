@@ -167,7 +167,7 @@ function progressSessions() {
     const heading = readText(path.join(directory, entry.name)).split(/\r?\n/, 1)[0];
     const headingMatch = heading.match(/^### Session (\d{3,}) — (\d{4}-\d{2}-\d{2})(?: — .*)?$/);
     if (!headingMatch || Number(headingMatch[1]) !== number || headingMatch[2] !== date) {
-      fail(`progress/${entry.name} must start with a matching "### Session ${numberText} — ${date}" heading`);
+      fail(`progress/${entry.name} must start with a matching "### Session ${numberText} — ${date}" heading (three #, em dashes; an optional " — <title>" may follow). node scripts/framework-check.mjs progress-new "<title>" writes a new note with the right heading`);
     }
     sessions.push({ number, date, heading, filename: entry.name });
   }
@@ -260,6 +260,44 @@ function replaceGeneratedProgress(content, progressFile) {
   const prefix = content.slice(0, start + generatedProgressStart.length);
   const suffix = content.slice(end);
   return `${prefix}\n${generatedProgressContent()}\n${suffix}`;
+}
+
+// The skeleton of a session note: the exact heading lint requires, and the sections every note
+// in this format has. Starting from it is mechanical; agents who wrote the heading by hand often
+// got it wrong and lost turns after lint failed (feat-036, D-047).
+const SESSION_NOTE_SECTIONS = [
+  "Goal",
+  "Sprint contract",
+  "Completed",
+  "Verification run",
+  "Files or artifacts updated",
+  "Known risk or unresolved issue",
+  "Next best step",
+];
+
+function localDate(now = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function newProgressNote(title) {
+  if (typeof title !== "string" || !title.trim() || /[\r\n]/.test(title)) {
+    fail('usage: node scripts/framework-check.mjs progress-new "<one-line session title>"');
+  }
+  const sessions = progressSessions();
+  const number = String(sessions.length + 1).padStart(3, "0");
+  const date = localDate();
+  const file = path.join("progress", `${number}-${date}.md`);
+  mkdirSync("progress", { recursive: true });
+  if (existsSync(file)) {
+    fail(`${file} already exists; edit it instead`);
+  }
+  const lines = [`### Session ${number} — ${date} — ${title.trim()}`, "", ...SESSION_NOTE_SECTIONS.map((section) => `- ${section}: `), ""];
+  writeFileSync(file, lines.join(EOL), "utf8");
+  pass(`Created ${file.split(path.sep).join("/")} — fill in each section before the session ends`);
+  if (["PROGRESS.md", "progress.md", "claude-progress.md"].some(existsSync)) {
+    updateProgress();
+  }
 }
 
 function updateProgress() {
@@ -2242,6 +2280,7 @@ function printHelp() {
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
   console.log("  selftest       Harness self-tests (the runner's unit tests); ./init.sh runs them in adopters");
+  console.log("  progress-new \"<title>\"  Start this session's note in progress/ (number, date, heading, sections)");
   console.log("  progress-update  Regenerate the progress state and session index");
   console.log("  progress-migrate  Move a single-file PROGRESS.md into progress/ and generate the dashboard");
   console.log("  clean-check    Pre-commit clean state verification");
@@ -2341,6 +2380,10 @@ switch (mode) {
   }
   case "progress-update": {
     updateProgress();
+    break;
+  }
+  case "progress-new": {
+    newProgressNote(args.join(" "));
     break;
   }
   case "progress-migrate": {
