@@ -713,3 +713,4 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: one less judgment call; the gate's pass means the declared behavior, not just whatever the tests check.
 - Negative: a wrong declared behavior plus a correct test now leads the agent to "fix" the correct test, unless the behavior looks obviously wrong; the commit message and session note make that visible to a reviewer.
+- Measured (session 069, `test-contradicts-spec`, 3 trials): 3/3 passed (was 2/3). Every trial fixed the test, cited the rule in its final message, and none stopped to ask or flagged a judgment call (was one stop and two flagged judgment calls).
