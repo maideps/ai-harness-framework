@@ -233,6 +233,39 @@ test("adopt: activating the devcontainer later never rewrites one the adopter al
   }
 });
 
+// feat-031 (D-042): a new adopter gets Claude Code deny rules for secret files, not {}.
+test("adopt: places .claude/settings.json that denies reading secret files and grants nothing", () => {
+  const root = fixture("claude-settings");
+  try {
+    adopt(root);
+    const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
+    const deny = settings.permissions.deny;
+    for (const rule of ["Read(**/.env)", "Read(**/.env.local)", "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.git-credentials)"]) {
+      assert.ok(deny.includes(rule), `missing deny rule ${rule}`);
+    }
+    // .env.example must stay readable: no rule may match every .env.* file.
+    assert.ok(!deny.includes("Read(**/.env.*)"), "a .env.* wildcard would hide .env.example");
+    assert.equal(settings.permissions.allow, undefined, "the shared file grants nothing");
+    assert.equal(settings.sandbox, undefined, "the sandbox stays opt-in");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: keeps an existing .claude/settings.json", () => {
+  const root = fixture("claude-settings-existing");
+  try {
+    const file = path.join(root, ".claude", "settings.json");
+    const own = `${JSON.stringify({ permissions: { allow: ["Bash(make *)"] } }, null, 2)}\n`;
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, own, "utf8");
+    adopt(root, { skipExisting: true });
+    assert.equal(readFileSync(file, "utf8"), own);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("adopt: the mcp component is opt-in and gives Claude Code and Gemini the same servers", () => {
   const plain = fixture("no-mcp");
   const root = fixture("mcp");

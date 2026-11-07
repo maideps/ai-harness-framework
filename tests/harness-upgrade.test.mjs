@@ -111,6 +111,38 @@ test("harness-upgrade: creates missing instance files from templates, never over
   }
 });
 
+// feat-031 (D-042): older harnesses wrote .claude/settings.json as {}. That placeholder was
+// never customised, so an upgrade replaces it; anything else is the adopter's.
+test("harness-upgrade: replaces an untouched {} .claude/settings.json and reports it", () => {
+  const manifest = JSON.parse(harnessFile(".harness/manifest.json"));
+  const entry = manifest.templates.find((item) => item.to === ".claude/settings.json");
+  if (!entry || !manifest.instance.includes(".claude/settings.json")) return; // a harness without the template
+  for (const placeholder of ["{}\n", "{}", "  {}\r\n"]) {
+    const root = adopter();
+    write(root, ".claude/settings.json", placeholder);
+    try {
+      const report = upgrade(root);
+      assert.ok(report.created.includes(".claude/settings.json"), JSON.stringify(report.created));
+      assert.equal(readFileSync(path.join(root, ".claude/settings.json"), "utf8"), harnessFile(entry.from));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("harness-upgrade: never touches a customised .claude/settings.json", () => {
+  const root = adopter();
+  const own = `${JSON.stringify({ permissions: { deny: ["Read(./secrets/**)"] } }, null, 2)}\n`;
+  write(root, ".claude/settings.json", own);
+  try {
+    const report = upgrade(root);
+    assert.ok(!report.created.includes(".claude/settings.json"), JSON.stringify(report.created));
+    assert.equal(readFileSync(path.join(root, ".claude/settings.json"), "utf8"), own);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("harness-upgrade: backfills .harness/trails/.gitkeep so a fresh clone keeps the directory (#26)", () => {
   const root = adopter();
   try {

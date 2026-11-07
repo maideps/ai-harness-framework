@@ -57,6 +57,7 @@
     { "from": "templates/mcp/mcp.json", "to": ".mcp.json" },
     { "from": "templates/mcp/gemini-settings.json", "to": ".gemini/settings.json" },
     { "from": "templates/ci.yml", "to": ".github/workflows/ci.yml" },
+    { "from": "templates/claude-settings.json", "to": ".claude/settings.json" },
     { "from": "templates/sprint-contract.md", "keep": true },
     { "from": "templates/evaluator-rubric.md", "keep": true },
     { "from": "templates/clean-state-checklist.md", "keep": true }

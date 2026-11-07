@@ -1,5 +1,27 @@
 {
-  "_note": "Local development tool config only (Cline/Roo-Code schema) — not part of the harness's shipped agent-adapter contract. New adopters get an empty {} via create-harness; this file only affects this maintainer's own working copy.",
+  "_note": "Maintainer working-copy config. permissions.deny is the Claude Code rule set adopters get from templates/claude-settings.json (feat-031); the other keys are Cline/Roo-Code settings that Claude Code ignores. New adopters get the template, not this file.",
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.development)",
+      "Read(**/.env.production)",
+      "Read(**/.env.staging)",
+      "Read(**/.env.test)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.git-credentials)",
+      "Read(~/.netrc)",
+      "Read(~/.npmrc)",
+      "Read(~/.pypirc)"
+    ]
+  },
   "token_usage_warning_threshold": 0.8,
   "auto_approve": {
     "read_file": true,
