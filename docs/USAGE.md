@@ -38,6 +38,8 @@ The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and
 
 ## Session Lifecycle
 
+Every session starts with `./init.sh`, which ends with a short brief (`node scripts/framework-check.mjs brief` prints the same on demand): branch and uncommitted changes, feature counts, the active feature with its behavior and layer commands, the planned features that can start now and those waiting on dependencies, blocked features, stale evidence, the latest session note's known risk and next step, and how old `session-handoff.md` is. It is a few hundred bytes, so a session doesn't need to read all of `feature_list.json`; open it for the features the brief names (feat-037).
+
 ```bash
 npm run session-start   # record start time, git state, active feature
 # … work …

@@ -984,6 +984,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-037",
+      "name": "Generated start-of-session brief",
+      "behavior": "node scripts/framework-check.mjs brief prints a short start-of-session summary (well under 2 KB): branch, last commit and uncommitted count; feature counts by state; the active feature with its behavior and layer commands; planned features that can start now (dependencies passing and not stale) and those waiting on dependencies; blocked features; features with stale evidence; the latest session note's heading, known risk and next step; and when session-handoff.md last changed, flagged when older than the latest note. It is read-only and never fails on a missing piece. ./init.sh prints it at the end (never failing the script), and AGENTS.md startup step 5 says to read the brief and open feature_list.json only for the features it names.",
+      "verification": "npm run check passes including new framework-check tests (brief lists the active feature with behavior and layers, startable vs waiting features, blocked and stale-evidence features, the last note's risk and next step, a stale handoff flag; works with no progress/, no git and no features); npm run check-arch passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/framework-check.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

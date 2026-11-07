@@ -300,6 +300,80 @@ function newProgressNote(title) {
   }
 }
 
+// A short start-of-session briefing, so a new session needn't read all of feature_list.json
+// (52 KB in this repository, growing with every feature): the active feature, what can start
+// next, stale evidence, and the latest session note's risks and next step (feat-037, D-048).
+// ./init.sh prints it. Read-only; never fails on a missing piece.
+function noteField(text, label) {
+  const line = text.split(/\r?\n/).find((entry) => entry.startsWith(`- ${label}:`));
+  const value = line ? line.slice(label.length + 3).trim() : "";
+  return value.length > 400 ? `${value.slice(0, 397)}...` : value;
+}
+
+function sessionBrief() {
+  const clip = (text, length = 200) => (text && text.length > length ? `${text.slice(0, length - 3)}...` : text ?? "");
+  const lines = ["=== Session brief ==="];
+  if (isGitRepo()) {
+    const status = gitCapture(["status", "--porcelain"]) ?? "";
+    const changed = status.split(/\r?\n/).filter(Boolean).length;
+    lines.push(`Branch ${getCurrentBranch() || "(detached)"} at ${gitCapture(["log", "-1", "--format=%h %s"]) ?? "(no commits)"}${changed ? `; ${changed} uncommitted change(s)` : ""}`);
+  }
+
+  if (existsSync("feature_list.json")) {
+    const { features } = loadFeaturesWithState();
+    const byId = new Map(features.map((feature) => [feature.id, feature]));
+    const stateOf = (feature) => getFeatureState(feature) ?? "planned";
+    const counts = {};
+    for (const feature of features) counts[stateOf(feature)] = (counts[stateOf(feature)] ?? 0) + 1;
+    lines.push(`Features: ${features.length} (${Object.entries(counts).map(([state, count]) => `${count} ${state}`).join(", ")})`);
+
+    const active = features.filter((feature) => stateOf(feature) === "active");
+    if (active.length === 0) lines.push("Active: none");
+    for (const feature of active) {
+      lines.push(`Active: ${feature.id} — ${feature.name}`);
+      lines.push(`  behavior: ${clip(feature.behavior, 300)}`);
+      lines.push(`  layers: ${(feature.layers ?? []).map((layer) => layer.cmd).join(" | ")}`);
+    }
+
+    const ready = (feature) => (feature.dependencies ?? []).every((id) => byId.has(id) && stateOf(byId.get(id)) === "passing" && !hasStaleEvidence(byId.get(id)));
+    const planned = features.filter((feature) => stateOf(feature) === "planned");
+    const startable = planned.filter(ready);
+    const waiting = planned.filter((feature) => !ready(feature));
+    if (startable.length) lines.push(`Can start next: ${startable.slice(0, 5).map((feature) => `${feature.id} ${feature.name}`).join("; ")}${startable.length > 5 ? `; +${startable.length - 5} more` : ""}`);
+    if (waiting.length) lines.push(`Waiting on dependencies: ${waiting.slice(0, 5).map((feature) => `${feature.id} (needs ${feature.dependencies.join(", ")})`).join("; ")}${waiting.length > 5 ? `; +${waiting.length - 5} more` : ""}`);
+    const blocked = features.filter((feature) => stateOf(feature) === "blocked");
+    if (blocked.length) lines.push(`Blocked: ${blocked.map((feature) => feature.id).join(", ")}`);
+    const stale = features.filter(hasStaleEvidence);
+    if (stale.length) lines.push(`Stale evidence (layers changed after passing — re-run verify-feature): ${stale.map((feature) => feature.id).join(", ")}`);
+  }
+
+  let latestDate = "";
+  if (existsSync("progress") && statSync("progress").isDirectory()) {
+    // progressSessions() exits on a malformed archive (lint's job to report); ./init.sh calls the
+    // brief with `|| true`, so that never stops a session from starting.
+    const sessions = progressSessions();
+    const latest = sessions.at(-1);
+    if (latest) {
+      latestDate = latest.date;
+      const text = readText(path.join("progress", latest.filename));
+      lines.push(`Last session: ${latest.heading.replace(/^###\s*/, "")}`);
+      const risk = noteField(text, "Known risk or unresolved issue");
+      const next = noteField(text, "Next best step");
+      if (risk) lines.push(`  known risk: ${risk}`);
+      if (next) lines.push(`  next step: ${next}`);
+    }
+  }
+  if (existsSync("session-handoff.md") && isGitRepo()) {
+    const changed = gitCapture(["log", "-1", "--format=%cs", "--", "session-handoff.md"]);
+    if (changed) {
+      const stale = latestDate && changed < latestDate;
+      lines.push(`session-handoff.md last changed ${changed}${stale ? " — older than the latest session note; it may be out of date" : ""}`);
+    }
+  }
+  lines.push("Details: feature_list.json for the features above; progress/ for earlier sessions.");
+  console.log(lines.join(EOL));
+}
+
 function updateProgress() {
   const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"].find(existsSync);
   if (!progressFile) {
@@ -2280,6 +2354,7 @@ function printHelp() {
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
   console.log("  selftest       Harness self-tests (the runner's unit tests); ./init.sh runs them in adopters");
+  console.log("  brief            Start-of-session summary: active feature, what can start, stale evidence, last session's risks and next step");
   console.log("  progress-new \"<title>\"  Start this session's note in progress/ (number, date, heading, sections)");
   console.log("  progress-update  Regenerate the progress state and session index");
   console.log("  progress-migrate  Move a single-file PROGRESS.md into progress/ and generate the dashboard");
@@ -2384,6 +2459,10 @@ switch (mode) {
   }
   case "progress-new": {
     newProgressNote(args.join(" "));
+    break;
+  }
+  case "brief": {
+    sessionBrief();
     break;
   }
   case "progress-migrate": {
