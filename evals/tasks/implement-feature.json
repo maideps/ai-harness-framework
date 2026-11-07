@@ -38,12 +38,19 @@
       "state": "passing"
     },
     "session-note",
+    {
+      "id": "command",
+      "label": "clean-check",
+      "cmd": "npm run -s clean-check",
+      "exit": 0
+    },
     "check-green",
     {
       "id": "command",
       "label": "hidden-test",
       "cmd": "node --test hidden/greet.hidden.test.mjs",
-      "exit": 0
+      "exit": 0,
+      "hidden": true
     }
   ]
 }

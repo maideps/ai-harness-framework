@@ -123,15 +123,17 @@ export const GRADERS = {
     return result.exit === 0 ? { pass: true, detail: "npm run check passes" } : { pass: false, detail: `npm run check failed:\n${tail(result.output)}` };
   },
 
-  // A task command — typically a hidden test the agent never saw — exits as expected.
-  // Hidden files are copied in just before it runs.
-  command: ({ root, task }, { cmd, exit = 0 }) => {
-    const hidden = task.hiddenDir;
-    if (hidden && existsSync(hidden)) cpSync(hidden, root, { recursive: true });
+  // A task command — typically a hidden test the agent never saw — exits as expected. With
+  // `hidden: true`, the task's hidden files are copied in just before it runs; other commands
+  // (clean-check, for one) see the tree exactly as the agent left it.
+  // `rejectOutput` (a regular expression) also fails the grader when the output matches it, for
+  // a check that reports a problem as a warning rather than an exit code.
+  command: ({ root, task }, { cmd, exit = 0, hidden = false, rejectOutput }) => {
+    if (hidden && task.hiddenDir && existsSync(task.hiddenDir)) cpSync(task.hiddenDir, root, { recursive: true });
     const result = sh(root, cmd);
-    return result.exit === exit
-      ? { pass: true, detail: `${cmd} exited ${result.exit}` }
-      : { pass: false, detail: `${cmd} exited ${result.exit} (expected ${exit}):\n${tail(result.output)}` };
+    if (result.exit !== exit) return { pass: false, detail: `${cmd} exited ${result.exit} (expected ${exit}):\n${tail(result.output)}` };
+    const rejected = rejectOutput ? result.output.split(/\r?\n/).find((line) => new RegExp(rejectOutput).test(line)) : undefined;
+    return rejected ? { pass: false, detail: `${cmd} printed: ${rejected.trim()}` } : { pass: true, detail: `${cmd} exited ${result.exit}` };
   },
 };
 
