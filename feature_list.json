@@ -1042,6 +1042,30 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-039",
+      "name": "Testing skill for adopters",
+      "behavior": "A shipped skill, skills/testing/SKILL.md (name testing; When to Use, Workflow, Quick Reference), gives an adopting project's agent a testing strategy built on the harness: which tests go in which layer (lint/typecheck, test, build and e2e, per-feature layers), chaining product tools after the harness's own commands, writing each feature's acceptance test from its declared behavior before the code, bugs reproduced by a failing test first, never weakening a test to pass, keeping npm run check under about two minutes, deterministic tests, and judging test quality (coverage floor, mutation score, review, human-owned acceptance tests). It is listed in the manifest's shippedSkills, so harness-upgrade delivers it, and named in AGENTS.md's skills list and the README. docs/USAGE.md and its template gain a 'Testing your product' section with the same strategy and per-stack examples.",
+      "verification": "npm run check passes (lint validates the new skill's frontmatter and sections and the manifest's shippedSkills; the harness-upgrade test confirms shipped skills reach adopters); npm run check-arch passes (the new files are classified); verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

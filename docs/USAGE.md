@@ -36,6 +36,15 @@ The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and
 5. The gate writes the trail to `.harness/trails/` itself on a bound pass (feat-034); `npm run vcr` records a full-run trail for work no feature gate covers.
 6. End the session: start the note with `node scripts/framework-check.mjs progress-new "<title>"` and fill it in (or write `progress/NNN-YYYY-MM-DD.md` yourself and run `node scripts/framework-check.mjs progress-update`), update `session-handoff.md` and `docs/quality-document.md`, then run `npm run clean-check` and commit.
 
+## Testing Your Product
+
+The harness runs your tests and makes their results count (SKIP is never PASS; evidence names the commit that passed), but ships no tests for your product. The `testing` skill has the full workflow; in short:
+
+- **Each kind of test in its layer**, your tools chained after the harness command: linter and type checker in `lint`/`typecheck`; fast, deterministic unit and integration tests in `test`; real end-to-end tests in `e2e` (it reports SKIP, and is not verified, until you wire it). For example `"test": "node scripts/framework-check.mjs test && vitest run"`, or `pytest`, `go test ./...`, `cargo test`.
+- **Each feature proves its declared behavior**: write the behavior as a checkable statement, write its acceptance test first, and declare it as the feature's own layer (`npm run add-feature -- <id> <name> --behavior "..." --layer "Cart tests=vitest run src/cart"`). Bugs start with a failing test. A test that contradicts the declared behavior is fixed in the same commit, never the other way round (feat-035).
+- **A fast gate**: keep `npm run check` under about two minutes, an agent's default command timeout; move slow suites to `e2e` or a scheduled CI job; treat flaky tests as bugs.
+- **Judge the tests, not only the result**: a coverage floor from `.harness/quality.json`, a mutation score for critical modules, review that each test checks the declared behavior, and human-owned acceptance tests for the features that matter most.
+
 ## Session Lifecycle
 
 Every session starts with `./init.sh`, which ends with a short brief (`node scripts/framework-check.mjs brief` prints the same on demand): branch and uncommitted changes, feature counts, the active feature with its behavior and layer commands, the planned features that can start now and those waiting on dependencies, blocked features, stale evidence, the latest session note's known risk and next step, and how old `session-handoff.md` is. It is a few hundred bytes, so a session doesn't need to read all of `feature_list.json`; open it for the features the brief names (feat-037).
