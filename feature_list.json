@@ -931,6 +931,30 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-035",
+      "name": "Declared behavior wins over a contradicting test",
+      "behavior": "AGENTS.md (Working Rules and Escalation), the feature-cycle skill and the review skill say that a feature's declared behavior in feature_list.json is the spec: a test that contradicts it is a bug in the test, fixed in the same commit and called out in the commit message and session note; only a declared behavior that itself looks wrong is a reason to stop and ask. Prompted by session 068: in the test-contradicts-spec eval one agent in three stopped to ask which side wins and the other two flagged their choice as a judgment call, because nothing in the harness said.",
+      "verification": "npm run check passes (lint validates skills structure and the AGENTS.md command surfaces); npm run check-arch passes; verify-feature runs on a committed tree; the test-contradicts-spec eval is rerun with three trials and its result recorded.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

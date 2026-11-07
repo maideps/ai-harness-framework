@@ -14,7 +14,7 @@ An adversarial pass on your own work before it goes through the gate. It exists 
 
 ## Workflow
 
-1. Re-read the feature definition in `feature_list.json` — behavior, verification criteria, dependencies. The diff must implement THAT feature, nothing else.
+1. Re-read the feature definition in `feature_list.json` — behavior, verification criteria, dependencies. The diff must implement THAT feature, nothing else, and its tests must check THAT behavior: a test that passes against different behavior makes the gate pass for the wrong reason.
 2. Review the diff file by file: scope creep, unrelated edits, debug artifacts, commented-out code, TODOs without owners.
 3. Confirm the gates actually ran and their output was read — PASS vs SKIP must be reported separately; a SKIP is not evidence.
 4. Check the feature's dependency chain: dependencies must be `passing` or the gate will refuse the transition.

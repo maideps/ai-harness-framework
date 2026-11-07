@@ -700,3 +700,16 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 - Positive: the trail exists whenever a feature passes, with no step to forget; the quality document is checked where agents already look.
 - Negative: mentioning a feature id is a proxy; it does not prove the ratings are thoughtful. A trail file per verification adds one more bookkeeping file to commit.
 - Measured (session 064, the two comply tasks, 3 trials each): in every trial where the agent had a working shell, the quality document named the feature (5/5, was 1/5) and the gate's trail was committed (5/5, was 0/5). Agents wrote a Notes line or a table row naming the feature, what changed and the files.
+
+### D-046: A feature's declared behavior wins over a test that contradicts it
+
+**Date:** 2026-11-07
+**Status:** accepted
+**Context:** In the `test-contradicts-spec` eval (session 068) the active feature's test passed while checking a different value than the feature's declared `behavior`. One agent in three stopped to ask which side was right, citing AGENTS.md's "unclear requirements → ask user"; the other two chose the declared behavior and flagged it as a judgment call. All three saw the conflict, and nothing in the harness said which side wins. The gate can't catch this: it runs the feature's tests, and here the tests were the wrong part.
+**Decision:** AGENTS.md (Working Rules, and Escalation for unclear requirements), the feature-cycle skill and the review skill say that a feature's declared `behavior` in `feature_list.json` is the spec. A test that contradicts it is a bug in the test: fix it in the same commit, and say so in the commit message and the session note. Stop and ask only when the declared behavior itself looks wrong. The review skill also checks that the tests check the declared behavior.
+**Alternatives considered:**
+- Accept either outcome in the eval grader (fix it, or stop and ask) — rejected: it would hide a real gap in the rules, and an agent that stops on every such conflict leaves features unfinished.
+- Make the test authoritative — rejected: `feature_list.json` is already the harness's source of truth for what a feature is, and a test written earlier against the wrong value is the more likely mistake.
+**Consequences:**
+- Positive: one less judgment call; the gate's pass means the declared behavior, not just whatever the tests check.
+- Negative: a wrong declared behavior plus a correct test now leads the agent to "fix" the correct test, unless the behavior looks obviously wrong; the commit message and session note make that visible to a reviewer.
