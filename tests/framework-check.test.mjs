@@ -2246,3 +2246,41 @@ test("brief: works with no git, no progress notes and no features, and flags a h
     cleanup(dated);
   }
 });
+
+// ---- feat-038 (D-049): new features run each check once -------------------
+
+function addFeatureLayer3(checkScript) {
+  const root = featureListFixture([]);
+  try {
+    if (checkScript !== undefined) {
+      write(root, "package.json", `${JSON.stringify({ name: "x", scripts: checkScript === null ? {} : { check: checkScript } }, null, 2)}\n`);
+    }
+    const result = run(root, "add-feature", ["feat-001", "One"]);
+    assert.equal(result.exit, 0, result.output);
+    const layers = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features[0].layers;
+    assert.deepEqual(layers.slice(0, 2).map((layer) => layer.cmd), ["npm run lint", "npm run test"]);
+    return layers[2].cmd;
+  } finally {
+    cleanup(root);
+  }
+}
+
+test("add-feature: Layer 3 runs the check chain without the lint and test steps Layers 1-2 already ran (feat-038)", () => {
+  assert.equal(
+    addFeatureLayer3("npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all && npm run quality"),
+    "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+  );
+  // This repository's own check script reduces the same way.
+  const own = JSON.parse(readFileSync(path.resolve(path.dirname(RUNNER), "..", "package.json"), "utf8")).scripts.check;
+  assert.doesNotMatch(addFeatureLayer3(own), /npm run (lint|test)\b/);
+});
+
+test("add-feature: Layer 3 keeps npm run check whenever the check script is not a plain chain with both steps (feat-038)", () => {
+  assert.equal(addFeatureLayer3(undefined), "npm run check", "no package.json");
+  assert.equal(addFeatureLayer3(null), "npm run check", "no check script");
+  assert.equal(addFeatureLayer3("make check"), "npm run check", "not npm run steps");
+  assert.equal(addFeatureLayer3("npm run lint && npm run test || true"), "npm run check", "||");
+  assert.equal(addFeatureLayer3("npm run lint; npm run test; npm run build"), "npm run check", ";");
+  assert.equal(addFeatureLayer3("npm run lint && npm run build"), "npm run check", "no test step to skip");
+  assert.equal(addFeatureLayer3("npm run lint && npm run test"), "npm run check", "nothing left after removing both");
+});

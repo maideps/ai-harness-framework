@@ -747,3 +747,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: startup reads a short summary instead of the whole declaration file; stale handoff notes are visible.
 - Negative: the brief shows only the first 300 characters of the active feature's behavior; a session still opens `feature_list.json` for the full entry. Not measured with an agent: the eval fixtures have one or two features, so the saving there is small.
+
+### D-049: New features' Layer 3 runs only the checks Layers 1 and 2 did not
+
+**Date:** 2026-11-07
+**Status:** accepted
+**Context:** `add-feature`'s default layers were `npm run lint`, `npm run test`, then `npm run check`, and `check` starts with lint and test again, so every gate ran them twice. D-040 deferred this: in a new adopter the repetition costs about a second. It matters in this repository (Layer 2 is about 31 s of a gate of about 3 minutes) and in any adopter whose `test` chains slow product tests, where it doubles the slowest part of every gate.
+**Decision:**
+- `add-feature` builds Layer 3 from the project's own `check` script: when it is a plain `&&` chain of `npm run` steps containing `npm run lint` and `npm run test`, those two are dropped. With the default scripts Layer 3 is `npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality`.
+- Anything else — no `package.json`, no `check`, a script with `||`, `;`, a pipe or redirection, steps that aren't `npm run`, or a chain without both steps — keeps `npm run check`. A customised setup never loses a check.
+- The template's placeholder feature uses the reduced chain. Existing features' declared layers are not rewritten, so their `checksHash` and evidence stay valid; they keep running `npm run check` until someone edits them.
+**Alternatives considered:**
+- Have `verify-feature` tell `check` to skip layers that already passed in the same run — rejected: it would make a passing layer depend on hidden state shared between layers.
+- Rewrite every existing feature's Layer 3 — rejected: it would make all their evidence stale (feat-030) for a speed-up nobody asked for on finished work.
+**Consequences:**
+- Positive: one lint and one test run fewer per gate for new features; the saving grows with the project's test suite.
+- Negative: Layer 3 is now a copy of the `check` chain taken when the feature was declared; a step added to `check` later reaches only features declared after it. In this repository the saving is about 30 s of a gate of about 3 minutes; most of Layer 3 is the adoption matrix and the coverage run, which are not repeats.

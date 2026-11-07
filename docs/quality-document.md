@@ -60,6 +60,7 @@ Rate each module on a scale of A (excellent) / B (good) / C (acceptable) / D (ne
 - 2026-11-07 (session 069, feat-035, D-046): AGENTS.md and the feature-cycle and review skills say the declared behavior in feature_list.json wins over a test that contradicts it. Prompted by the test-contradicts-spec eval (session 068); measured by rerunning it.
 - 2026-11-07 (session 070, feat-036, D-047): `progress-new "<title>"` writes the next session note with the exact heading lint requires and the standard sections, then refreshes the dashboard; the progress lint error names it. 3 new runner tests.
 - 2026-11-07 (session 071, feat-037, D-048): `brief` prints a few-hundred-byte start-of-session summary (active feature, what can start, stale evidence, last note's risk and next step, handoff age); `./init.sh` prints it and AGENTS.md startup reads it instead of all of feature_list.json. 2 new runner tests.
+- 2026-11-07 (session 072, feat-038, D-049): `add-feature`'s default Layer 3 is the project's `check` chain minus the lint and test steps Layers 1–2 ran (falls back to `npm run check` for anything but a plain chain); template placeholder updated; USAGE describes the chain and no longer calls `vcr` the per-feature trail step. 2 new runner tests.
 
 ---
 

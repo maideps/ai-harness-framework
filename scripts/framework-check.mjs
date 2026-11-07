@@ -758,6 +758,27 @@ function validateFeatureId(featureId) {
   }
 }
 
+// The default Layer 3 command: the project's own `check` script minus the `npm run lint` and
+// `npm run test` steps that Layers 1 and 2 already ran, so a gate runs each check once
+// (feat-038, D-049). Only a plain `&&` chain of `npm run` steps that contains both is reduced;
+// anything else keeps `npm run check`, so a customised setup never loses a check.
+function confirmationLayerCommand(packageJsonPath = "package.json") {
+  const fallback = "npm run check";
+  let check;
+  try {
+    check = JSON.parse(readFileSync(packageJsonPath, "utf8")).scripts?.check;
+  } catch {
+    return fallback;
+  }
+  if (typeof check !== "string" || /\|\||;|\||[<>`$]/.test(check)) return fallback;
+  const steps = check.split("&&").map((step) => step.trim());
+  if (steps.some((step) => !/^npm run [\w:-]+$/.test(step))) return fallback;
+  const already = new Set(["npm run lint", "npm run test"]);
+  if (![...already].every((step) => steps.includes(step))) return fallback;
+  const rest = steps.filter((step) => !already.has(step));
+  return rest.length > 0 ? rest.join(" && ") : fallback;
+}
+
 function addFeature(featureId, featureArgs) {
   const { name, options } = parseAddFeatureArgs(featureArgs);
   if (!featureId || !name.trim()) {
@@ -782,7 +803,7 @@ function addFeature(featureId, featureArgs) {
     layers: [
       { label: "Layer 1: Static checks", cmd: "npm run lint", repair: "Fix static-analysis issues and rerun the layer command." },
       { label: "Layer 2: Runtime tests", cmd: "npm run test", repair: "Fix failing tests and rerun the layer command." },
-      { label: "Layer 3: System confirmation", cmd: "npm run check", repair: "Resolve cross-layer issues and rerun full verification." },
+      { label: "Layer 3: System confirmation", cmd: confirmationLayerCommand(), repair: "Resolve cross-layer issues and rerun full verification." },
       ...options.layers,
     ],
   });
