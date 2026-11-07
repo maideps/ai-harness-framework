@@ -10,7 +10,7 @@ Before writing code:
 2. **Read this file** completely
 3. **Read project docs** (`docs/ARCHITECTURE.md`, `docs/PRODUCT.md`, README)
 4. **Run `./init.sh`** to verify environment is healthy (it also runs the harness self-tests, once per session)
-5. **Read `feature_list.json`** to see current feature state
+5. **Read the session brief** `./init.sh` prints at the end (or run `node scripts/framework-check.mjs brief`): the active feature, what can start next, stale evidence, and the last session's risks and next step. Open `feature_list.json` only for the features it names
 6. **Check for parallel work** — if more than one feature is `planned`, run `npm run lane-suggest` before picking just one. It is read-only; if it reports an independent set, propose that set (and the `parallel-lanes` skill's flow) to a human before defaulting to a single feature.
 7. **Review recent commits** with `git log --oneline -5`
 

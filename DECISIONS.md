@@ -730,3 +730,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: starting a note is one command with nothing to get wrong; filling it in is the only judgment left.
 - Negative: one more runner mode to know about; a note written by hand still works, under the same strict check.
+
+### D-048: Sessions start from a generated brief, not from reading feature_list.json
+
+**Date:** 2026-11-07
+**Status:** accepted
+**Context:** AGENTS.md's startup told every session to read `feature_list.json` in full. It is 52 KB in this repository and grows with every feature an adopter declares, and most of it is passing features a session never touches. OpenAI's harness-engineering post argues the entry point should be a short map that points to detail. Meanwhile `session-handoff.md` here still described feat-017, months old: nothing keeps it current, whereas every session writes a progress note.
+**Decision:**
+- New runner mode `brief` prints a few hundred bytes: branch, last commit and uncommitted count; feature counts by state; the active feature with its behavior and layer commands; planned features that can start now (dependencies passing and not stale) and those waiting; blocked and stale-evidence features; the latest session note's heading, known risk and next step; and when `session-handoff.md` last changed, flagged when older than the latest note.
+- `./init.sh`, which every session already runs (AGENTS.md step 4), prints it at the end, with `|| true` so it never stops a session from starting. Its closing "Next steps" now say to pick from the brief.
+- AGENTS.md step 5 says to read the brief and open `feature_list.json` only for the features it names.
+- Risks and next step come from the latest progress note, not from `session-handoff.md`, which is only dated.
+**Alternatives considered:**
+- Split `DECISIONS.md` into one file per decision — deferred: it is large only in this repository, and sessions read it only before major decisions, not at startup.
+- Make the brief a separate step agents must remember — rejected: the feat-034 evals showed separate steps get skipped; `init.sh` already runs every session.
+**Consequences:**
+- Positive: startup reads a short summary instead of the whole declaration file; stale handoff notes are visible.
+- Negative: the brief shows only the first 300 characters of the active feature's behavior; a session still opens `feature_list.json` for the full entry. Not measured with an agent: the eval fixtures have one or two features, so the saving there is small.

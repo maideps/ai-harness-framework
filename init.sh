@@ -128,8 +128,11 @@ fi
 echo ""
 echo "=== Verification Complete ==="
 echo ""
+# Where the project stands, in a few lines, instead of reading all of feature_list.json
+# (feat-037). Never stops the session from starting.
+node scripts/framework-check.mjs brief || true
+echo ""
 echo "Next steps:"
-echo "1. Read feature_list.json to see current feature state"
-echo "2. Pick ONE unfinished feature to work on"
-echo "3. Implement only that feature"
-echo "4. Run 'npm run check' (or 'make check') before claiming done"
+echo "1. Continue the active feature, or pick ONE from 'Can start next' (open feature_list.json for just that entry)"
+echo "2. Implement only that feature"
+echo "3. Run 'npm run check' (or 'make check') before committing; then commit and run verify-feature"

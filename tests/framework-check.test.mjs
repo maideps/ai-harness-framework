@@ -2186,3 +2186,63 @@ test("progress lint: a hand-written '# Session' heading fails with the exact hea
     cleanup(root);
   }
 });
+
+// ---- feat-037 (D-048): the start-of-session brief -------------------------
+
+test("brief: names the active feature, what can start, what waits, stale evidence and the last session's risk and next step (feat-037)", () => {
+  const staleEvidence = JSON.stringify({ summary: "s", commit: "abc1234", bound: true, checksHash: "0000000000000000", layers: [] });
+  const root = gitFeatureFixture([
+    { id: "feat-001", name: "Base", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "node -e 0", repair: "r" }], state: "passing", evidence: staleEvidence },
+    { id: "feat-002", name: "Doing", behavior: "the thing being built", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "node --test app/doing.test.mjs", repair: "r" }], state: "active" },
+    { id: "feat-003", name: "Free", behavior: "b", verification: "v", dependencies: [], layers: [] },
+    { id: "feat-004", name: "After", behavior: "b", verification: "v", dependencies: ["feat-002"], layers: [] },
+    { id: "feat-005", name: "OnStale", behavior: "b", verification: "v", dependencies: ["feat-001"], layers: [] },
+    { id: "feat-006", name: "Stuck", behavior: "b", verification: "v", dependencies: [], layers: [], state: "blocked" },
+  ]);
+  try {
+    write(root, "progress/001-2026-11-01.md", "### Session 001 — 2026-11-01 — First\n\n- Goal: g\n- Known risk or unresolved issue: flaky network test\n- Next best step: finish feat-002\n");
+    write(root, "session-handoff.md", "# Session Handoff\n");
+    spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "add", "-A"], { cwd: root });
+    spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "notes"], { cwd: root });
+    const result = run(root, "brief");
+    assert.equal(result.exit, 0, result.output);
+    const out = result.stdout;
+    assert.match(out, /^Features: 6 \(1 passing, 1 active, 3 planned, 1 blocked\)$/m);
+    assert.match(out, /^Active: feat-002 — Doing$/m);
+    assert.match(out, /behavior: the thing being built/);
+    assert.match(out, /layers: node --test app\/doing\.test\.mjs/);
+    assert.match(out, /^Can start next: feat-003 Free$/m, "feat-004 waits on an active feature, feat-005 on stale evidence");
+    assert.match(out, /^Waiting on dependencies: feat-004 \(needs feat-002\); feat-005 \(needs feat-001\)$/m);
+    assert.match(out, /^Blocked: feat-006$/m);
+    assert.match(out, /^Stale evidence .*: feat-001$/m);
+    assert.match(out, /^Last session: Session 001 — 2026-11-01 — First$/m);
+    assert.match(out, /known risk: flaky network test/);
+    assert.match(out, /next step: finish feat-002/);
+    assert.match(out, /session-handoff\.md last changed \d{4}-\d{2}-\d{2}/);
+    assert.ok(out.length < 2048, `brief stays short (${out.length} bytes)`);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("brief: works with no git, no progress notes and no features, and flags a handoff older than the latest note (feat-037)", () => {
+  const bare = fixture();
+  write(bare, "feature_list.json", '{ "features": [] }\n');
+  const dated = gitFeatureFixture([]);
+  try {
+    const result = run(bare, "brief");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Features: 0 \(\)/);
+    assert.match(result.stdout, /Active: none/);
+
+    write(dated, "session-handoff.md", "# Handoff\n");
+    const env = { ...process.env, GIT_COMMITTER_DATE: "2026-01-01T00:00:00Z", GIT_AUTHOR_DATE: "2026-01-01T00:00:00Z" };
+    spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "add", "-A"], { cwd: dated });
+    spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "old handoff"], { cwd: dated, env });
+    write(dated, "progress/001-2026-11-01.md", "### Session 001 — 2026-11-01 — Later\n\n- Next best step: x\n");
+    assert.match(run(dated, "brief").stdout, /session-handoff\.md last changed 2026-01-01 — older than the latest session note/);
+  } finally {
+    cleanup(bare);
+    cleanup(dated);
+  }
+});
