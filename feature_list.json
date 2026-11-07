@@ -1013,6 +1013,35 @@
           "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
         }
       ]
+    },
+    {
+      "id": "feat-038",
+      "name": "New features run each check once",
+      "behavior": "add-feature's default Layer 3 (System confirmation) runs the project's own check script minus the npm run lint and npm run test steps Layers 1 and 2 already ran: it reads package.json's check script and, when it is a plain && chain of npm run steps containing them, drops them (here: npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality). Any other check script (missing, not a plain && chain, or without both steps) keeps npm run check, so no setup loses a check. The template's placeholder feature uses the same reduced chain. Existing features' layers are not changed, so their evidence does not go stale. Saves one lint and one test run per gate.",
+      "verification": "npm run check passes including new framework-check tests (the reduced Layer 3 from a plain chain; npm run check kept for a missing package.json, a check script with || or ; or a pipe, and a chain without the lint/test steps; existing features untouched); npm run check-arch passes; verify-feature runs on a committed tree; the gate's time is compared with feat-037's.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 0: targeted unit tests",
+          "cmd": "node --test tests/framework-check.test.mjs",
+          "repair": "Fix Layer 0: targeted unit tests failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

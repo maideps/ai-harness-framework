@@ -25,7 +25,7 @@ The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and
 
 ## The Feature Workflow
 
-1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` configures the declaration; repeated `--layer` options append custom verification layers to the standard chain. An optional `featureIdPattern` regular expression in `.harness/manifest.json` restricts accepted IDs.
+1. Read `feature_list.json` — the machine-readable source of truth for what each feature is (id, behavior, dependencies, layers). Pick ONE unfinished feature, or add a new one: `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` configures the declaration; repeated `--layer` options append custom verification layers to the standard chain. The standard chain is Layer 1 `npm run lint`, Layer 2 `npm run test`, and Layer 3 the rest of your `check` script — for the default scripts, `npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality` — so a gate runs each check once. If `check` is not a plain `&&` chain of `npm run` steps containing both `lint` and `test`, Layer 3 stays `npm run check` (feat-038). An optional `featureIdPattern` regular expression in `.harness/manifest.json` restricts accepted IDs.
 2. Activate it with `npm run activate -- <feature-id>`. Activation immediately enforces **WIP=1** (at most one active feature) and **dependency order** (every dependency must already be `passing`), then writes the feature's state shard.
 3. Implement the feature. Run `npm run check` before every commit.
 4. Verify through the gate — never mark a feature `passing` by hand:
@@ -33,7 +33,7 @@ The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and
    npm run verify-feature -- <feature-id>
    ```
    The gate runs the feature's own verification layers, refuses to pass a feature whose dependencies are not `passing`, and records evidence in `.harness/state/<feature-id>.json` — `feature_list.json` itself is never rewritten (feat-011, D-017).
-5. Record durable evidence of a full run with `npm run vcr` (writes a trail to `.harness/trails/`).
+5. The gate writes the trail to `.harness/trails/` itself on a bound pass (feat-034); `npm run vcr` records a full-run trail for work no feature gate covers.
 6. End the session: start the note with `node scripts/framework-check.mjs progress-new "<title>"` and fill it in (or write `progress/NNN-YYYY-MM-DD.md` yourself and run `node scripts/framework-check.mjs progress-update`), update `session-handoff.md` and `docs/quality-document.md`, then run `npm run clean-check` and commit.
 
 ## Session Lifecycle

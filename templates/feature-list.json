@@ -19,7 +19,7 @@
         },
         {
           "label": "Layer 3: System confirmation",
-          "cmd": "npm run check",
+          "cmd": "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
           "repair": "Resolve remaining issues and rerun full verification."
         }
       ]
