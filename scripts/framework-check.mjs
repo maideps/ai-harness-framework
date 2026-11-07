@@ -877,6 +877,11 @@ function ensureManifest() {
       fail("manifest " + key + " must be an array");
     }
   }
+  // Only the framework's own repository sets this (feat-029, D-040); a typo such as "true"
+  // would silently turn its self-tests off, so anything but a boolean fails.
+  if ("frameworkRepository" in manifest && typeof manifest.frameworkRepository !== "boolean") {
+    fail("manifest frameworkRepository must be true or false");
+  }
   const templates = templateEntries(manifest.templates);
   if (templates.some((entry) => entry === null)) {
     fail("manifest template entries must be paths or { from, to | keep } objects");
@@ -1004,8 +1009,45 @@ function isDirectorySafe(path) {
   }
 }
 
+// The framework's own repository tests the harness on every check: the test layer runs the
+// runner unit tests and e2e runs the adoption matrix. An adopting repository does neither on
+// every check, because they test CORE files it may not edit and that only change on
+// harness-upgrade; verify-chain (./init.sh) runs the unit tests there once per session
+// (feat-029, D-040). The marker is a manifest key only this repository sets: create-harness
+// drops it from a new adopter's manifest, and harness-upgrade never carries it because it is
+// not one of the framework-owned manifest keys.
+function isFrameworkRepository() {
+  if (!existsSync(".harness/manifest.json")) return false;
+  try {
+    return readJson(".harness/manifest.json").frameworkRepository === true;
+  } catch {
+    return false;
+  }
+}
+
+// The harness's own unit tests (tests/*.test.mjs, CORE). Files are enumerated and passed
+// explicitly: glob patterns in --test args are expanded by Node on Windows but passed
+// literally on Linux.
+function runSelfTests() {
+  const testFiles = existsSync("tests")
+    ? readdirSync("tests")
+        .filter((name) => name.endsWith(".test.mjs"))
+        .map((name) => path.join("tests", name))
+    : [];
+  if (testFiles.length === 0) {
+    console.log("[SKIP] No harness self-tests found (tests/*.test.mjs)");
+    return;
+  }
+  const result = spawnSync(process.execPath, ["--test", ...testFiles], { stdio: "inherit" });
+  const exit = result.error ? 1 : (result.status ?? 1);
+  if (exit !== 0) {
+    fail("runner unit tests failed");
+  }
+  pass("Runner unit tests pass");
+}
+
 function reportE2eStatus() {
-  // The adoption matrix is the real e2e layer (feat-004). It generates
+  // The adoption matrix is this repository's e2e layer (feat-004). It generates
   // throwaway adopter repos from the manifest and runs the harness in each.
   if (process.env.CW_SKIP_ADOPTION_MATRIX === "1") {
     console.log("[SKIP] Adoption matrix is reserved for framework repository CI");
@@ -1013,6 +1055,14 @@ function reportE2eStatus() {
   }
   if (process.env.CW_ADOPTION_CELL === "1") {
     console.log("[SKIP] e2e skipped inside an adoption cell (matrix recursion guard)");
+    return;
+  }
+  // An adopter's e2e is its own product's end-to-end tests: until it wires them, the layer is
+  // honestly unconfigured, not a PASS earned by the harness testing itself (feat-029, D-040).
+  if (!isFrameworkRepository()) {
+    console.log(
+      "[SKIP] No end-to-end tests configured — point the e2e script at this project's own end-to-end tests (the framework's adoption matrix runs only in the framework repository)",
+    );
     return;
   }
   const matrix = path.join("scripts", "adoption-matrix.mjs");
@@ -1958,7 +2008,18 @@ function runVerifyAll() {
   }
 }
 
+// ./init.sh's chain. In an adopter it ends with the harness self-tests, which the test layer
+// no longer runs there (feat-029, D-040): once per session is enough to catch a Node version or
+// platform that breaks the harness. In this repository the test layer already runs them.
 function runVerifyChain() {
+  runProjectChain();
+  if (!isFrameworkRepository()) {
+    console.log("--- Running: harness self-tests (node scripts/framework-check.mjs selftest) ---");
+    runSelfTests();
+  }
+}
+
+function runProjectChain() {
   const chain = getVerifyChain();
   if (chain.length === 0) {
     console.log("=== No application runtime detected (harness-only bootstrap) ===");
@@ -2015,6 +2076,7 @@ function printHelp() {
   console.log("  vcr            verify + check-arch + record trail");
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
+  console.log("  selftest       Harness self-tests (the runner's unit tests); ./init.sh runs them in adopters");
   console.log("  progress-update  Regenerate the progress state and session index");
   console.log("  progress-migrate  Move a single-file PROGRESS.md into progress/ and generate the dashboard");
   console.log("  clean-check    Pre-commit clean state verification");
@@ -2062,22 +2124,19 @@ switch (mode) {
     ensureFeatureGraph();
     ensureLaneWipContract();
     pass("Feature dependency graph and WIP contract are valid");
-    // Unit tests for the runner's own logic (node:test) run as part of Layer 2.
-    // Files are enumerated and passed explicitly: glob patterns in --test args
-    // are expanded by Node on Windows but passed literally on Linux.
-    if (existsSync("tests")) {
-      const testFiles = readdirSync("tests")
-        .filter((name) => name.endsWith(".test.mjs"))
-        .map((name) => path.join("tests", name));
-      if (testFiles.length > 0) {
-        const result = spawnSync(process.execPath, ["--test", ...testFiles], { stdio: "inherit" });
-        const exit = result.error ? 1 : (result.status ?? 1);
-        if (exit !== 0) {
-          fail("runner unit tests failed");
-        }
-        pass("Runner unit tests pass");
-      }
+    // The runner's unit tests are this repository's product tests, so they run in Layer 2
+    // here. An adopter runs them once per session from ./init.sh instead (feat-029, D-040).
+    if (isFrameworkRepository()) {
+      runSelfTests();
+    } else {
+      console.log(
+        "NOTE: harness self-tests are not part of this layer in an adopting project — ./init.sh runs them once per session; node scripts/framework-check.mjs selftest runs them on demand",
+      );
     }
+    break;
+  }
+  case "selftest": {
+    runSelfTests();
     break;
   }
   case "build": {
