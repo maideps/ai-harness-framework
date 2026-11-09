@@ -127,6 +127,7 @@ Skills are reusable capability packs in `skills/` — one folder per skill, each
 - `release` — the final pass before reporting work done
 - `commit` — focused commits, one logical operation, message explains WHY
 - `review` — an independent verification pass before the feature gate
+- `testing` — which tests go in which layer, acceptance tests from the declared behavior, a fast gate, judging test quality
 - `update-docs` — the docs-drift pass (same-commit rule)
 - `write-skill` — authoring new skills (project skills may be added under `skills/`)
 
