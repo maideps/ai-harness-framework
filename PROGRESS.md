@@ -92,4 +92,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 072 — 2026-11-07 — New features run each check once (feat-038)](progress/072-2026-11-07.md)
 - [Session 073 — 2026-11-07 — A testing skill for adopters (feat-039)](progress/073-2026-11-07.md)
 - [Session 074 — 2026-11-10 — Two eval tasks: the testing skill, and a plainly wrong spec](progress/074-2026-11-10.md)
+- [Session 075 — 2026-11-10 — New eval tasks: 6 of 6 trials](progress/075-2026-11-10.md)
 <!-- END GENERATED PROGRESS -->
