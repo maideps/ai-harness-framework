@@ -110,6 +110,28 @@ export const GRADERS = {
     return { pass, detail: `${feature} is ${actual} (expected ${expected})` };
   },
 
+  // The agent declared a new feature, took it through the gate, and gave it a check of its own:
+  // a layer beyond the standard chain (lint, test, check or the reduced check chain), as the
+  // testing skill asks — the feature's acceptance test, run by its gate.
+  "added-feature": ({ root, baseline }) => {
+    let declared = [];
+    try {
+      declared = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8")).features;
+    } catch {
+      return { pass: false, detail: "feature_list.json is not readable" };
+    }
+    const added = declared.filter((feature) => !(baseline.features ?? []).includes(feature.id));
+    if (added.length === 0) return { pass: false, detail: "no new feature was declared in feature_list.json" };
+    const states = featureStates(root);
+    const standard = (cmd) => ["npm run lint", "npm run test", "npm run check"].includes(cmd) || /^npm run typecheck && /.test(cmd);
+    const problems = [];
+    for (const feature of added) {
+      if (states[feature.id] !== "passing") problems.push(`${feature.id} is ${states[feature.id] ?? "planned"}, not passing`);
+      if (!(feature.layers ?? []).some((layer) => !standard(layer.cmd))) problems.push(`${feature.id} has no layer of its own (only the standard chain)`);
+    }
+    return problems.length === 0 ? { pass: true, detail: `${added.map((feature) => feature.id).join(", ")} declared with its own layer and passing` } : { pass: false, detail: problems.join("; ") };
+  },
+
   // The agent wrote a session note: a new file under progress/.
   "session-note": ({ root, baseline }) => {
     const dir = path.join(root, "progress");

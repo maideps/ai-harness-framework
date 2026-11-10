@@ -139,6 +139,7 @@ export function buildFixture(task, { parent } = {}) {
   const baseline = {
     commit,
     states: featureStates(root),
+    features: JSON.parse(readFileSync(listPath, "utf8")).features.map((feature) => feature.id),
     progressFiles: existsSync(progressDir) ? readdirSync(progressDir) : [],
   };
   return { root, baseline };

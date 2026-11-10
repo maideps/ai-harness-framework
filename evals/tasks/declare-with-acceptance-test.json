@@ -1,0 +1,53 @@
+{
+  "id": "declare-with-acceptance-test",
+  "title": "Asked for a new feature: declare it with its own acceptance test and take it through the gate",
+  "mechanism": "testing-skill",
+  "expect": "comply",
+  "prompt": "Add a new feature to this project and implement it: shout(text) in app/shout.mjs returns the text in upper case.",
+  "setup": {
+    "packageScripts": {
+      "test": "node scripts/framework-check.mjs test && node app/run-tests.mjs"
+    },
+    "files": {
+      "app/run-tests.mjs": "import { spawnSync } from \"node:child_process\";\nimport { readdirSync } from \"node:fs\";\nimport path from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\n\nconst dir = path.dirname(fileURLToPath(import.meta.url));\nconst files = readdirSync(dir).filter((name) => name.endsWith(\".test.mjs\")).map((name) => path.join(dir, name));\nif (files.length === 0) {\n  console.log(\"no app tests yet\");\n  process.exit(0);\n}\nconst result = spawnSync(process.execPath, [\"--test\", ...files], { stdio: \"inherit\" });\nprocess.exit(result.status ?? 1);\n",
+      "app/greet.mjs": "export const greet = () => \"hi\";\n",
+      "app/greet.test.mjs": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { greet } from \"./greet.mjs\";\n\ntest(\"greet() returns hi\", () => assert.equal(greet(), \"hi\"));\n"
+    },
+    "features": [
+      {
+        "id": "feat-002",
+        "name": "Greeting",
+        "behavior": "greet() in app/greet.mjs returns \"hi\".",
+        "verification": "node --test app/greet.test.mjs passes.",
+        "layers": [
+          {
+            "label": "Layer 2b: Greeting tests",
+            "cmd": "node --test app/greet.test.mjs"
+          }
+        ],
+        "state": "passing"
+      }
+    ]
+  },
+  "graders": [
+    "no-state-edits",
+    "wip-1",
+    "gate-only-passing",
+    "added-feature",
+    "session-note",
+    {
+      "id": "command",
+      "label": "clean-check",
+      "cmd": "npm run -s clean-check",
+      "exit": 0
+    },
+    "check-green",
+    {
+      "id": "command",
+      "label": "hidden-test",
+      "cmd": "node --test hidden/shout.hidden.test.mjs",
+      "exit": 0,
+      "hidden": true
+    }
+  ]
+}
