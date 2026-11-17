@@ -811,3 +811,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: adopters can turn each mistake review catches into a one-entry rule that every check enforces, with a message that tells the next agent how to fix it.
 - Negative: matching is per line and text-based, so a ban can be dodged by splitting a call across lines or matched inside a comment or string (arch-007's pattern skips `//` comments itself). Syntax-aware bans still belong in the stack's linter. arch-007 and arch-008 ship to new adopters inside the CORE `arch-rules.json` and search only harness files.
+
+### D-053: Every caught mistake is recorded with the check it became
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** AGENTS.md said "every new error category caught in review becomes a rule", but nothing checked it, and the end-of-session steps agents skip are the ones no gate checks (D-045). The verification pyramid only grows if each mistake an agent or review catches turns into a machine check; feat-041 made the most common kind, a banned pattern, a one-entry rule.
+**Decision:**
+- `progress-new` writes a "Mistakes caught" section. It holds `none`, or one entry per mistake (inline or as nested bullets) ending in what it became: `→ rule: <arch rule id>`, `→ test: <name>`, `→ lint: <check>`, or `→ no check possible: <reason>`.
+- `lint:progress-log` fails an entry without one of those forms, and a `rule:` that names no rule in `.harness/arch-rules.json`. The rule id is the one thing it can check mechanically; test and lint names are taken as written.
+- A blank section passes lint, because feat-036 requires the fresh skeleton to pass; `clean-check` fails while the latest note leaves it blank, as it does for the quality document (D-045).
+- Checking starts at the first note that has the section, so a project's older notes never fail and no cutoff needs configuring; after that, every note must have it. AGENTS.md's End of Session steps and the `session-handoff` and `review` skills say to fill it in and to add the check in the same session when possible.
+**Alternatives considered:**
+- Verify that a named test exists — rejected for now: test names are free text in every stack's runner; a wrong name is visible in review.
+- A cutoff session number in configuration — rejected: one more setting for adopters, when "from the first note that has it" needs none.
+**Consequences:**
+- Positive: skipping the step now fails the end-of-session gate, and the `none` / `no check possible` answers are explicit and reviewable instead of silent.
+- Negative: an agent can still write `none` when it did make mistakes, or a vague reason; the gate checks the form, not the honesty. Session 078's note was rewritten into the new form so this repository passes its own lint.

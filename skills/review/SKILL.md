@@ -20,7 +20,8 @@ An adversarial pass on your own work before it goes through the gate. It exists 
 4. Confirm the gates actually ran and their output was read — PASS vs SKIP must be reported separately; a SKIP is not evidence.
 5. Check the feature's dependency chain: dependencies must be `passing` or the gate will refuse the transition.
 6. Verify the evidence path: evidence field in `.harness/state/<feature-id>.json` (bound to a commit), the trail `verify-feature` wrote in `.harness/trails/`, state files updated.
-7. Write down anything not verified — say it in the handoff instead of implying it.
+7. For each mistake this review finds, fix it, then make it impossible to repeat: a `forbid` rule in `.harness/arch-rules.json` when a pattern describes it, otherwise a test or a lint check. Record each one in the session note's "Mistakes caught" with what it became (`→ rule: <id>`, `→ test: <name>`, `→ lint: <check>`, or `→ no check possible: <reason>`).
+8. Write down anything not verified — say it in the handoff instead of implying it.
 
 ## Rules
 
@@ -36,3 +37,4 @@ An adversarial pass on your own work before it goes through the gate. It exists 
 - [ ] Gates ran; PASS/SKIP reported honestly
 - [ ] Dependencies passing
 - [ ] Evidence recorded and trail present
+- [ ] Each mistake found became a rule, test or lint check, recorded in "Mistakes caught"

@@ -271,6 +271,7 @@ const SESSION_NOTE_SECTIONS = [
   "Completed",
   "Verification run",
   "Files or artifacts updated",
+  "Mistakes caught",
   "Known risk or unresolved issue",
   "Next best step",
 ];
@@ -476,6 +477,61 @@ function ensureProgressLog() {
     fail(`${progressFile} is out of date; run "node scripts/framework-check.mjs progress-update"`);
   }
   pass(`Progress dashboard is current (${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
+  ensureMistakesCaught(sessions);
+}
+
+// Every mistake caught in a session must become a check, or say why it cannot (feat-042,
+// D-053): "- Mistakes caught: none", or one entry per mistake, inline or as nested bullets,
+// each "<mistake> → rule: <arch rule id> | test: <name> | lint: <check> | no check possible:
+// <reason>". Notes are checked from the first one that has the section, so a project's older
+// notes never fail; from there on, every note needs it.
+const MISTAKE_FORMS = "rule: <arch rule id>, test: <name>, lint: <check>, or no check possible: <reason>";
+
+function mistakesCaughtEntries(text) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith("- Mistakes caught:"));
+  if (start === -1) return null;
+  const entries = [];
+  const inline = lines[start].slice("- Mistakes caught:".length).trim();
+  if (inline) entries.push(inline);
+  for (let i = start + 1; i < lines.length && /^\s+- /.test(lines[i]); i += 1) {
+    entries.push(lines[i].trim().slice(2).trim());
+  }
+  return entries;
+}
+
+function mistakeEntryProblem(entry, ruleIds) {
+  const match = entry.match(/(?:→|->)\s*(rule|test|lint|no check possible):\s*(.*)$/i);
+  if (!match || !match[2].trim()) return `"${entry}" does not say what it became (${MISTAKE_FORMS})`;
+  const [, kind, value] = match;
+  if (kind.toLowerCase() === "rule" && !ruleIds.has(value.trim())) {
+    return `"${entry}" names rule ${value.trim()}, which is not in .harness/arch-rules.json`;
+  }
+  return null;
+}
+
+function ensureMistakesCaught(sessions) {
+  const ruleIds = new Set((existsSync(".harness/arch-rules.json") ? readJson(".harness/arch-rules.json").rules ?? [] : []).map((rule) => rule.id));
+  const problems = [];
+  let started = false;
+  for (const session of sessions) {
+    const entries = mistakesCaughtEntries(readText(path.join("progress", session.filename)));
+    if (entries === null) {
+      if (started) problems.push(`progress/${session.filename} has no "- Mistakes caught:" line`);
+      continue;
+    }
+    started = true;
+    // A blank section is a note still being written: progress-new's skeleton must pass lint
+    // (feat-036). clean-check fails on a blank one at session end.
+    if (entries.length === 0) continue;
+    if (entries.length === 1 && /^none\.?$/i.test(entries[0])) continue;
+    for (const entry of entries) {
+      const problem = mistakeEntryProblem(entry, ruleIds);
+      if (problem) problems.push(`progress/${session.filename}: ${problem}`);
+    }
+  }
+  if (problems.length > 0) fail(problems.join("\n       "));
+  if (started) pass("Session notes record what each caught mistake became");
 }
 
 function normalizeEol(text) {
@@ -2321,6 +2377,20 @@ function cleanStateCheck() {
       unmentioned.length === 0,
       `${qualityDoc} mentions every gate-verified feature (${verified.length})`,
       `${qualityDoc} does not mention ${unmentioned.join(", ")}. Add a line for each (for example under Notes: what changed and which modules), rate those modules in the Modules table, and commit.`,
+    );
+  }
+
+  // Lint accepts a blank "Mistakes caught" so a fresh skeleton passes (feat-036); the end of
+  // the session is where it must be filled in (feat-042, D-053).
+  const latest = existsSync("progress") ? progressSessions().at(-1) : undefined;
+  const latestMistakes = latest ? mistakesCaughtEntries(readText(path.join("progress", latest.filename))) : null;
+  if (latestMistakes !== null) {
+    console.log("");
+    console.log("--- Mistakes Caught ---");
+    check(
+      latestMistakes.length > 0,
+      `progress/${latest.filename} records the mistakes caught this session`,
+      `progress/${latest.filename} leaves "- Mistakes caught:" blank. Write "none", or one entry per mistake ending in → ${MISTAKE_FORMS}.`,
     );
   }
 
