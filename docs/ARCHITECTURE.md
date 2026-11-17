@@ -125,6 +125,8 @@ Each rule in `arch-rules.json` must include:
 - `why` — why this rule exists
 - `fix` — actionable fix instructions
 
+A rule with `"kind": "forbid"` (feat-041, D-052) replaces `check` and `expect` with `pattern` (a regex tested per line), `paths` (globs) and optional `allow` (globs): `check-arch` searches the tracked files those globs select, inside the runner with no shell or dependency, and fails listing every match as `file:line: text` before the what/why/fix. Outside a git repository it reports SKIP, like the classification coverage of arch-005. docs/USAGE.md has an example.
+
 Bootstrap-time rules currently verify:
 
 - required harness surfaces exist
@@ -132,6 +134,7 @@ Bootstrap-time rules currently verify:
 - framework docs do not drift back to template placeholders
 - the manifest classifies every tracked file (reusability seam)
 - feature declarations carry no leftover inline state — mutable fields live only in `.harness/state/<id>.json` shards
+- the harness's own code avoids two patterns behind past Windows bugs (D-025): `os.EOL` in scripts (arch-007) and the `[\/]` separator class in regexes (arch-008)
 
 Adopting projects should add language- and framework-specific checks as the codebase grows.
 

@@ -795,3 +795,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: the base layer runs every time an agent verifies, locally, not only in CI.
 - Negative: existing features keep their declared Layer 3 (D-049) and do not run the rules at their gate until re-declared; existing adopters get the change only when they apply the reported edit. CI and `prepublishOnly` still run `check-arch` as their own step, a few seconds of repetition kept for clear log lines.
+
+### D-052: Architecture rules can ban a pattern without a command
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The base of the verification pyramid is a strict structure with banned patterns ("never use `useEffect` in components"), checked by machine. An architecture rule could only run a command and match its output, so a ban meant writing a grep: `grep` is missing on Windows, its quoting differs between shells, and its exit codes and output don't give the what/why/fix an agent needs. D-051 made the rules run on every check, so a portable way to write them is the next step.
+**Decision:**
+- A rule with `"kind": "forbid"` declares `pattern` (a JavaScript regex tested per line), `paths` (globs) and optional `allow` (globs) instead of `check` and `expect`. `check-arch` searches the files `git ls-files` lists that match `paths` and not `allow`, inside the runner: no shell, no dependency, the same on every OS.
+- A violation fails the rule with every match as `file:line: text`, then what/why/fix. An invalid pattern, an empty `paths` or a malformed `allow` fails the rule naming it. Outside a git repository the rule reports SKIP, as arch-005's coverage does: a fresh adopter is often not a repository yet, and the adoption matrix runs `check-arch` before `git init`.
+- This repository dogfoods it with two bans from D-025's Windows bugs: `os.EOL` in scripts (arch-007) and the `[\/]` class in regexes, which matches only "/" (arch-008). arch-008 found one more instance on its first run, a negative assertion in a runner test that could never fail on Windows; it was fixed in the same commit.
+**Alternatives considered:**
+- Ship a grep or ripgrep wrapper as the rule's command — rejected: a dependency or a shell difference per OS, and no file:line report.
+- Delegate bans to each stack's linter (ESLint `no-restricted-syntax`, Ruff, …) — still the right tool for syntax-aware bans, and a command rule can run them; but it needs a per-stack setup, while most bans are a line pattern any stack can use.
+**Consequences:**
+- Positive: adopters can turn each mistake review catches into a one-entry rule that every check enforces, with a message that tells the next agent how to fix it.
+- Negative: matching is per line and text-based, so a ban can be dodged by splitting a call across lines or matched inside a comment or string (arch-007's pattern skips `//` comments itself). Syntax-aware bans still belong in the stack's linter. arch-007 and arch-008 ship to new adopters inside the CORE `arch-rules.json` and search only harness files.

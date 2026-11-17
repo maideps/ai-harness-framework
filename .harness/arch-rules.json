@@ -53,6 +53,32 @@
       "what": "A feature_list.json entry still declares state/status/evidence inline, or a file under .harness/state/ is invalid JSON, has an invalid state, or does not correspond to any declared feature.",
       "why": "Sharded feature state (feat-011, D-017) only delivers conflict-free lane landings if feature_list.json truly stays declaration-only and every shard is a real, valid record of one feature's current state — drift here silently reintroduces the whole-file race the sharding exists to remove.",
       "fix": "Run `node scripts/framework-check.mjs migrate-feature-state` to move inline state/evidence into .harness/state/<id>.json, or fix/remove the invalid or stray shard file."
+    },
+    {
+      "id": "arch-007",
+      "kind": "forbid",
+      "description": "Harness scripts never write with the OS line ending",
+      "pattern": "(?<!//.*)\\bos\\.EOL\\b|\\{[^}]*\\bEOL\\b[^}]*\\}\\s*from\\s*[\"'](node:)?os[\"']",
+      "paths": [
+        "scripts/**/*.mjs"
+      ],
+      "what": "A harness script uses os.EOL (or imports EOL from node:os) instead of the LF constant.",
+      "why": "os.EOL is CRLF on Windows, while the shipped .gitattributes says eol=lf, so harness files written with it made Git warn on every commit for Windows adopters (D-025).",
+      "fix": "Use the LF constant (const EOL = \"\\n\" in scripts/framework-check.mjs) or a literal \"\\n\"."
+    },
+    {
+      "id": "arch-008",
+      "kind": "forbid",
+      "description": "Path regexes never use [\\/] as a separator class",
+      "pattern": "\\[\\\\/\\]",
+      "paths": [
+        "scripts/**/*.mjs",
+        "tests/**/*.mjs",
+        "evals/**/*.mjs"
+      ],
+      "what": "A regex uses the character class [\\/], which in a regex literal holds only \"/\".",
+      "why": "It looks like it matches both path separators but never matches \"\\\". A runner test written this way failed on Windows, so every Windows adopter's npm run check failed while Linux CI stayed green (D-025).",
+      "fix": "Write [\\\\/] in a regex literal (or \"[\\\\\\\\/]\" in a string passed to RegExp) to match both separators, or normalize the path to \"/\" first."
     }
   ]
 }

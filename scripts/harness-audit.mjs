@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 // progress log, placeholder docs, and command-surface drift for lint; feature-tracker shape
 // for typecheck; the dependency graph and WIP contract for test (plus the runner unit tests in
 // the framework repository; adopters run those from ./init.sh, feat-029); Make
-// target/shell-shim wiring for build) with no warning, since check-arch (arch-001..006)
+// target/shell-shim wiring for build) with no warning, since check-arch (arch-001..008)
 // does not cover any of that (#25). Warn, never fail: a layer intentionally chaining both
 // (`node scripts/framework-check.mjs lint && eslint .`, USAGE.md's documented pattern) is
 // fine and is not flagged.
