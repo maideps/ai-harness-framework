@@ -1171,6 +1171,136 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-044",
+      "name": "Capture collection in verify-feature",
+      "behavior": "A layer in feature_list.json may declare \"captures\": a list of globs (relative to the project root) naming the screenshots, videos or other artifacts the layer's command writes, such as test-results/**/*.png. After such a layer passes, verify-feature collects the files matching those globs that were written during this layer's run (modified at or after the layer started, so leftovers from earlier runs never count), copies them to .harness/logs/<feature>/captures/<NN>-<layer>/, adds captures: [{path, sha256, bytes}] to that layer's evidence entry, and prints each copied path with the instruction to open it and compare it to the feature's declared behavior. A layer that declares captures but produces none fails, like a required layer that reports only SKIP. When a capture source folder is not gitignored, the existing uncommitted-changes failure after the layers names that folder and says to ignore it. typecheck rejects captures that are not a non-empty list of non-empty strings. A layer's captures count toward the feature's checksHash only when declared, so existing evidence does not go stale. Layers without captures behave exactly as before. docs/ARCHITECTURE.md, docs/USAGE.md and its template describe the field.",
+      "verification": "Runner tests: a layer whose command writes matching files records each with path, sha256 and bytes and copies it under .harness/logs; a file older than the layer's start is not collected; a layer that declares captures and writes none fails; malformed captures fail typecheck; a feature without captures keeps its checksHash; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-045",
+      "name": "Agents look at captures",
+      "behavior": "The verification, review and testing skills tell the agent that a passing layer with captures is not done until the agent has opened each capture verify-feature printed and compared it to the feature's declared behavior; when a capture contradicts the behavior the agent fixes the code and re-runs the gate instead of reporting success, and the session note's Verification run names the captures it checked. docs/USAGE.md and its template gain a 'Visual evidence' section: when captures are worth declaring (a UI or any output a test cannot fully assert), a Playwright example (screenshot and video settings, an output folder that is gitignored, the layer with captures declared), and the CLI equivalent (the layer log already captured, or a VHS tape recorded by the layer). The skills stay valid for the lint layer and reach adopters through harness-upgrade as shipped skills.",
+      "verification": "npm run check passes (lint validates the three skills' frontmatter and sections; the harness-upgrade test confirms shipped skills reach adopters); the USAGE copies stay identical where the template is shared; verify-feature runs on a committed tree.",
+      "dependencies": [
+        "feat-044"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-046",
+      "name": "Eval: the agent checks the capture",
+      "behavior": "A new eval task, check-the-capture, measures whether an agent looks at captures. Its fixture holds a small feature whose tests pass while its capture shows the declared behavior is not met: a capture script picks one of two pre-rendered PNG images from the app's own style setting (for example, text the same color as its background next to readable text), so the defect is visible only in the image. The fixture builder accepts base64 file contents so a task can carry images. Graders pass a run only when the feature ends passing through the gate with the readable capture (the style fixed) and fail a run that passes the gate on the unreadable capture. The task is listed in evals/README.md, its fixture builds with --fixtures-only, and the graders test checks the reference solution passes and the untouched start fails.",
+      "verification": "node --test evals/graders.test.mjs passes, including the new task's reference-solution and untouched-start cases; node evals/run.mjs --fixtures-only --trials 1 builds every task; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [
+        "feat-044",
+        "feat-045"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 4: Eval graders and fixtures",
+          "cmd": "node --test evals/graders.test.mjs && node evals/run.mjs --fixtures-only --trials 1",
+          "repair": "Fix Layer 4: Eval graders and fixtures failures and rerun the layer command."
+        }
+      ]
+    },
+    {
+      "id": "feat-047",
+      "name": "Formal and property-based checks guide",
+      "behavior": "docs/USAGE.md and its template gain a 'Property-based and formal checks' section that places them in the verification layers: property-based tests (fast-check for JavaScript and TypeScript, Hypothesis for Python, proptest or quickcheck for Rust, jqwik for the JVM) run in the test layer like any other test, with one short example of a property for a declared behavior; model checking (TLA+ with the TLC checker or Apalache) and proofs (Lean via lake build) run as a feature's own layer or a quality gate, for state machines, concurrency and invariants where tests sample too little, with an example layer declaration and the cost to weigh. The testing skill gains a line on when to reach for each. A decision record says the harness ships no formal tooling itself and names its own candidate (WIP=1 and lane landing under concurrency) without adopting it.",
+      "verification": "npm run check passes (lint validates the testing skill; the USAGE copies stay in step); verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-048",
+      "name": "Every MUST names the gate that enforces it",
+      "behavior": "Every line in AGENTS.md that starts a MUST or MUST NOT rule (a list item beginning with **MUST** or **MUST NOT**) is followed by an <!-- enforced-by: ... --> comment naming what enforces it: an architecture rule id, a runner check (for example verify-feature, clean-check, lint:progress-log, the pre-commit hook), or none followed by a reason. Lint fails a MUST rule without the comment, an enforced-by naming an arch rule id that is not in .harness/arch-rules.json, and a none without a reason, and its PASS line reports how many MUST rules are enforced and how many say none. Every current MUST rule in AGENTS.md is tagged; the none entries are the list of prose-only rules that later features can turn into gates. The update-docs skill says to tag a new MUST rule in the same commit.",
+      "verification": "Runner tests: lint fails an untagged MUST, an unknown arch rule id and a reason-less none, passes a fully tagged file and reports the enforced and none counts; this repository's AGENTS.md passes; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
