@@ -22,6 +22,7 @@ The same-commit rule, operationalized: no stale documentation.
    - `docs/STANDARDS.md` — standards changes
    - `docs/quality-document.md` — ratings for modules touched this session
    - `skills/` — if the change alters a skill's workflow
+   - `AGENTS.md` MUST / MUST NOT rules — a new or changed rule gets an `<!-- enforced-by: ... -->` comment right below it in the same commit: the gate that enforces it (a runner check, an arch rule id that exists), or `none — <reason>`. When a change adds a gate for a rule that said `none`, update its comment. Lint fails an untagged rule
 3. Templates and instance copies stay in sync: a docs change that ships must update both `templates/docs/*` and `docs/*`.
 4. Run `npm run check` — the lint layer catches placeholder drift and skill format drift.
 5. Commit docs in the same commit as the code change.
@@ -38,4 +39,5 @@ The same-commit rule, operationalized: no stale documentation.
 - [ ] ARCHITECTURE.md and manifest updated for layout changes
 - [ ] README/USAGE updated for command changes
 - [ ] Templates + instance copies in sync
+- [ ] Every MUST rule in AGENTS.md has an accurate enforced-by comment
 - [ ] Same commit as the code change
