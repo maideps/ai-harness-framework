@@ -847,3 +847,21 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a commit that breaks lint or an architecture rule is blocked for everyone who opted in, with the file:line and fix from the rule.
 - Negative: opt-in means clones without it get no protection; CI remains the backstop. It checks the working tree, not only the staged changes, so an unstaged violation also blocks a commit. `git commit --no-verify` skips any git hook.
+
+### D-055: Every MUST rule in AGENTS.md says what enforces it
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The verification pyramid puts prose rules last: a rule an agent can break with nothing noticing is the weakest kind. AGENTS.md has seven MUST / MUST NOT rules, and nothing recorded which of them a gate actually enforces, so prose-only rules looked as strong as gated ones and there was no list of what to gate next.
+**Decision:**
+- Each MUST / MUST NOT list item in AGENTS.md carries an `<!-- enforced-by: ... -->` comment on its line or in the comment lines right below it: the gate (runner checks, hooks, arch rule ids) or `none — <reason>`. The text is free, so a partial gate says what it does not cover.
+- `lint` (mode `lint:must-rules`) fails an untagged rule, an arch rule id missing from `.harness/arch-rules.json`, and a `none` without a reason, and reports how many rules name a gate and how many say none.
+- The tags were written from the code, not from intent: of seven rules, two say none (never mark `passing` by hand; features fit in one session) and three name gates that cover only part of the rule (the full check before every commit; a new session note each session; the periodic sweep).
+- AGENTS.md's tags name no arch rule ids: AGENTS.md is CORE and overwritten on upgrade while an adopter's `arch-rules.json` is preserved, so an id the adopter lacks would fail its lint.
+- The `update-docs` skill says to tag a new MUST rule, and to update a tag when a gate is added, in the same commit.
+**Alternatives considered:**
+- A separate table of rules and gates in docs — rejected: it drifts from AGENTS.md; a comment beside each rule moves with it.
+- A third form, "partial" — rejected for now: the free text already says what a gate misses, and a form only matters once something reads it.
+**Consequences:**
+- Positive: the prose-only rules are listed where agents read them, and the next gates to build are named: a provenance check that a `passing` shard's evidence came from `verify-feature`, and a check that each session adds a note.
+- Negative: the counts treat a partial gate as a gate; the comment text, not the count, says how much is covered. Lint checks that a tag exists and is well formed, not that it is true.

@@ -779,6 +779,59 @@ test("check-arch forbid: an invalid pattern or missing paths fail naming the rul
   }
 });
 
+// ---- Every MUST names its gate (feat-048) ----------------------------------
+
+function mustRulesFixture(agents) {
+  const root = archRulesFixture([{ id: "arch-001" }]);
+  write(root, "AGENTS.md", agents);
+  return root;
+}
+
+test("lint:must-rules: passes a fully tagged AGENTS.md and reports gate and none counts (feat-048)", () => {
+  const root = mustRulesFixture([
+    "## Constraints",
+    "",
+    "- **MUST** run the check <!-- enforced-by: npm run check -->",
+    "- **MUST NOT** break the layout",
+    "  <!-- source: some template -->",
+    "  <!-- enforced-by: arch-001 -->",
+    "- **MUST** keep features small",
+    "  <!-- enforced-by: none — a judgment call -->",
+    "- A plain rule that mentions MUST in passing needs no tag",
+    "",
+  ].join("\n"));
+  try {
+    const result = run(root, "lint:must-rules");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /MUST rules name what enforces them \(2 by a gate, 1 prose only/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:must-rules: fails an untagged rule, an unknown arch rule id and a none without a reason (feat-048)", () => {
+  const root = mustRulesFixture([
+    "- **MUST** do one thing",
+    "",
+    "  <!-- enforced-by: npm run check -->",
+    "- **MUST NOT** do another",
+    "  <!-- enforced-by: arch-001, arch-042 -->",
+    "- **MUST** do a third",
+    "  <!-- enforced-by: none -->",
+    "",
+  ].join("\n"));
+  try {
+    const result = run(root, "lint:must-rules");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.stderr, /AGENTS\.md:1 "- \*\*MUST\*\* do one thing…" has no <!-- enforced-by/, "a tag after a blank line does not count");
+    assert.match(result.stderr, /AGENTS\.md:4 .* names arch-042, not in \.harness\/arch-rules\.json/);
+    assert.doesNotMatch(result.stderr, /names arch-001/);
+    assert.match(result.stderr, /AGENTS\.md:6 .* says enforced-by: none without a reason/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 // ---- Opt-in pre-commit hook (feat-043) -------------------------------------
 
 // A git repository holding a copy of the runner (with scripts/hooks/), a lint script that fails

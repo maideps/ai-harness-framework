@@ -1008,6 +1008,41 @@ function ensureCommandSurfaces() {
   pass("README links to the current command reference and AGENTS documents every make target");
 }
 
+// Every MUST / MUST NOT rule in AGENTS.md says what enforces it (feat-048, D-055), in an
+// <!-- enforced-by: ... --> comment on the rule's line or the comment lines right below it: a
+// gate (arch rule ids must exist), or "none — <reason>". The none entries are the rules that
+// are still prose only, the backlog for new gates.
+function ensureMustRulesEnforced() {
+  if (!existsSync("AGENTS.md")) return;
+  const ruleIds = new Set((existsSync(".harness/arch-rules.json") ? readJson(".harness/arch-rules.json").rules ?? [] : []).map((rule) => rule.id));
+  const lines = readText("AGENTS.md").split(/\r?\n/);
+  const problems = [];
+  let enforced = 0;
+  let none = 0;
+  lines.forEach((line, index) => {
+    if (!/^\s*- \*\*MUST( NOT)?\*\*/.test(line)) return;
+    const label = `AGENTS.md:${index + 1} "${line.trim().slice(0, 60)}…"`;
+    const block = [line];
+    for (let next = index + 1; next < lines.length && /^\s*<!--.*-->\s*$/.test(lines[next]); next += 1) block.push(lines[next]);
+    const tag = block.map((entry) => entry.match(/<!--\s*enforced-by:\s*(.*?)\s*-->/)).find(Boolean);
+    if (!tag || !tag[1]) {
+      problems.push(`${label} has no <!-- enforced-by: <gate> --> or <!-- enforced-by: none — <reason> --> comment`);
+      return;
+    }
+    const value = tag[1];
+    if (/^none\b/i.test(value)) {
+      if (!value.replace(/^none\b\s*[—:-]?\s*/i, "").trim()) problems.push(`${label} says enforced-by: none without a reason`);
+      else none += 1;
+      return;
+    }
+    const unknown = [...value.matchAll(/\barch-\d+\b/g)].map((match) => match[0]).filter((id) => !ruleIds.has(id));
+    if (unknown.length > 0) problems.push(`${label} names ${unknown.join(", ")}, not in .harness/arch-rules.json`);
+    else enforced += 1;
+  });
+  if (problems.length > 0) fail(problems.join("\n       "));
+  if (enforced + none > 0) pass(`AGENTS.md MUST rules name what enforces them (${enforced} by a gate, ${none} prose only: enforced-by none)`);
+}
+
 // The quality config is optional, but a malformed one must fail lint, not surface only
 // when someone finally enables the gates (feat-023).
 function ensureQualityConfig() {
@@ -2633,6 +2668,7 @@ switch (mode) {
     ensureNoPlaceholders({ warnOnly: process.env.CW_INIT_SH === "1" });
     ensureSkills();
     ensureCommandSurfaces();
+    ensureMustRulesEnforced();
     ensureProgressLog();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
@@ -2714,6 +2750,10 @@ switch (mode) {
   }
   case "lint:command-surfaces": {
     ensureCommandSurfaces();
+    break;
+  }
+  case "lint:must-rules": {
+    ensureMustRulesEnforced();
     break;
   }
   case "arch:sharded-state": {

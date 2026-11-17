@@ -36,18 +36,25 @@ If baseline verification is failing, repair that first before adding new scope.
 <!-- why: without explicit MUST/MUST NOT rules, agents drift from the prescribed workflow -->
 
 - **MUST** run `make check` (or equivalent verification) before every commit. `npm run hooks-install` (opt-in) makes git block a commit whose lint or architecture rules fail; it runs only those fast checks, so the full check stays this step
+  <!-- enforced-by: pre-commit hook (opt-in; lint and check-arch only) and CI after push — nothing enforces the full check before each commit -->
   <!-- source: harness-engineering-template L03 — repo must have a verifiable consistent-state predicate -->
 - **MUST NOT** mark a feature as `passing` manually — use `make verify-feature F=<id>` or the documented verification path
+  <!-- enforced-by: none — a hand-edited .harness/state shard with state passing is valid to arch-006; nothing checks that its evidence came from a verify-feature run (only the evals' gate-only-passing grader does) -->
 - **MUST** commit the feature's code and docs before `verify-feature` — it refuses uncommitted changes outside harness bookkeeping, so its evidence names the commit that passed; the state shard it writes goes in the next commit
+  <!-- enforced-by: verify-feature (refuses uncommitted changes outside harness bookkeeping, before and after the layers) -->
   <!-- source: feat-030, D-041 — evidence recorded on a dirty tree named a commit that did not hold the verified code -->
   <!-- source: harness-engineering-template L08 — state transitions must go through the harness gate -->
 - **MUST** add session notes under `progress/` and regenerate `PROGRESS.md` at session end
+  <!-- enforced-by: lint:progress-log (PROGRESS.md must match progress/) and clean-check (the latest note's Mistakes caught is filled in) — nothing checks that a new note was written this session -->
   <!-- source: harness-engineering-template L05 — durable cross-session continuity requires written handoff -->
 - **MUST NOT** skip verification layers (Layer 1 → Layer 2 → Layer 3 in order)
+  <!-- enforced-by: verify-feature (runs every declared layer in order, stops at the first failure) and npm run check (a failing layer stops the chain) -->
   <!-- source: harness-engineering-template L09 — each layer gates the next; skipping produces false confidence -->
 - **MUST** keep features completable in a single session — if a feature spans multiple sessions, split it
+  <!-- enforced-by: none — how much fits in a session is a judgment; nothing records which sessions worked on a feature -->
   <!-- source: harness-engineering-template L08 — multi-session features lose context and degrade VCR -->
 - **MUST** follow dual-mode cleanup: immediate cleanup at every session end + periodic (weekly/monthly) full-system sweep for structural drift
+  <!-- enforced-by: clean-check (session-end cleanup) — the periodic sweep (npm run sweep) is run by hand; nothing schedules or checks it -->
   <!-- source: harness-engineering-template L12 — structural drift accumulates silently without periodic sweeps -->
 
 ## State Files
