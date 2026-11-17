@@ -1344,6 +1344,27 @@ function checkArch() {
 
   for (const rule of rules) {
     console.log(`Rule: ${rule.id} — ${rule.description}`);
+    if (rule.kind === "forbid") {
+      const { error, skip, hits } = findForbiddenPattern(rule);
+      if (skip) {
+        console.log(`  [SKIP] ${skip}`);
+      } else if (error) {
+        console.log(`  [FAIL] rule ${rule.id}: ${error}`);
+        console.log("");
+        passing = false;
+      } else if (hits.length > 0) {
+        console.log(`  [FAIL] ${hits.length} forbidden match(es):`);
+        for (const hit of hits) console.log(`    ${hit.file}:${hit.line}: ${hit.text}`);
+        console.log(`  What: ${rule.what}`);
+        console.log(`  Why: ${rule.why}`);
+        console.log(`  Fix: ${rule.fix}`);
+        console.log("");
+        passing = false;
+      } else {
+        console.log("  [PASS]");
+      }
+      continue;
+    }
     let output = "";
     try {
       output = execSync(rule.check, { encoding: "utf8", shell: true });
@@ -1376,6 +1397,64 @@ function checkArch() {
     console.log("=== Architecture constraint violations found ===");
     process.exit(1);
   }
+}
+
+// A "forbid" rule (feat-041) bans a pattern in code instead of running a command: it searches
+// the tracked files its `paths` globs match, minus its `allow` globs, line by line, with no
+// dependency and no shell, so it behaves the same on Windows, Linux and macOS.
+function findForbiddenPattern(rule) {
+  if (typeof rule.pattern !== "string" || !rule.pattern) return { error: "a forbid rule needs a pattern" };
+  let pattern;
+  try {
+    pattern = new RegExp(rule.pattern);
+  } catch {
+    return { error: `invalid pattern ${JSON.stringify(rule.pattern)}` };
+  }
+  const globList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string" && item);
+  if (!globList(rule.paths) || rule.paths.length === 0) return { error: "a forbid rule needs a non-empty paths list of globs" };
+  if (rule.allow !== undefined && !globList(rule.allow)) return { error: "allow must be a list of globs" };
+  const listed = spawnSync("git", ["ls-files", "-z"], { encoding: "utf8" });
+  // Like arch-005's classification coverage, the search needs git's index; a project that is
+  // not a repository yet (a fresh adopter) reports SKIP instead of failing.
+  if (listed.error || (listed.status ?? 1) !== 0) return { skip: "not a git repository — forbid rules search tracked files" };
+  const included = rule.paths.map(globToRegExp);
+  const allowed = (rule.allow ?? []).map(globToRegExp);
+  const hits = [];
+  for (const file of listed.stdout.split("\0").filter(Boolean).sort()) {
+    if (!included.some((glob) => glob.test(file)) || allowed.some((glob) => glob.test(file))) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue; // tracked but deleted from the working tree
+    }
+    if (text.includes("\0")) continue; // binary
+    text.split(/\r?\n/).forEach((line, index) => {
+      if (pattern.test(line)) hits.push({ file, line: index + 1, text: line.trim().slice(0, 160) });
+    });
+  }
+  return { hits };
+}
+
+// Glob to RegExp for repository-relative paths with "/" separators: ** spans directories, *
+// and ? stay within one, {a,b} picks one alternative.
+function globToRegExp(glob) {
+  let source = "";
+  let braces = 0;
+  for (let i = 0; i < glob.length; i += 1) {
+    const char = glob[i];
+    if (char === "*" && glob[i + 1] === "*") {
+      const slash = glob[i + 2] === "/";
+      source += slash ? "(?:.*/)?" : ".*";
+      i += slash ? 2 : 1;
+    } else if (char === "*") source += "[^/]*";
+    else if (char === "?") source += "[^/]";
+    else if (char === "{") { source += "(?:"; braces += 1; }
+    else if (char === "}" && braces > 0) { source += ")"; braces -= 1; }
+    else if (char === "," && braces > 0) source += "|";
+    else source += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${source}$`);
 }
 
 // Files the harness itself writes during a feature cycle (activate, verify-feature,

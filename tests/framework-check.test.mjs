@@ -108,7 +108,7 @@ test("clean-state-check: scans the directories derived from productRoots, not ha
     write(root, "src/unrelated.js", "debugger;\n");
     const result = run(root, "clean-state-check", [], { DEBUG_SCAN_PATHS: "" });
     assert.match(result.output, /repositories[\\/]app[\\/]debug\.js:1: debugger;/);
-    assert.doesNotMatch(result.output, /src[\/]unrelated\.js/);
+    assert.doesNotMatch(result.output, /src[\\/]unrelated\.js/);
   } finally {
     cleanup(root);
   }
@@ -666,6 +666,116 @@ test("check-arch: fails on an invalid expect regex", () => {
     assert.match(result.stderr, /has an invalid expect pattern/);
   } finally {
     cleanup(root);
+  }
+});
+
+// ---- check-arch "forbid" rules (feat-041) ----------------------------------
+
+function forbidRule(overrides = {}) {
+  return {
+    id: "arch-ban",
+    kind: "forbid",
+    description: "no legacyCall",
+    pattern: "legacyCall\\(",
+    paths: ["src/**/*.{js,mjs}"],
+    what: "legacyCall is banned",
+    why: "it hides errors",
+    fix: "call modernCall instead",
+    ...overrides,
+  };
+}
+
+// A git repository with the given rules and files; untracked files are written after `git add`.
+function forbidFixture(rules, files, untracked = {}) {
+  const root = archRulesFixture(rules);
+  for (const [rel, content] of Object.entries(files)) write(root, rel, content);
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  spawnSync("git", ["add", "."], { cwd: root });
+  for (const [rel, content] of Object.entries(untracked)) write(root, rel, content);
+  return root;
+}
+
+test("check-arch forbid: passes when no tracked file in its paths matches (feat-041)", () => {
+  const root = forbidFixture([forbidRule()], {
+    "src/app.mjs": "modernCall();\n",
+    "docs/notes.md": "legacyCall( is mentioned outside the rule's paths\n",
+  });
+  try {
+    const result = run(root, "check-arch");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /All architecture rules pass/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check-arch forbid: fails listing every hit as file:line, then what/why/fix (feat-041)", () => {
+  const root = forbidFixture([forbidRule()], {
+    "src/a.js": "ok();\nlegacyCall(1);\n",
+    "src/deep/nested/b.mjs": "legacyCall(2);\r\nok();\r\nlegacyCall(3);\r\n",
+  });
+  try {
+    const result = run(root, "check-arch");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.stdout, /\[FAIL\] 3 forbidden match\(es\)/);
+    assert.match(result.stdout, /src\/a\.js:2: legacyCall\(1\);/);
+    assert.match(result.stdout, /src\/deep\/nested\/b\.mjs:1: legacyCall\(2\);/);
+    assert.match(result.stdout, /src\/deep\/nested\/b\.mjs:3: legacyCall\(3\);/);
+    assert.match(result.stdout, /What: legacyCall is banned/);
+    assert.match(result.stdout, /Why: it hides errors/);
+    assert.match(result.stdout, /Fix: call modernCall instead/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check-arch forbid: never reports allowed or untracked paths (feat-041)", () => {
+  const root = forbidFixture(
+    [forbidRule({ allow: ["src/legacy/**"] })],
+    { "src/legacy/old.js": "legacyCall();\n", "src/app.ts": "legacyCall(); // .ts is outside the paths glob\n" },
+    { "src/new.js": "legacyCall();\n" },
+  );
+  try {
+    const result = run(root, "check-arch");
+    assert.equal(result.exit, 0, result.output);
+    assert.doesNotMatch(result.stdout, /forbidden match/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check-arch forbid: an invalid pattern or missing paths fail naming the rule; outside git it SKIPs (feat-041)", () => {
+  const cases = [
+    [forbidRule({ pattern: "(unclosed" }), /rule arch-ban: invalid pattern/],
+    [forbidRule({ pattern: undefined }), /rule arch-ban: a forbid rule needs a pattern/],
+    [forbidRule({ paths: [] }), /rule arch-ban: a forbid rule needs a non-empty paths list/],
+    [forbidRule({ allow: "src/**" }), /rule arch-ban: allow must be a list of globs/],
+  ];
+  for (const [rule, message] of cases) {
+    const root = forbidFixture([rule], { "src/a.js": "ok();\n" });
+    try {
+      const result = run(root, "check-arch");
+      assert.equal(result.exit, 1, result.output);
+      assert.match(result.stdout, message);
+    } finally {
+      cleanup(root);
+    }
+  }
+  const outside = archRulesFixture([forbidRule()]);
+  try {
+    const result = run(outside, "check-arch", [], { GIT_CEILING_DIRECTORIES: path.dirname(outside) });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /\[SKIP\] not a git repository — forbid rules search tracked files/);
+    const broken = archRulesFixture([forbidRule({ pattern: "(unclosed" })]);
+    try {
+      const invalid = run(broken, "check-arch", [], { GIT_CEILING_DIRECTORIES: path.dirname(broken) });
+      assert.equal(invalid.exit, 1, invalid.output);
+      assert.match(invalid.stdout, /rule arch-ban: invalid pattern/);
+    } finally {
+      cleanup(broken);
+    }
+  } finally {
+    cleanup(outside);
   }
 });
 

@@ -278,7 +278,7 @@ Customization points (from the manifest):
 
 ### Replacing `lint`, `typecheck`, `test`, or `build` without losing the harness's own checks (#25)
 
-For a Node project, `lint`, `typecheck`, `test`, and `build` ship pointing at `node scripts/framework-check.mjs <layer>` — which is also how the harness checks itself: `lint` validates skills structure, the generated progress dashboard, and framework docs for unfilled template placeholders; `typecheck` validates `feature_list.json`'s shape; `test` validates the feature dependency graph and the WIP=1/lane contract (the runner's own unit tests run from `./init.sh` instead, see below); `build` validates Make targets and shell shims. `npm run check-arch` (arch-001..006) does **not** duplicate any of this — replacing one of these four script values with your product tool entirely, instead of chaining it, silently drops that layer's harness checks from both `npm run check` and every `npm run verify-feature` run, with nothing to catch the gap.
+For a Node project, `lint`, `typecheck`, `test`, and `build` ship pointing at `node scripts/framework-check.mjs <layer>` — which is also how the harness checks itself: `lint` validates skills structure, the generated progress dashboard, and framework docs for unfilled template placeholders; `typecheck` validates `feature_list.json`'s shape; `test` validates the feature dependency graph and the WIP=1/lane contract (the runner's own unit tests run from `./init.sh` instead, see below); `build` validates Make targets and shell shims. `npm run check-arch` (arch-001..008) does **not** duplicate any of this — replacing one of these four script values with your product tool entirely, instead of chaining it, silently drops that layer's harness checks from both `npm run check` and every `npm run verify-feature` run, with nothing to catch the gap.
 
 **Chain the two instead of replacing:**
 
@@ -303,7 +303,31 @@ Forgot to chain one? `node scripts/harness-audit.mjs` warns, by layer name, the 
 - **The default `e2e` layer reports SKIP until you wire your own end-to-end tests.** Point the `e2e` script at them; until then a SKIP is the honest answer, and it does not count as verified. The framework's adoption matrix (throwaway adopter repos across five stacks, a simulated upgrade, the multi-repo component) tests the harness, not your product, so it runs only in the framework's own repository (feat-029, D-040).
 - **The harness self-tests run once per session, not on every check.** They are the runner's unit tests in `tests/`, which test CORE files you don't edit and that only change on `harness-upgrade`. `./init.sh` runs them at the start of each session, which catches a Node version or platform that breaks the harness; `node scripts/framework-check.mjs selftest` runs them on demand, for example right after an upgrade. Keeping them out of `test` and `e2e` keeps the harness's own share of a `verify-feature` run to a second or two.
 
-`npm run check-arch` enforces six rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, and feature declarations carry no leftover inline state (sharded state stays consistent).
+`npm run check-arch` enforces eight rules: required harness surfaces exist, the feature tracker preserves WIP=1, dependency order, and lane ownership, framework docs contain no template placeholders, the manifest is valid, every tracked file is classified by the manifest, feature declarations carry no leftover inline state (sharded state stays consistent), and two banned patterns in the harness's own code (`os.EOL` in scripts, the `[\/]` separator class in regexes — both behind a Windows bug, D-025).
+
+### Banning a pattern
+
+Most product rules are "never write X here": no `useEffect` in components, no direct database import from the UI layer, no `console.log` in library code. Declare them as `forbid` rules instead of writing a grep, which behaves differently on Windows and doesn't report locations (feat-041, D-052):
+
+```json
+{
+  "id": "arch-101",
+  "kind": "forbid",
+  "description": "Components never call useEffect",
+  "pattern": "\\buseEffect\\(",
+  "paths": ["src/components/**/*.{ts,tsx}"],
+  "allow": ["src/components/legacy/**"],
+  "what": "A component calls useEffect.",
+  "why": "Effects in components caused the double-fetch bugs; data loading lives in loaders.",
+  "fix": "Move the side effect into the route loader or an event handler."
+}
+```
+
+- `pattern` is a JavaScript regular expression tested against each line (escape backslashes for JSON).
+- `paths` lists the globs to search (`**` spans folders, `*` stays inside one, `{a,b}` picks one); `allow` lists exceptions. Only files git tracks are searched; outside a git repository the rule reports SKIP.
+- A violation fails `check-arch` (and therefore `npm run check`) with each match as `file:line: text`, then the rule's what/why/fix — the lines an agent needs to fix it without asking.
+- An invalid `pattern`, an empty `paths` list or a malformed `allow` fails the rule with a message naming it.
+- When review catches a mistake that a pattern can describe, add a `forbid` rule in the same commit as the fix, so the mistake can't come back.
 
 Two more checks worth knowing about, neither a numbered arch rule:
 
