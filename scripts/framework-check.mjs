@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync, chmodSync } from "node:fs";
 import { execSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -75,6 +75,8 @@ const requiredMakeTargets = [
   "session-start",
   "session-end",
   "clean-check",
+  "hooks-install",
+  "hooks-uninstall",
   "setup",
   "dev",
   "help",
@@ -1513,6 +1515,75 @@ function globToRegExp(glob) {
   return new RegExp(`^${source}$`);
 }
 
+// ---- Opt-in pre-commit hook (feat-043, D-054) ------------------------------
+// A git hook works for every agent and human alike. It lives under scripts/ (CORE), so
+// create-harness copies it and harness-upgrade refreshes it. It runs only the fast static
+// checks; the full check before committing stays a step of the workflow.
+
+const HOOKS_DIR = "scripts/hooks";
+const PRE_COMMIT_STEPS = ["lint", "check-arch"];
+
+function preCommit() {
+  for (const step of PRE_COMMIT_STEPS) {
+    console.log(`[pre-commit] npm run ${step}`);
+    const run = spawnSync(`npm run ${step}`, { stdio: "inherit", shell: true });
+    if (run.error || (run.status ?? 1) !== 0) {
+      console.log("");
+      console.log(`[pre-commit] Commit blocked: npm run ${step} failed. Fix what it reports, rerun "npm run ${step}", then commit again.`);
+      process.exit(1);
+    }
+  }
+  console.log("[pre-commit] lint and architecture rules pass (the full npm run check is still yours to run)");
+}
+
+// core.hooksPath relative to the top of the working tree, where git runs hooks from.
+function harnessHooksPath() {
+  const prefix = gitCapture(["rev-parse", "--show-prefix"]);
+  if (prefix === null) fail("hooks: not a git repository — run git init first");
+  return `${prefix}${HOOKS_DIR}`;
+}
+
+function hooksInstall() {
+  const target = harnessHooksPath();
+  const hook = `${HOOKS_DIR}/pre-commit`;
+  if (!existsSync(hook)) fail(`hooks-install: ${hook} is missing — restore it with harness-upgrade`);
+  const chain = `call the harness hook from yours instead: add the line  "${target}/pre-commit" || exit 1  to your pre-commit hook`;
+  const current = gitCapture(["config", "--get", "core.hooksPath"]);
+  if (current === target) {
+    pass(`Pre-commit hook already installed (core.hooksPath = ${target})`);
+    return;
+  }
+  if (current) {
+    fail(`hooks-install: core.hooksPath already points at ${current}, and it will not be replaced. To keep those hooks, ${chain}`);
+  }
+  // With core.hooksPath set, git stops running the default folder's hooks: never switch the
+  // user's own hooks off without saying so.
+  const defaultDir = gitCapture(["rev-parse", "--git-path", "hooks"]);
+  const own = defaultDir && existsSync(defaultDir) ? readdirSync(defaultDir).filter((name) => !name.endsWith(".sample")) : [];
+  if (own.length > 0) {
+    fail(`hooks-install: ${defaultDir} has hooks of your own (${own.join(", ")}) that core.hooksPath would switch off. To keep them, ${chain}`);
+  }
+  chmodSync(hook, 0o755); // git skips a hook that is not executable on Linux and macOS
+  const set = spawnSync("git", ["config", "--local", "core.hooksPath", target], { encoding: "utf8" });
+  if (set.error || (set.status ?? 1) !== 0) fail(`hooks-install: git config failed: ${set.stderr ?? set.error}`);
+  pass(`Installed the pre-commit hook: core.hooksPath = ${target}; every commit now runs npm run lint and npm run check-arch. Remove it with npm run hooks-uninstall`);
+}
+
+function hooksUninstall() {
+  const target = harnessHooksPath();
+  const current = gitCapture(["config", "--local", "--get", "core.hooksPath"]);
+  if (current === null) {
+    pass("The harness pre-commit hook is not installed — nothing to do");
+    return;
+  }
+  if (current !== target) {
+    pass(`core.hooksPath points at ${current}, not the harness hooks — left unchanged`);
+    return;
+  }
+  spawnSync("git", ["config", "--local", "--unset", "core.hooksPath"]);
+  pass("Removed the harness pre-commit hook: git uses its default hooks folder again");
+}
+
 // Files the harness itself writes during a feature cycle (activate, verify-feature,
 // session traces, progress notes). They may be uncommitted when verify-feature runs:
 // they record the verification, they are not what is being verified (feat-030, D-041).
@@ -2529,6 +2600,8 @@ function printHelp() {
   console.log("  progress-update  Regenerate the progress state and session index");
   console.log("  progress-migrate  Move a single-file PROGRESS.md into progress/ and generate the dashboard");
   console.log("  clean-check    Pre-commit clean state verification");
+  console.log("  hooks-install  Opt in to the git pre-commit hook (lint + check-arch on every commit)");
+  console.log("  hooks-uninstall  Remove the harness pre-commit hook (git's default hooks folder again)");
   console.log("  help           Show this help");
   console.log("");
   console.log("Make form:  make <target>            npm form:  npm run <target>");
@@ -2694,6 +2767,18 @@ switch (mode) {
   }
   case "clean-state-check": {
     cleanStateCheck();
+    break;
+  }
+  case "pre-commit": {
+    preCommit();
+    break;
+  }
+  case "hooks-install": {
+    hooksInstall();
+    break;
+  }
+  case "hooks-uninstall": {
+    hooksUninstall();
     break;
   }
   case "setup": {

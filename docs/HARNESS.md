@@ -26,6 +26,8 @@
 | `make session-start` | `npm run session-start` |
 | `make session-end` | `npm run session-end` |
 | `make clean-check` | `npm run clean-check` |
+| `make hooks-install` | `npm run hooks-install` |
+| `make hooks-uninstall` | `npm run hooks-uninstall` |
 | `make create-harness` | `npm run create-harness` |
 | `make harness-upgrade` | `npm run harness-upgrade` |
 | `make harness-audit` | `npm run harness-audit` |

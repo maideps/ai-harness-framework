@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -103,6 +103,14 @@ session-end:
 ## Clean state check (run before commit)
 clean-check:
 	@node scripts/framework-check.mjs clean-state-check
+
+## Opt-in git pre-commit hook (feat-043): lint + check-arch on every commit
+hooks-install:
+	@node scripts/framework-check.mjs hooks-install
+
+## Remove the harness pre-commit hook (git's default hooks folder again)
+hooks-uninstall:
+	@node scripts/framework-check.mjs hooks-uninstall
 
 ## Distribution tools (feat-006) — read the manifest
 create-harness:

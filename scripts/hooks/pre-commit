@@ -1,0 +1,7 @@
+#!/bin/sh
+# Harness pre-commit hook (feat-043). Opt-in: `npm run hooks-install` points git's
+# core.hooksPath here, `npm run hooks-uninstall` restores the default.
+# Runs the fast static checks only (lint, then the architecture rules); the full
+# `npm run check` stays the agent's or developer's step before committing.
+cd "$(dirname "$0")/../.." || exit 1
+exec node scripts/framework-check.mjs pre-commit
