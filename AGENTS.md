@@ -23,6 +23,8 @@ If baseline verification is failing, repair that first before adding new scope.
 - **Verification required**: Don't claim done without running verification commands
 - **Update artifacts**: Before ending a session, add `progress/NNN-YYYY-MM-DD.md`, regenerate `PROGRESS.md`, and update the active feature's `.harness/state/<id>.json`
 - **Stay in scope**: Don't modify files unrelated to the current feature
+- **Keep edits surgical**: Inside a file you do touch, change only what the feature needs. Don't reformat, rename or "improve" nearby code, and match the file's existing style even where you would write it differently. Remove imports, functions and files that your own change left unused; mention other dead code in the session note instead of deleting it
+- **Build only what the behavior asks for**: No speculative features, options or settings, no abstraction with a single caller, no error handling for cases that cannot happen. Write the smallest change that meets the declared behavior. If you see a simpler design than the one the feature implies, say so in the session note rather than building the larger one
 - **The declared behavior is the spec**: a feature's `behavior` in `feature_list.json` defines done. A test that contradicts it is a bug in the test — fix the test in the same commit and say so in the commit message and session note. Stop and ask only when the declared behavior itself looks wrong
 - **Leave clean state**: Next session must be able to run `./init.sh` immediately
 - **One logical operation per commit**: The repo must be in a consistent state after every commit

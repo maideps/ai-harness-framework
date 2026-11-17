@@ -763,3 +763,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: one lint and one test run fewer per gate for new features; the saving grows with the project's test suite.
 - Negative: Layer 3 is now a copy of the `check` chain taken when the feature was declared; a step added to `check` later reaches only features declared after it. In this repository the saving is about 30 s of a gate of about 3 minutes; most of Layer 3 is the adoption matrix and the coverage run, which are not repeats.
+
+### D-050: Agents keep edits surgical and build only what the behavior asks for
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The harness controls which files a change touches ("Stay in scope", the `commit` and `review` skills) and whether it meets the declared behavior (the verification layers and the gate), but said nothing about what happens inside a touched file or how much gets built. Coding agents commonly reformat or "improve" nearby code and add options, abstractions and error handling nobody asked for. The idea comes from a widely shared set of LLM coding guidelines (github.com/multica-ai/andrej-karpathy-skills, MIT); the rules here are written in this repository's own words and adapted to its workflow, not copied.
+**Decision:**
+- AGENTS.md Working Rules gain "Keep edits surgical": inside a touched file, change only what the feature needs, match the existing style, remove only what the change itself left unused, and mention other dead code in the session note.
+- They also gain "Build only what the behavior asks for": no speculative options, single-caller abstractions or handling of impossible cases; a simpler design than the feature implies goes in the session note, not into a larger build.
+- The `review` skill checks both: reformatting and renames count as unrelated edits, and a new step asks whether the change is bigger than the behavior needs.
+**Alternatives considered:**
+- Install the guidelines as a Claude Code plugin or append them to CLAUDE.md — rejected: CLAUDE.md is a pointer to AGENTS.md, so the rules would reach Claude only, not Codex or Gemini, and would partly repeat rules the harness already has.
+- Also adopt "stop and ask when uncertain or when several interpretations exist" — rejected: it conflicts with D-046 (the declared behavior wins; stop only when the behavior itself looks wrong) and would stall headless runs such as the evals.
+**Consequences:**
+- Positive: smaller diffs that review and the gate can judge against the declared behavior alone.
+- Negative: AGENTS.md is core, so every adopter receives these rules on its next `harness-upgrade`. No eval checks them yet; whether agents follow them is unmeasured.
