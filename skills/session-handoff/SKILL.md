@@ -14,7 +14,7 @@ How to end a session so the next one can pick up without confusion.
 
 ## Workflow
 
-1. Start this session's note with `node scripts/framework-check.mjs progress-new "<title>"` — it writes `progress/NNN-YYYY-MM-DD.md` with the right number, date, heading and sections, and refreshes `PROGRESS.md` — then fill in every section. After any later state change, regenerate the current state and index with `node scripts/framework-check.mjs progress-update`. `PROGRESS.md` is generated; do not edit its block by hand.
+1. Start this session's note with `node scripts/framework-check.mjs progress-new "<title>"` — it writes `progress/NNN-YYYY-MM-DD.md` with the right number, date, heading and sections, and refreshes `PROGRESS.md` — then fill in every section. "Mistakes caught" is `none`, or one entry per mistake caught this session (yours, a test's, review's) ending in what it became: `→ rule: <arch rule id>`, `→ test: <name>`, `→ lint: <check>`, or `→ no check possible: <reason>`; prefer adding the check now over the reason. Lint rejects an entry without one; `npm run clean-check` fails while it is blank. After any later state change, regenerate the current state and index with `node scripts/framework-check.mjs progress-update`. `PROGRESS.md` is generated; do not edit its block by hand.
 2. Update `session-handoff.md` — current objective, completed items, verification evidence, files changed, decisions, risks, recommended next step.
 3. Record decisions in `DECISIONS.md` (template at the top of the file); expand long records into `docs/decisions/`.
 4. Update `docs/quality-document.md`: name each feature that passed this session and rate every module touched (A/B/C/D per dimension). `npm run clean-check` fails while a gate-verified feature is not mentioned.
@@ -31,6 +31,7 @@ How to end a session so the next one can pick up without confusion.
 ## Quick Reference
 
 - [ ] Session note added and `PROGRESS.md` regenerated
+- [ ] "Mistakes caught" filled in: `none`, or each mistake → the rule, test or lint check it became (or why none is possible)
 - [ ] session-handoff.md updated
 - [ ] DECISIONS.md updated if decisions were made
 - [ ] docs/quality-document.md updated for touched modules

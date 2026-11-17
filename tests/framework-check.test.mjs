@@ -2268,6 +2268,85 @@ test("progress-new: writes the next note with the exact heading and sections, an
   }
 });
 
+// ---- feat-042 (D-053): every caught mistake becomes a check ----------------
+
+// Session notes 001..n with the given "Mistakes caught" text (null leaves the line out), a rule
+// file declaring arch-001, and a regenerated dashboard.
+function mistakesFixture(sections) {
+  const root = progressFixture([], []);
+  write(root, ".harness/arch-rules.json", `${JSON.stringify({ rules: [{ id: "arch-001" }] })}\n`);
+  sections.forEach((section, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    const body = section === null ? "" : `- Mistakes caught:${section}\n`;
+    write(root, `progress/${number}-2026-10-01.md`, `### Session ${number} — 2026-10-01 — S\n\n- Goal: g\n${body}- Next best step: n\n`);
+  });
+  const update = run(root, "progress-update");
+  assert.equal(update.exit, 0, update.output);
+  return root;
+}
+
+test("progress-new: the skeleton has a Mistakes caught section, and lint still passes right after (feat-042)", () => {
+  const root = progressFixture([], []);
+  try {
+    assert.equal(run(root, "progress-new", ["One"]).exit, 0);
+    const note = readFileSync(path.join(root, "progress", `001-${todayLocal()}.md`), "utf8");
+    assert.match(note, /^- Files or artifacts updated: \n- Mistakes caught: \n- Known risk or unresolved issue: /m);
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: accepts none and each of the four forms, inline or nested (feat-042)", () => {
+  const root = mistakesFixture([
+    " none",
+    " Skipped the quality doc → rule: arch-001",
+    "\n  - Off-by-one in add → test: add handles zero\n  - Debug print left in -> lint: no-console\n  - Misread the spec → no check possible: a judgment call, not a pattern",
+  ]);
+  try {
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+    assert.match(lint.output, /Session notes record what each caught mistake became/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:progress-log: fails an entry with no check, an undeclared rule, or a later note without the section (feat-042)", () => {
+  const root = mistakesFixture([
+    null,
+    "\n  - Forgot to rerun the tests\n  - Banned call slipped in → rule: arch-999\n  - Wrong layer → test: ",
+    null,
+  ]);
+  try {
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 1, lint.output);
+    assert.doesNotMatch(lint.stderr, /001-2026-10-01/, "notes before the first section are not checked");
+    assert.match(lint.stderr, /002-2026-10-01\.md: "Forgot to rerun the tests" does not say what it became/);
+    assert.match(lint.stderr, /names rule arch-999, which is not in \.harness\/arch-rules\.json/);
+    assert.match(lint.stderr, /"Wrong layer → test:" does not say what it became/);
+    assert.match(lint.stderr, /003-2026-10-01\.md has no "- Mistakes caught:" line/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("clean-state-check: fails while the latest note leaves Mistakes caught blank (feat-042)", () => {
+  const root = mistakesFixture([" none", ""]);
+  try {
+    const blank = run(root, "clean-state-check", [], { DEBUG_SCAN_PATHS: "" });
+    assert.match(blank.output, /\[FAIL\] progress\/002-2026-10-01\.md leaves "- Mistakes caught:" blank/);
+    assert.equal(run(root, "lint:progress-log").exit, 0, "a blank section still passes lint");
+    write(root, "progress/002-2026-10-01.md", "### Session 002 — 2026-10-01 — S\n\n- Mistakes caught: none\n");
+    assert.equal(run(root, "progress-update").exit, 0);
+    const filled = run(root, "clean-state-check", [], { DEBUG_SCAN_PATHS: "" });
+    assert.match(filled.output, /\[PASS\] progress\/002-2026-10-01\.md records the mistakes caught this session/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("progress-new: refuses a blank or multi-line title, and never overwrites a note (feat-036)", () => {
   const root = progressFixture([], []);
   try {

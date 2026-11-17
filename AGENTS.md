@@ -100,7 +100,7 @@ Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`)
 - Document architectural constraints in `.harness/arch-rules.json`
 - The reusability seam contract lives in `.harness/manifest.json` and `docs/ARCHITECTURE.md` — keep both accurate in the same commit as any repository layout change
 - Run `make check-arch` to enforce layer dependencies and invariants
-- Every new error category caught in review becomes a rule in `.harness/arch-rules.json`
+- Every new error category caught in review becomes a rule in `.harness/arch-rules.json` (a `forbid` rule when a pattern describes it), and the session note's "Mistakes caught" names it
 - See [Architecture Docs](docs/ARCHITECTURE.md) for the full layer model
 
 ## Observability
@@ -142,10 +142,11 @@ Before ending a session:
 1. Run `make clean-check` — confirms build passes, no debug artifacts, progress updated
 2. Start the session note with `node scripts/framework-check.mjs progress-new "<title>"` (it picks the number, date and heading lint requires, writes the sections and refreshes `PROGRESS.md`), then fill in every section; after any later state change run `node scripts/framework-check.mjs progress-update`
 3. Keep `feature_list.json` declaration-only; feature state belongs in `.harness/state/<id>.json`
-4. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
-5. Record any unresolved risks or blockers
-6. Commit with descriptive message explaining WHY, not just what
-7. Leave repo clean enough for next session to run `./init.sh` immediately
+4. Fill in the note's "Mistakes caught": `none`, or one entry per mistake you or review caught this session, ending in what it became — `→ rule: <arch rule id>`, `→ test: <name>`, `→ lint: <check>`, or `→ no check possible: <reason>`. Turn the mistake into that check in this session when you can. Lint rejects an entry without one, and `clean-check` fails while the section is blank
+5. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
+6. Record any unresolved risks or blockers
+7. Commit with descriptive message explaining WHY, not just what
+8. Leave repo clean enough for next session to run `./init.sh` immediately
 
 **If running low on context**: Do NOT rush to finish — stop, add a concise note under `progress/`, regenerate `PROGRESS.md`, and commit a clean checkpoint.
 
