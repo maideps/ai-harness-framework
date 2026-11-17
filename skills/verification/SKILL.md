@@ -14,7 +14,7 @@ How to run the gates and what the tri-state results mean.
 
 ## Workflow
 
-1. Run the full chain in order: `npm run check` (lint → typecheck → test → build → e2e → verify-all → quality).
+1. Run the full chain in order: `npm run check` (lint → check-arch → typecheck → test → build → e2e → verify-all → quality).
 2. Read the output, not only the exit status:
    - **PASS** — the layer ran and succeeded; it counts as verified.
    - **SKIP** — the layer is not configured; it does NOT count as verified.

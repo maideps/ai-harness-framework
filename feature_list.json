@@ -1066,6 +1066,35 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-040",
+      "name": "Architecture rules run in every check",
+      "behavior": "npm run check and make check run the architecture rules (check-arch) right after lint, before typecheck, so an agent that runs the full check before committing also runs the base of the verification pyramid; until now only CI and vcr ran them. A failing rule stops the chain like any other layer. vcr no longer runs check-arch a second time. The default Layer 3 that add-feature derives from the check script therefore includes check-arch, so verify-feature enforces the rules for new features. Existing adopters keep their own package.json and Makefile on upgrade, so harness-upgrade reports when the adopter's check script or check make target does not run check-arch, with the change to make, and never edits either file. AGENTS.md, README, docs/USAGE.md and its template, the verification skill and the runner's help name the new chain order.",
+      "verification": "npm run check runs check-arch after lint and fails when a rule fails (runner test); harness-upgrade's report names a check script and a check make target that lack check-arch and stays silent when both have it (harness-upgrade tests); the adoption matrix normalizes fixtures to the new chain; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 4: Architecture rules",
+          "cmd": "npm run check-arch",
+          "repair": "Fix Layer 4: Architecture rules failures and rerun the layer command."
+        }
+      ]
     }
   ]
 }

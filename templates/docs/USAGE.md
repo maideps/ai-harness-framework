@@ -6,7 +6,7 @@ This guide covers running the harness day-to-day and adopting it in a new projec
 
 ```bash
 ./init.sh        # check prerequisites, detect the project stack, install deps, run verification and the harness self-tests
-make check       # full verification: lint → typecheck → test → build → e2e → optional verify-all → optional quality
+make check       # full verification: lint → check-arch → typecheck → test → build → e2e → optional verify-all → optional quality
 make help        # list all available commands
 ```
 

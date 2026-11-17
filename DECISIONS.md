@@ -779,3 +779,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: smaller diffs that review and the gate can judge against the declared behavior alone.
 - Negative: AGENTS.md is core, so every adopter receives these rules on its next `harness-upgrade`. No eval checks them yet; whether agents follow them is unmeasured.
+
+### D-051: The full check runs the architecture rules right after lint
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** AGENTS.md requires `make check` before every commit, but `check` ran lint → typecheck → test → build → e2e → verify-all → quality and left out `check-arch`. The architecture rules ran only in CI, in `vcr` and in `prepublishOnly`, so an agent could pass the full check locally and still break them. They are the base of the verification pyramid (a strict structure and banned patterns, checked by machine before anything else), and later work (feat-041, banned-pattern rules) depends on them running every time.
+**Decision:**
+- `npm run check` and `make check` run `check-arch` right after `lint`: both are static, and the rules take seconds, so a violation fails before the slower layers start. `vcr` no longer runs `check-arch` a second time.
+- The default Layer 3 that `add-feature` derives from `check` (D-049) therefore includes `check-arch`, so `verify-feature` enforces the rules for features declared from now on.
+- `package.json` and the Makefile are adopter-owned and preserved on upgrade, so `harness-upgrade` reports a `check` script or `check` make target that does not run `check-arch`, with the change to make, and edits neither. A make target that delegates to `npm run check` is judged through `package.json`.
+**Alternatives considered:**
+- Run the architecture rules inside the `lint` command — rejected: adopters repoint `lint` at their own product linter, which would silently drop the rules.
+- Have `harness-upgrade` edit the adopter's `check` script — rejected: those files are adopter-owned (feat-019, D-043 report rather than edit).
+**Consequences:**
+- Positive: the base layer runs every time an agent verifies, locally, not only in CI.
+- Negative: existing features keep their declared Layer 3 (D-049) and do not run the rules at their gate until re-declared; existing adopters get the change only when they apply the reported edit. CI and `prepublishOnly` still run `check-arch` as their own step, a few seconds of repetition kept for clear log lines.

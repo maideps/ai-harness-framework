@@ -206,6 +206,41 @@ export function missingMakeTargets(root, harnessRoot = HARNESS_ROOT) {
   return missing;
 }
 
+// Since feat-040 the full check runs the architecture rules right after lint. package.json and
+// the Makefile are adopter-owned, so an existing adopter's check keeps its old chain: report
+// each one that does not run check-arch, with the change to make, and never edit either file.
+// A Makefile check that delegates to `npm run check` is judged through package.json.
+export function checkChainsWithoutArch(root) {
+  const read = (file) => {
+    try {
+      return readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n");
+    } catch {
+      return null;
+    }
+  };
+  const lacking = [];
+  let check;
+  try {
+    check = JSON.parse(read("package.json") ?? "null")?.scripts?.check;
+  } catch {
+    check = undefined;
+  }
+  if (typeof check === "string" && !/\bcheck-arch\b/.test(check)) {
+    lacking.push({ surface: "package.json", fix: 'add "npm run check-arch" to the "check" script, right after "npm run lint"' });
+  }
+  const lines = (read("Makefile") ?? "").split("\n");
+  const start = lines.findIndex((line) => /^check:/.test(line));
+  if (start !== -1) {
+    let end = start + 1;
+    while (end < lines.length && lines[end].startsWith("\t")) end += 1;
+    const block = lines.slice(start, end).join("\n");
+    if (!/\bcheck-arch\b|npm run check\b/.test(block)) {
+      lacking.push({ surface: "Makefile", fix: "add check-arch to the check target's prerequisites, right after lint" });
+    }
+  }
+  return lacking;
+}
+
 // The shipped skill packs are CORE ("never modify the shipped skills"), but skills/ also holds
 // the adopter's own project skills, so only the folders the manifest names are refreshed
 // (feat-026). The list comes from the manifest because, run from inside an adopter, the harness
@@ -266,6 +301,7 @@ export function upgrade(root, { dryRun = false } = {}) {
   );
   report.missingScripts = missingHarnessScripts(root);
   report.missingMakeTargets = missingMakeTargets(root);
+  report.checkWithoutArch = checkChainsWithoutArch(root);
   const progressFile = ["PROGRESS.md", "progress.md", "claude-progress.md"]
     .map((name) => path.join(root, name))
     .find(existsSync);
@@ -328,6 +364,10 @@ function main() {
       for (const line of block.split("\n")) console.log(`    ${line}`);
     }
     console.log("");
+  }
+  if (report.checkWithoutArch.length > 0) {
+    console.log("  The full check now runs the architecture rules after lint (feat-040) — yours does not yet:");
+    for (const { surface, fix } of report.checkWithoutArch) console.log(`    ${surface}: ${fix}`);
   }
   if (report.legacyProgress) {
     console.log("  PROGRESS.md predates the generated dashboard — move its sessions to progress/ with:");
