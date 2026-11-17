@@ -883,3 +883,21 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: the shortcut the evals measured, marking a feature passing by hand, now fails `npm run check` and every gate's Layer 3 with the command to run instead. In this repository all 44 passing features pass the check unchanged.
 - Negative: forgery still passes: copying an old-format summary, or writing evidence and a matching trail by hand. An adopter whose older passing features carry evidence not written by any harness gate fails `typecheck` after the upgrade until it re-verifies them. Three runner-test fixtures that marked features passing with made-up evidence ("e", "old evidence", "Verified by hand") were given the gate's wording; what they test is unchanged.
+
+### D-057: The gate collects the captures a layer declares
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The gate's evidence was command output and a commit. For a UI, a layer can pass while the page is visibly broken, and nothing kept what the tests saw. Teams running agents at scale have them check screenshots of their own work; the harness had no place for that evidence.
+**Decision:**
+- A layer may declare `captures`, globs for the files its command writes (screenshots, videos, recordings). After the layer passes, `verify-feature` collects the matching files written during this run, copies them to `.harness/logs/<feature>/captures/<NN>-<label>/`, records path, `sha256` and size in that layer's evidence, and prints the copies with the instruction to compare each with the declared behavior.
+- "Written during this run" is the file's modification time at or after the layer started, rounded down to the second for coarse file-system clocks, so a screenshot left from an earlier run is never evidence.
+- A layer that declares captures and writes none fails, as a required layer that reports only SKIP does: a declared check that produced nothing verified nothing.
+- The harness takes no screenshots and adds no browser dependency: the project's own e2e tool writes them; the harness collects and records. Captures stay local, like layer logs, and are never committed; a captures folder git tracks fails the gate's uncommitted-changes check, which names the folder to ignore.
+- `captures` enters the layer's `checksHash` only when declared, so evidence recorded before this decision does not go stale.
+**Alternatives considered:**
+- Commit captures with the evidence — rejected: binary files in every feature commit bloat the repository; the hashes in the committed evidence identify them.
+- Take screenshots in the harness (bundle Playwright) — rejected: a dependency and a browser for every adopter, most of whom have no UI or already run their own e2e tool.
+**Consequences:**
+- Positive: a UI feature's gate now keeps what its tests saw, tied to the commit, ready for the agent (feat-045) and a reviewer to look at.
+- Negative: collecting does not mean anyone looked; that is feat-045's skill step and feat-046's eval. Copies live in local logs, so another machine sees only the hashes. Agents can read images but not video, so for agent self-checks screenshots matter more than recordings.

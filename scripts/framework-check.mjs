@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync, chmodSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync, mkdirSync, readdirSync, renameSync, chmodSync, copyFileSync, rmSync } from "node:fs";
 import { execSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -697,6 +697,10 @@ function ensureFeatureShape() {
     for (const layer of feature.layers) {
       if (!layer.label || !layer.cmd || !layer.repair) {
         fail(`feature ${feature.id} contains an incomplete verification layer`);
+      }
+      const { captures } = layer;
+      if (captures !== undefined && (!Array.isArray(captures) || captures.length === 0 || !captures.every((glob) => typeof glob === "string" && glob.trim()))) {
+        fail(`feature ${feature.id} layer "${layer.label}": captures must be a non-empty list of globs (for example ["test-results/**/*.png"])`);
       }
     }
   }
@@ -1676,6 +1680,9 @@ function featureChecksHash(feature) {
     label: layer.label,
     cmd: layer.cmd,
     required: layer.required !== false,
+    // Captures change what the gate checks (feat-044), but only layers that declare them hash
+    // them, so evidence recorded before captures existed does not go stale.
+    ...(layer.captures !== undefined ? { captures: layer.captures } : {}),
   }));
   return createHash("sha256").update(JSON.stringify(checks)).digest("hex").slice(0, 16);
 }
@@ -1807,6 +1814,7 @@ function verifyFeature(featureId, { allowDirty = false } = {}) {
     console.log("Commit the feature's code and docs first, then re-run verify-feature. The state shard and");
     console.log("progress notes it writes are bookkeeping: they may stay uncommitted and go in the next commit.");
     console.log("To record evidence for uncommitted code anyway (marked bound: false), add --allow-dirty.");
+    printCaptureFolderHint(feature, uncommittedBefore);
     console.log("");
     console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
     process.exit(1);
@@ -1856,10 +1864,25 @@ function verifyFeature(featureId, { allowDirty = false } = {}) {
     const isRequired = layer.required !== false;
 
     if (!run.error && run.status === 0 && !(isVacuousSkip && isRequired)) {
+      const captured = layer.captures ? collectCaptures(layer.captures, started, `${logDir}/captures/${String(index + 1).padStart(2, "0")}-${slugify(layer.label)}`) : null;
+      if (captured && captured.length === 0) {
+        layerResults.push({ label: layer.label, cmd: layer.cmd, result: "FAIL", skipReported: reportedSkip, durationMs, log: logFile, captures: [] });
+        console.log("");
+        console.log(`  [FAIL] ${layer.label} (${formatDuration(durationMs)}) — it declares captures (${layer.captures.join(", ")}) but this run wrote none`);
+        console.log(`  Full output: ${logFile}`);
+        console.log("  Make the layer's command write its screenshots there (for example Playwright's screenshot: \"on\"), or fix the captures globs.");
+        console.log("");
+        console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
+        process.exit(1);
+      }
       if (reportedSkip) skippedLayers.push(layer.label);
-      layerResults.push({ label: layer.label, cmd: layer.cmd, result: "PASS", skipReported: reportedSkip, durationMs, log: logFile });
+      layerResults.push({ label: layer.label, cmd: layer.cmd, result: "PASS", skipReported: reportedSkip, durationMs, log: logFile, ...(captured ? { captures: captured } : {}) });
       console.log("");
       console.log(`  [PASS] ${layer.label} (${formatDuration(durationMs)})`);
+      if (captured) {
+        console.log(`  Captures (${captured.length}) — open each one and compare it to the feature's declared behavior before reporting it done:`);
+        for (const capture of captured) console.log(`    ${capture.path}`);
+      }
       console.log("");
     } else {
       const tail = `${stdout}${stderr}`.trimEnd().split(/\r?\n/).slice(-30);
@@ -1896,6 +1919,7 @@ function verifyFeature(featureId, { allowDirty = false } = {}) {
     console.log("");
     console.log("The recorded commit would not match the verified tree. Commit the files, add generated");
     console.log("output to .gitignore, or stop the layer from writing them; then re-run verify-feature.");
+    printCaptureFolderHint(feature, uncommittedAfter);
     console.log("");
     console.log(`=== Feature ${featureId}: VERIFICATION FAILED ===`);
     process.exit(1);
@@ -1930,6 +1954,58 @@ function verifyFeature(featureId, { allowDirty = false } = {}) {
   // The trail the end-of-session steps ask for, written by the gate itself: across five
   // passing eval trials agents never ran `npm run vcr` for it (feat-034, D-045).
   if (bound) recordTrail("verify-feature", { feature: featureId, commit, checksHash: featureChecksHash(feature) });
+}
+
+// Captures (feat-044, D-057): the screenshots, videos or other artifacts a layer's command writes,
+// named by globs on the layer. Only files written during this run count (modified at or after
+// the layer started, rounded down to the second for coarse file-system clocks), so leftovers
+// from an earlier run are never taken as evidence. Each is copied into the gate's local logs and
+// recorded by path, sha256 and size. An empty list means the layer wrote none.
+function collectCaptures(globs, started, destination) {
+  const since = Math.floor(started / 1000) * 1000;
+  const patterns = globs.map(globToRegExp);
+  const found = new Set();
+  for (const glob of globs) {
+    const segments = glob.split("/");
+    const firstWild = segments.findIndex((segment) => /[*?{]/.test(segment));
+    const base = firstWild === -1 ? segments.slice(0, -1).join("/") : segments.slice(0, firstWild).join("/");
+    walkFiles(base || ".", (file) => {
+      if (patterns.some((pattern) => pattern.test(file)) && statSync(file).mtimeMs >= since) found.add(file);
+    });
+  }
+  rmSync(destination, { recursive: true, force: true });
+  return [...found].sort().map((file) => {
+    const copy = `${destination}/${file}`;
+    mkdirSync(path.dirname(copy), { recursive: true });
+    copyFileSync(file, copy);
+    const bytes = readFileSync(file);
+    return { path: copy, sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length };
+  });
+}
+
+// Uncommitted files that match a declared capture glob mean the captures folder is not
+// gitignored: name the folder, before the layers (leftovers) or after them (this run's files).
+function printCaptureFolderHint(feature, uncommitted) {
+  const globs = (feature.layers ?? []).flatMap((layer) => layer.captures ?? []).map(globToRegExp);
+  const captures = uncommitted.filter((file) => globs.some((glob) => glob.test(file)));
+  if (captures.length === 0) return;
+  const folders = [...new Set(captures.map((file) => (file.includes("/") ? `${file.slice(0, file.indexOf("/"))}/` : file)))];
+  console.log(`Declared captures are among them: add ${folders.join(", ")} to .gitignore — captures are copied into the gate's logs, never committed.`);
+}
+
+// Every file under dir, as a "/"-separated path relative to the project root; skips dependency
+// and VCS folders and the gate's own logs, where earlier copies of captures live.
+function walkFiles(dir, visit) {
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = dir === "." ? entry.name : `${dir}/${entry.name}`;
+    if (entry.isDirectory()) {
+      if (["node_modules", ".git"].includes(entry.name) || rel === ".harness/logs") continue;
+      walkFiles(rel, visit);
+    } else if (entry.isFile()) {
+      visit(rel);
+    }
+  }
 }
 
 // Verification logs are local diagnostics, never committed: the folder ignores itself, so
