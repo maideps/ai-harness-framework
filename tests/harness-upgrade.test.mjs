@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { missingHarnessScripts, missingMakeTargets, upgrade } from "../scripts/harness-upgrade.mjs";
+import { checkChainsWithoutArch, missingHarnessScripts, missingMakeTargets, upgrade } from "../scripts/harness-upgrade.mjs";
 
 // These tests also run inside adopters (tests/ is CORE), where the harness root is the adopter
 // itself: they compare against whatever harness root they run in, never against fixed content.
@@ -305,6 +305,37 @@ test("missingMakeTargets: gives each missing target with its help lines and reci
     assert.equal(readFileSync(path.join(root, "Makefile"), "utf8"), ours);
   } finally {
     rmSync(harness, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("checkChainsWithoutArch: names a check script and make target that skip check-arch, never edits", () => {
+  const root = tempDir();
+  const pkg = `${JSON.stringify({ scripts: { check: "npm run lint && npm run test" } }, null, 2)}\n`;
+  const makefile = "check: lint test\n\t@echo done\n\nlint:\n\t@npm run lint\n";
+  write(root, "package.json", pkg);
+  write(root, "Makefile", makefile);
+  try {
+    assert.deepEqual(checkChainsWithoutArch(root).map((item) => item.surface), ["package.json", "Makefile"]);
+    assert.equal(readFileSync(path.join(root, "package.json"), "utf8"), pkg);
+    assert.equal(readFileSync(path.join(root, "Makefile"), "utf8"), makefile);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("checkChainsWithoutArch: silent when both run check-arch, when make delegates to npm, or with no check", () => {
+  const root = tempDir();
+  try {
+    write(root, "package.json", JSON.stringify({ scripts: { check: "npm run lint && npm run check-arch && npm run test" } }));
+    write(root, "Makefile", "check: lint check-arch test\n\t@echo done\n");
+    assert.deepEqual(checkChainsWithoutArch(root), []);
+    write(root, "Makefile", "check:\r\n\t@npm run check\r\n");
+    assert.deepEqual(checkChainsWithoutArch(root), []);
+    write(root, "package.json", JSON.stringify({ scripts: { test: "node --test" } }));
+    write(root, "Makefile", "test:\n\t@npm test\n");
+    assert.deepEqual(checkChainsWithoutArch(root), []);
+  } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });

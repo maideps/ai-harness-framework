@@ -2354,7 +2354,7 @@ function printHelp() {
   console.log("");
   console.log("  setup          Install all dependencies from scratch");
   console.log("  dev            Start local development server");
-  console.log("  check          Full verification: lint → typecheck → test → build → e2e → verify-all → quality");
+  console.log("  check          Full verification: lint → check-arch → typecheck → test → build → e2e → verify-all → quality");
   console.log("  lint           Layer 1: static analysis");
   console.log("  typecheck      Layer 1b: type checking");
   console.log("  test           Layer 2: runtime tests");
@@ -2371,7 +2371,7 @@ function printHelp() {
   console.log("  lane-suggest      List features startable in parallel right now (advisory, creates nothing)");
   console.log("  migrate-feature-state  Move inline state/evidence into .harness/state/<id>.json");
   console.log("  add-feature ID=<id> NAME=<name>  Append a declaration-only feature stub");
-  console.log("  vcr            verify + check-arch + record trail");
+  console.log("  vcr            check (architecture rules included) + record trail");
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
   console.log("  selftest       Harness self-tests (the runner's unit tests); ./init.sh runs them in adopters");

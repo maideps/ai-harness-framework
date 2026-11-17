@@ -48,7 +48,7 @@ export function normalizeFixtureScripts(root) {
   for (const layer of LAYERS) {
     pkg.scripts[layer] = `node scripts/framework-check.mjs ${layer}`;
   }
-  pkg.scripts.check = "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all && npm run quality";
+  pkg.scripts.check = "npm run lint && npm run check-arch && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all && npm run quality";
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 

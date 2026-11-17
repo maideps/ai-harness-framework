@@ -34,7 +34,7 @@ After a feature passes, name it in `docs/quality-document.md` and rate the modul
 
 ## Verification Trail
 
-`verify-feature` records a trail on every bound pass: `.harness/trails/<stamp>-verify-feature-<id>.json`, naming the feature, the commit and the `checksHash` of its layers. Commit it with the state shard. `make vcr` / `npm run vcr` records a full-run trail after check and check-arch pass, for work no feature gate covers. A plain `make check` does not write trails.
+`verify-feature` records a trail on every bound pass: `.harness/trails/<stamp>-verify-feature-<id>.json`, naming the feature, the commit and the `checksHash` of its layers. Commit it with the state shard. `make vcr` / `npm run vcr` records a full-run trail after check (architecture rules included) passes, for work no feature gate covers. A plain `make check` does not write trails.
 
 Record evidence in that feature's `.harness/state/<id>.json` under its `evidence` field.
 

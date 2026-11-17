@@ -4,9 +4,9 @@
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
 # Stack detection is centralized in scripts/stack-detect.mjs.
 
-## Full verification — all layers in order.
+## Full verification — all layers in order, architecture rules right after lint.
 ## Layers that are not configured report SKIP and do not count as verified.
-check: lint typecheck test build e2e verify-all quality
+check: lint check-arch typecheck test build e2e verify-all quality
 	@echo "=== make check: complete ==="
 	@echo "  Any layer that reported SKIP was not configured and does not count as verified."
 
@@ -88,10 +88,10 @@ add-feature:
 activate:
 	@node scripts/framework-check.mjs activate $(F)
 
-## Verify + check-arch + record (writes a verification trail to .harness/trails/)
-vcr: check check-arch
+## Verify (check, which includes check-arch) + record (writes a verification trail to .harness/trails/)
+vcr: check
 	@node scripts/framework-check.mjs record-trail vcr
-	@echo "=== VCR: Verify, Check-arch, Record — COMPLETE ==="
+	@echo "=== VCR: Verify (check-arch included), Record — COMPLETE ==="
 
 ## Session lifecycle
 session-start:

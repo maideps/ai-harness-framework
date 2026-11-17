@@ -2275,6 +2275,40 @@ test("add-feature: Layer 3 runs the check chain without the lint and test steps 
   assert.doesNotMatch(addFeatureLayer3(own), /npm run (lint|test)\b/);
 });
 
+test("add-feature: with check-arch in the check chain, new features' Layer 3 runs the architecture rules (feat-040)", () => {
+  assert.equal(
+    addFeatureLayer3("npm run lint && npm run check-arch && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all && npm run quality"),
+    "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+  );
+});
+
+test("check chain: a failing architecture rule stops npm run check before the later layers (feat-040)", () => {
+  const root = featureListFixture([]);
+  try {
+    write(root, ".harness/arch-rules.json", JSON.stringify({
+      rules: [{ id: "arch-x", description: "always fails", check: "node -e \"console.log('nope')\"", expect: "^PASS", what: "w", why: "y", fix: "f" }],
+    }));
+    const runner = RUNNER.replace(/\\/g, "/");
+    write(root, "package.json", `${JSON.stringify({
+      name: "x",
+      scripts: {
+        lint: "node -e \"console.log('lint ran')\"",
+        "check-arch": `node "${runner}" check-arch`,
+        test: "node -e \"console.log('TEST LAYER RAN')\"",
+        check: "npm run lint && npm run check-arch && npm run test",
+      },
+    }, null, 2)}\n`);
+    const result = spawnSync("npm run check", { cwd: root, encoding: "utf8", shell: true });
+    const output = `${result.stdout}${result.stderr}`;
+    assert.notEqual(result.status, 0, output);
+    assert.match(output, /lint ran/);
+    assert.match(output, /\[FAIL\] w/);
+    assert.doesNotMatch(output, /TEST LAYER RAN/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("add-feature: Layer 3 keeps npm run check whenever the check script is not a plain chain with both steps (feat-038)", () => {
   assert.equal(addFeatureLayer3(undefined), "npm run check", "no package.json");
   assert.equal(addFeatureLayer3(null), "npm run check", "no check script");

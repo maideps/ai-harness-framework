@@ -123,7 +123,8 @@ export const GRADERS = {
     const added = declared.filter((feature) => !(baseline.features ?? []).includes(feature.id));
     if (added.length === 0) return { pass: false, detail: "no new feature was declared in feature_list.json" };
     const states = featureStates(root);
-    const standard = (cmd) => ["npm run lint", "npm run test", "npm run check"].includes(cmd) || /^npm run typecheck && /.test(cmd);
+    // The reduced chain starts with check-arch since feat-040, with typecheck before it.
+    const standard = (cmd) => ["npm run lint", "npm run test", "npm run check", "npm run check-arch"].includes(cmd) || /^npm run (check-arch|typecheck) && /.test(cmd);
     const problems = [];
     for (const feature of added) {
       if (states[feature.id] !== "passing") problems.push(`${feature.id} is ${states[feature.id] ?? "planned"}, not passing`);

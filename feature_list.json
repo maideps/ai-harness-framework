@@ -1066,6 +1066,111 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-040",
+      "name": "Architecture rules run in every check",
+      "behavior": "npm run check and make check run the architecture rules (check-arch) right after lint, before typecheck, so an agent that runs the full check before committing also runs the base of the verification pyramid; until now only CI and vcr ran them. A failing rule stops the chain like any other layer. vcr no longer runs check-arch a second time. The default Layer 3 that add-feature derives from the check script therefore includes check-arch, so verify-feature enforces the rules for new features. Existing adopters keep their own package.json and Makefile on upgrade, so harness-upgrade reports when the adopter's check script or check make target does not run check-arch, with the change to make, and never edits either file. AGENTS.md, README, docs/USAGE.md and its template, the verification skill and the runner's help name the new chain order.",
+      "verification": "npm run check runs check-arch after lint and fails when a rule fails (runner test); harness-upgrade's report names a check script and a check make target that lack check-arch and stays silent when both have it (harness-upgrade tests); the adoption matrix normalizes fixtures to the new chain; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        },
+        {
+          "label": "Layer 4: Architecture rules",
+          "cmd": "npm run check-arch",
+          "repair": "Fix Layer 4: Architecture rules failures and rerun the layer command."
+        }
+      ]
+    },
+    {
+      "id": "feat-041",
+      "name": "Banned-pattern architecture rules",
+      "behavior": "A rule in .harness/arch-rules.json may declare kind \"forbid\" with a regex pattern, path globs to search and optional allow globs instead of a check command. check-arch searches the tracked files the globs match, built into the runner with no dependency and the same on Windows, Linux and macOS, and fails the rule listing every hit as file:line with the matched text, followed by the rule's what/why/fix. Allowed paths are never reported. A forbid rule with an invalid pattern or no paths fails with a message naming the rule. Command rules keep working unchanged. This repository dogfoods the rule type with at least two bans taken from past review findings in progress/. docs/ARCHITECTURE.md, docs/USAGE.md and its template document the rule type with an example.",
+      "verification": "Runner tests: a forbid rule passes on a clean tree, fails with file:line for each hit, skips allowed and untracked paths, and rejects an invalid pattern or missing paths; npm run check and check-arch pass with the dogfooded rules; verify-feature runs on a committed tree.",
+      "dependencies": [
+        "feat-040"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-042",
+      "name": "Every caught mistake becomes a check",
+      "behavior": "Session notes created by progress-new carry a 'Mistakes caught' section. Each entry names the agent or human mistake caught during the session and what it became: an architecture rule id, a test name, a lint check, or 'no check possible: <reason>'. lint:progress-log fails a session note from this feature onward whose section has an entry without one of those, and accepts 'none' for a session with no mistakes. Notes written before the feature are not checked. The session-handoff and review skills and AGENTS.md's End of Session steps say to fill it in.",
+      "verification": "Runner tests: progress-new writes the section; lint:progress-log fails an entry without a rule, test, lint check or reason, accepts each of those and 'none', and ignores older notes; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-043",
+      "name": "Opt-in pre-commit hook",
+      "behavior": "npm run hooks-install and make hooks-install point git's core.hooksPath at .harness/hooks/, which holds a pre-commit hook that runs the fast static checks (lint and check-arch) and blocks the commit when either fails, printing which one and how to rerun it. It never runs the full check, so a commit stays fast. hooks-install refuses to replace an existing core.hooksPath that points elsewhere and says how to chain the hook instead; npm run hooks-uninstall restores the default. The hook works for any agent or human because it is a git hook, not a tool-specific one. Nothing installs it automatically. AGENTS.md's rule to run the check before every commit names the hook, and docs/USAGE.md and its template explain installing it.",
+      "verification": "Runner tests in a temporary git repository: hooks-install sets core.hooksPath, a commit with a failing lint or architecture rule is blocked and a clean one goes through, an existing foreign hooksPath is not replaced, and hooks-uninstall restores the default; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [
+        "feat-040"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

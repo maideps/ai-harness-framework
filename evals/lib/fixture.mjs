@@ -91,6 +91,20 @@ export function buildFixture(task, { parent } = {}) {
   const list = JSON.parse(readFileSync(listPath, "utf8"));
   list.features = list.features.filter((feature) => feature.name !== "Example Feature");
   writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`, "utf8");
+  // A real adopter declares its product directories in productRoots (create-harness's next
+  // steps), or arch-005 fails on the product files, and since feat-040 every check runs it.
+  const productDirs = new Set(
+    ["files", "afterFiles", "uncommitted"]
+      .flatMap((key) => Object.keys(task.setup?.[key] ?? {}))
+      .filter((file) => file.includes("/"))
+      .map((file) => `${file.split("/")[0]}/`),
+  );
+  if (productDirs.size > 0) {
+    const manifestPath = path.join(root, ".harness", "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.productRoots = [...new Set([...(manifest.productRoots ?? []), ...productDirs])];
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  }
   // Product tests chained into the harness's own layer scripts, as docs/USAGE.md describes.
   if (task.setup?.packageScripts) {
     const pkgPath = path.join(root, "package.json");
