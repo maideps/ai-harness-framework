@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -774,6 +774,109 @@ test("check-arch forbid: an invalid pattern or missing paths fail naming the rul
     } finally {
       cleanup(broken);
     }
+  } finally {
+    cleanup(outside);
+  }
+});
+
+// ---- Opt-in pre-commit hook (feat-043) -------------------------------------
+
+// A git repository holding a copy of the runner (with scripts/hooks/), a lint script that fails
+// while LINT_FAIL exists, and one forbid rule. Git's global and system config are replaced by a
+// throwaway file, so the developer's own hooksPath or signing settings cannot leak in.
+function hookFixture() {
+  const root = forbidFixture([forbidRule()], { "src/app.mjs": "modernCall();\n" });
+  cpSync(path.dirname(RUNNER), path.join(root, "scripts"), { recursive: true });
+  write(root, "lint.mjs", "import { existsSync } from 'node:fs';\nif (existsSync('LINT_FAIL')) { console.log('lint found a problem'); process.exit(1); }\n");
+  write(root, "package.json", `${JSON.stringify({
+    name: "hooked",
+    private: true,
+    scripts: { lint: "node lint.mjs", "check-arch": "node scripts/framework-check.mjs check-arch" },
+  }, null, 2)}\n`);
+  const globalConfig = path.join(root, "..", `${path.basename(root)}.gitconfig`);
+  writeFileSync(globalConfig, "[user]\n\tname = Test\n\temail = test@example.com\n[commit]\n\tgpgsign = false\n", "utf8");
+  const env = { GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: "1" };
+  const git = (...args) => {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env: { ...process.env, ...env } });
+    return { exit: result.status ?? 1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  };
+  const commit = (message) => {
+    git("add", "-A");
+    return git("commit", "-q", "-m", message);
+  };
+  return { root, env, git, commit, done: () => { cleanup(root); rmSync(globalConfig, { force: true }); } };
+}
+
+test("hooks-install: commits run lint and the architecture rules, and a failing one is blocked (feat-043)", () => {
+  const repo = hookFixture();
+  try {
+    const install = run(repo.root, "hooks-install", [], repo.env);
+    assert.equal(install.exit, 0, install.output);
+    assert.equal(repo.git("config", "--get", "core.hooksPath").output.trim(), "scripts/hooks");
+    assert.equal(run(repo.root, "hooks-install", [], repo.env).exit, 0, "installing twice is a no-op");
+
+    const clean = repo.commit("clean");
+    assert.equal(clean.exit, 0, clean.output);
+    assert.match(clean.output, /lint and architecture rules pass/);
+
+    write(repo.root, "src/bad.js", "legacyCall();\n");
+    const banned = repo.commit("banned pattern");
+    assert.notEqual(banned.exit, 0, banned.output);
+    assert.match(banned.output, /src\/bad\.js:1: legacyCall\(\);/);
+    assert.match(banned.output, /Commit blocked: npm run check-arch failed/);
+
+    rmSync(path.join(repo.root, "src", "bad.js"));
+    write(repo.root, "LINT_FAIL", "x\n");
+    const linted = repo.commit("lint failure");
+    assert.notEqual(linted.exit, 0, linted.output);
+    assert.match(linted.output, /Commit blocked: npm run lint failed/);
+    assert.doesNotMatch(linted.output, /\[pre-commit\] npm run check-arch/, "a failing lint stops before the architecture rules");
+    assert.equal(repo.git("log", "--oneline").output.trim().split("\n").length, 1, "only the clean commit landed");
+  } finally {
+    repo.done();
+  }
+});
+
+test("hooks-install: never replaces a foreign core.hooksPath or switches the user's own hooks off (feat-043)", () => {
+  const repo = hookFixture();
+  try {
+    repo.git("config", "core.hooksPath", ".githooks");
+    const foreign = run(repo.root, "hooks-install", [], repo.env);
+    assert.equal(foreign.exit, 1, foreign.output);
+    assert.match(foreign.stderr, /core\.hooksPath already points at \.githooks, and it will not be replaced/);
+    assert.match(foreign.stderr, /"scripts\/hooks\/pre-commit" \|\| exit 1/);
+    assert.equal(repo.git("config", "--get", "core.hooksPath").output.trim(), ".githooks");
+    assert.match(run(repo.root, "hooks-uninstall", [], repo.env).stdout, /points at \.githooks, not the harness hooks — left unchanged/);
+    assert.equal(repo.git("config", "--get", "core.hooksPath").output.trim(), ".githooks");
+
+    repo.git("config", "--unset", "core.hooksPath");
+    write(repo.root, ".git/hooks/pre-commit", "#!/bin/sh\nexit 0\n");
+    const own = run(repo.root, "hooks-install", [], repo.env);
+    assert.equal(own.exit, 1, own.output);
+    assert.match(own.stderr, /has hooks of your own \(pre-commit\) that core\.hooksPath would switch off/);
+    assert.equal(repo.git("config", "--get", "core.hooksPath").exit, 1, "nothing was set");
+  } finally {
+    repo.done();
+  }
+});
+
+test("hooks-uninstall: restores git's default hooks folder; outside git both commands fail clearly (feat-043)", () => {
+  const repo = hookFixture();
+  try {
+    assert.equal(run(repo.root, "hooks-install", [], repo.env).exit, 0);
+    const uninstall = run(repo.root, "hooks-uninstall", [], repo.env);
+    assert.equal(uninstall.exit, 0, uninstall.output);
+    assert.match(uninstall.stdout, /Removed the harness pre-commit hook/);
+    assert.equal(repo.git("config", "--get", "core.hooksPath").exit, 1);
+    assert.match(run(repo.root, "hooks-uninstall", [], repo.env).stdout, /not installed — nothing to do/);
+  } finally {
+    repo.done();
+  }
+  const outside = fixture();
+  try {
+    const result = run(outside, "hooks-install", [], { GIT_CEILING_DIRECTORIES: path.dirname(outside) });
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /not a git repository — run git init first/);
   } finally {
     cleanup(outside);
   }

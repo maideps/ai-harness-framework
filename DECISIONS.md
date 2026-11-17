@@ -828,3 +828,22 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: skipping the step now fails the end-of-session gate, and the `none` / `no check possible` answers are explicit and reviewable instead of silent.
 - Negative: an agent can still write `none` when it did make mistakes, or a vague reason; the gate checks the form, not the honesty. Session 078's note was rewritten into the new form so this repository passes its own lint.
+
+### D-054: An opt-in git pre-commit hook runs the fast static checks
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** AGENTS.md says "MUST run `make check` before every commit", but that is prose; nothing stops a commit. Since D-051 and D-052 the cheapest layer of the pyramid (lint and the architecture rules, banned patterns included) runs in seconds, which is fast enough to gate every commit mechanically. The harness supports several agents (Claude Code, Codex, Gemini), so a tool-specific hook would cover only one of them.
+**Decision:**
+- `npm run hooks-install` / `make hooks-install` sets `core.hooksPath` in the clone's local git config to `scripts/hooks`, whose `pre-commit` runs the runner's `pre-commit` mode: `npm run lint`, then `npm run check-arch`, stopping at the first failure with the failed step and how to rerun it. `hooks-uninstall` unsets it.
+- The hook lives under `scripts/`, a CORE surface, so `create-harness` copies it and `harness-upgrade` refreshes it with no manifest change (refined from the declared `.harness/hooks/` before implementation).
+- It never runs the full check: tests, build and e2e can take minutes, and a slow hook gets skipped. The full check stays the workflow step.
+- `hooks-install` never replaces a `core.hooksPath` that points elsewhere and never switches off hooks of the user's own in the default folder (setting `core.hooksPath` would); it stops and prints the line to chain the harness hook from theirs. `hooks-uninstall` leaves a foreign `core.hooksPath` alone.
+- Nothing installs it automatically: git config is per clone and per person, so each opts in.
+**Alternatives considered:**
+- A Claude Code `PreToolUse` hook on `git commit` — rejected as the default: Claude only, while a git hook covers every agent and human.
+- Run the full `npm run check` in the hook — rejected: minutes per commit; the hook would be bypassed.
+- Install it from `./init.sh` — rejected: changing a person's git config without asking.
+**Consequences:**
+- Positive: a commit that breaks lint or an architecture rule is blocked for everyone who opted in, with the file:line and fix from the rule.
+- Negative: opt-in means clones without it get no protection; CI remains the backstop. It checks the working tree, not only the staged changes, so an unstaged violation also blocks a commit. `git commit --no-verify` skips any git hook.

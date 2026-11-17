@@ -111,6 +111,16 @@ Projects that span multiple repositories can activate the multi-repo component:
 
 Single-repo projects never need the component: `check` passes without it, and `verify-all` reports `[SKIP] Multi-repo component not activated` when its files are absent. Once activated but still only holding the untouched `example` scaffold (no real repositories added yet), `verify-all` honestly reports `[SKIP] verify-all ran but nothing was verified yet` rather than a silent pass — it only reports success once at least one real repository's verify script actually runs and passes. Repositories without any supported verify script are SKIPped, not passed.
 
+## Pre-commit Hook (opt-in)
+
+`npm run hooks-install` (or `make hooks-install`) makes git run the fast static checks, `npm run lint` and then `npm run check-arch`, before every commit, and block the commit when either fails, naming the failed step and how to rerun it. Because it is a git hook, it applies to every agent (Claude Code, Codex, Gemini) and every human committing in that clone.
+
+- **Fast on purpose.** It never runs the full `npm run check`; tests, build and e2e stay the step you run before committing.
+- **Local and opt-in.** It sets `core.hooksPath` to `scripts/hooks` in this clone's git config only. Nothing installs it automatically, and each clone opts in on its own. `npm run hooks-uninstall` restores git's default hooks folder.
+- **Never replaces your hooks.** If `core.hooksPath` already points elsewhere, or the default hooks folder holds hooks of your own, `hooks-install` stops and prints the line to add to your own pre-commit hook instead: `"scripts/hooks/pre-commit" || exit 1`.
+- **Upgrades include it.** The hook lives in `scripts/hooks/`, so `harness-upgrade` refreshes it with the other CORE scripts.
+- It checks the working tree, not only the staged changes, so an unstaged violation also blocks the commit.
+
 ## Quality Gates (opt-in)
 
 `make quality` / `npm run quality` runs the metric gates declared in `.harness/quality.json`, and `make check` runs it last. Every adopter gets that file with the gates **disabled**, so the layer reports `[SKIP] Quality gates are disabled` until the project has tests worth measuring. To turn them on:
