@@ -39,7 +39,7 @@ If baseline verification is failing, repair that first before adding new scope.
   <!-- enforced-by: pre-commit hook (opt-in; lint and check-arch only) and CI after push — nothing enforces the full check before each commit -->
   <!-- source: harness-engineering-template L03 — repo must have a verifiable consistent-state predicate -->
 - **MUST NOT** mark a feature as `passing` manually — use `make verify-feature F=<id>` or the documented verification path
-  <!-- enforced-by: none — a hand-edited .harness/state shard with state passing is valid to arch-006; nothing checks that its evidence came from a verify-feature run (only the evals' gate-only-passing grader does) -->
+  <!-- enforced-by: typecheck (a passing feature needs evidence from verify-feature, backed by its trail when bound) — stops shortcuts, not forgery: a copied old-format summary or a forged trail still passes -->
 - **MUST** commit the feature's code and docs before `verify-feature` — it refuses uncommitted changes outside harness bookkeeping, so its evidence names the commit that passed; the state shard it writes goes in the next commit
   <!-- enforced-by: verify-feature (refuses uncommitted changes outside harness bookkeeping, before and after the layers) -->
   <!-- source: feat-030, D-041 — evidence recorded on a dirty tree named a commit that did not hold the verified code -->

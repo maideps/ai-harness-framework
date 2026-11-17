@@ -1698,6 +1698,54 @@ function hasStaleEvidence(feature) {
   return typeof evidence?.checksHash === "string" && evidence.checksHash !== featureChecksHash(feature);
 }
 
+// A passing state must come from the gate (feat-049, D-056): "MUST NOT mark a feature as
+// passing manually" was prose only, and a hand-edited shard is valid to arch-006. Accepted:
+// gate evidence (commit, checksHash, layers) backed by its trail when bound, or the gate's
+// older formats. It stops shortcuts, not forgery: a copied old summary or a forged trail passes.
+const LEGACY_EVIDENCE_PREFIX = "All verification layers passed via";
+
+function verifyFeatureTrails() {
+  const dir = ".harness/trails";
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => /-verify-feature-.+\.json$/.test(name))
+    .map((name) => {
+      try {
+        return JSON.parse(readFileSync(path.join(dir, name), "utf8"));
+      } catch {
+        return null;
+      }
+    })
+    .filter((trail) => trail && typeof trail.feature === "string");
+}
+
+function gateEvidenceProblem(feature, trails, oldestTrail) {
+  const evidence = parseEvidence(feature);
+  if (evidence && Array.isArray(evidence.layers) && typeof evidence.checksHash === "string" && typeof evidence.commit === "string") {
+    if (evidence.bound !== true) return null; // --allow-dirty: recorded by the gate, no trail by design
+    if (oldestTrail && typeof evidence.timestamp === "string" && evidence.timestamp < oldestTrail) return null; // before trails existed
+    const backed = trails.some((trail) => trail.feature === feature.id && trail.commit === evidence.commit && trail.checksHash === evidence.checksHash);
+    return backed ? null : `its evidence names commit ${evidence.commit}, but no verify-feature trail in .harness/trails/ records that pass`;
+  }
+  const legacy = typeof evidence?.summary === "string" ? evidence.summary : feature.evidence;
+  if (typeof legacy === "string" && legacy.startsWith(LEGACY_EVIDENCE_PREFIX)) return null; // the gate's older formats
+  return "its evidence was not written by verify-feature";
+}
+
+function ensureGateEvidence() {
+  const { features } = loadFeaturesWithState();
+  const trails = verifyFeatureTrails();
+  const oldestTrail = trails.map((trail) => trail.recorded_at).filter((stamp) => typeof stamp === "string").sort()[0];
+  const problems = features
+    .filter((feature) => getFeatureState(feature) === "passing")
+    .map((feature) => [feature.id, gateEvidenceProblem(feature, trails, oldestTrail)])
+    .filter(([, problem]) => problem)
+    .map(([id, problem]) => `${id} is passing, but ${problem}. Only the gate marks a feature passing: run node scripts/framework-check.mjs verify-feature ${id} (npm run verify-feature -- ${id})`);
+  if (problems.length > 0) fail(problems.join("\n       "));
+  const passing = features.filter((feature) => getFeatureState(feature) === "passing").length;
+  if (passing > 0) pass(`Every passing feature carries evidence from verify-feature (${passing})`);
+}
+
 function warnStaleEvidence() {
   const { features } = loadFeaturesWithState();
   for (const feature of features.filter(hasStaleEvidence)) {
@@ -2676,6 +2724,7 @@ switch (mode) {
   case "typecheck": {
     ensureFeatureShape();
     pass("Feature tracker schema is consistent");
+    ensureGateEvidence();
     // A warning, not a failure: re-verifying needs a clean tree, and the commit that changes
     // a feature's layers must itself pass check first (feat-030, D-041).
     warnStaleEvidence();

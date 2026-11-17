@@ -865,3 +865,21 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: the prose-only rules are listed where agents read them, and the next gates to build are named: a provenance check that a `passing` shard's evidence came from `verify-feature`, and a check that each session adds a note.
 - Negative: the counts treat a partial gate as a gate; the comment text, not the count, says how much is covered. Lint checks that a tag exists and is well formed, not that it is true.
+
+### D-056: A passing state needs evidence from the gate
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** D-055's tags showed "MUST NOT mark a feature as passing manually" was prose only: a hand-edited `.harness/state/<id>.json` with `"state": "passing"` was valid to every check, and only the evals' `gate-only-passing` grader noticed. Every gate in the pyramid ends in that state, so it is the rule the rest depends on.
+**Decision:**
+- `typecheck` fails a `passing` feature unless its evidence came from `verify-feature`: gate evidence (JSON with `commit`, `checksHash` and `layers`) that, when `bound`, is backed by a trail in `.harness/trails/` naming the same feature, commit and `checksHash`. Unbound evidence (`--allow-dirty`) needs no trail, as the gate writes none for it. Bound evidence older than the repository's oldest `verify-feature` trail needs none either: it predates trails (D-045). The gate's older formats, a string or JSON summary beginning "All verification layers passed via", are accepted.
+- The failure names the feature and the `verify-feature` command to run.
+- It lives in `typecheck`, CORE runner code, so adopters get it on upgrade. A new arch rule would not reach them: `arch-rules.json` is preserved on upgrade.
+- AGENTS.md's tag for the rule names `typecheck` instead of `none`.
+**Alternatives considered:**
+- Require the evidence's commit to exist in git — rejected: CI checks out one commit (`fetch-depth: 1`), so older commits are missing and every feature would fail there.
+- A signed or hashed trail — rejected: anything the gate can write an agent can write; the check aims at shortcuts, and stronger provenance needs a key the agent does not hold.
+- A cutoff by feature id or date in configuration — rejected: the oldest trail is a cutoff every repository already has.
+**Consequences:**
+- Positive: the shortcut the evals measured, marking a feature passing by hand, now fails `npm run check` and every gate's Layer 3 with the command to run instead. In this repository all 44 passing features pass the check unchanged.
+- Negative: forgery still passes: copying an old-format summary, or writing evidence and a matching trail by hand. An adopter whose older passing features carry evidence not written by any harness gate fails `typecheck` after the upgrade until it re-verifies them. Three runner-test fixtures that marked features passing with made-up evidence ("e", "old evidence", "Verified by hand") were given the gate's wording; what they test is unchanged.

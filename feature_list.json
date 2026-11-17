@@ -1301,6 +1301,30 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-049",
+      "name": "Passing state needs gate evidence",
+      "behavior": "typecheck fails a feature whose state is passing unless its evidence came from verify-feature. Accepted: gate evidence (JSON with a commit, a checksHash string and a layers list) where, when bound is true, a trail in .harness/trails/ for that feature names the same commit and checksHash; bound gate evidence recorded before the repository's oldest verify-feature trail (from before trails existed) and unbound evidence (--allow-dirty) need no trail. Also accepted: the gate's older evidence formats, a string or a JSON summary beginning 'All verification layers passed via'. Anything else (empty, free text, a hand-built object, bound evidence with no matching trail) fails naming the feature and saying to run verify-feature for it. The check is CORE runner code in typecheck, so every adopter gets it on upgrade without editing arch-rules.json. AGENTS.md's 'MUST NOT mark a feature as passing manually' rule names typecheck in its enforced-by comment instead of none. docs/USAGE.md and its template and a decision record describe it, including that a deliberately copied old-format string or a forged trail still passes: the check stops shortcuts, not forgery.",
+      "verification": "Runner tests: typecheck passes gate evidence with a matching trail, unbound gate evidence, gate evidence older than the oldest trail, and both older formats; it fails empty and free-text evidence, a hand-built object without layers or checksHash, and bound evidence whose trail is missing or names another commit; this repository's 45 passing features pass; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

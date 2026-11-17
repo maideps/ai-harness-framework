@@ -1332,7 +1332,7 @@ test("typecheck: fails when feature_list.json still declares inline state", () =
 
 test("typecheck: passes a valid shard that matches a declared feature", () => {
   const root = splitFeatureFixture([
-    { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }], state: "passing", evidence: "e" },
+    { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L", cmd: "true", repair: "r" }], state: "passing", evidence: "All verification layers passed via scripts/verify-feature.sh" },
   ]);
   try {
     const result = run(root, "typecheck");
@@ -1644,13 +1644,66 @@ test("clean-state-check: nothing to rate when no feature has gate evidence (feat
 
 test("typecheck: evidence recorded before feat-030 (no checksHash) is never reported stale", () => {
   const root = featureListFixture([
-    evidenceFeature({ state: "passing", evidence: JSON.stringify({ summary: "old", commit: "abc1234", dirty: true, layers: [] }) }),
-    evidenceFeature({ id: "feat-002", state: "passing", evidence: "Verified by hand on 2026-01-01" }),
+    evidenceFeature({ state: "passing", evidence: JSON.stringify({ summary: "All verification layers passed via node scripts/framework-check.mjs verify-feature", commit: "abc1234", dirty: true, layers: [] }) }),
+    evidenceFeature({ id: "feat-002", state: "passing", evidence: "All verification layers passed via scripts/verify-feature.sh at 2026-01-01" }),
   ]);
   try {
     const result = run(root, "typecheck");
     assert.equal(result.exit, 0, result.output);
     assert.doesNotMatch(result.output, /\[WARN\]/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-049 (D-056): a passing state needs gate evidence -----------------
+
+// Default timestamp: after the fixtures' trail (2026-11-10), as for any pass since trails existed.
+function gateEvidence({ commit = "abc1234", bound = true, timestamp = "2026-11-12T00:00:00.000Z", checksHash = "1111222233334444" } = {}) {
+  return JSON.stringify({ summary: "All verification layers passed via node scripts/framework-check.mjs verify-feature", timestamp, commit, dirty: !bound, bound, checksHash, layers: [{ label: "L", result: "PASS" }] });
+}
+
+function writeTrail(root, { feature, commit = "abc1234", checksHash = "1111222233334444", at = "2026-11-10T00:00:01.000Z" }) {
+  write(root, `.harness/trails/${at.replace(/[:.]/g, "-")}-verify-feature-${feature}.json`, `${JSON.stringify({ kind: "verify-feature", recorded_at: at, feature, commit, checksHash }, null, 2)}\n`);
+}
+
+test("typecheck: accepts passing features whose evidence came from the gate, in every format it has written (feat-049)", () => {
+  const root = featureListFixture([
+    evidenceFeature({ id: "feat-001", state: "passing", evidence: gateEvidence() }),
+    evidenceFeature({ id: "feat-002", state: "passing", evidence: gateEvidence({ bound: false }) }),
+    evidenceFeature({ id: "feat-003", state: "passing", evidence: gateEvidence({ commit: "0ld0000", timestamp: "2026-11-01T00:00:00.000Z" }) }),
+    evidenceFeature({ id: "feat-004", state: "passing", evidence: "All verification layers passed via scripts/verify-feature.sh at 2026-08-17" }),
+    evidenceFeature({ id: "feat-005", state: "passing", evidence: JSON.stringify({ summary: "All verification layers passed via node scripts/framework-check.mjs verify-feature", commit: "abc1234", layers: [] }) }),
+    evidenceFeature({ id: "feat-006", state: "planned" }),
+  ]);
+  writeTrail(root, { feature: "feat-001" });
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Every passing feature carries evidence from verify-feature \(5\)/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: fails a hand-marked passing feature and bound evidence without its trail (feat-049)", () => {
+  const root = featureListFixture([
+    evidenceFeature({ id: "feat-001", state: "passing", evidence: "" }),
+    evidenceFeature({ id: "feat-002", state: "passing", evidence: "Implemented and tested; all checks green" }),
+    evidenceFeature({ id: "feat-003", state: "passing", evidence: JSON.stringify({ summary: "done", commit: "abc1234" }) }),
+    evidenceFeature({ id: "feat-004", state: "passing", evidence: gateEvidence() }),
+    evidenceFeature({ id: "feat-005", state: "passing", evidence: gateEvidence({ commit: "fffffff" }) }),
+  ]);
+  writeTrail(root, { feature: "feat-005", commit: "abc1234" });
+  try {
+    const result = run(root, "typecheck");
+    assert.equal(result.exit, 1, result.output);
+    for (const id of ["feat-001", "feat-002", "feat-003"]) {
+      assert.match(result.stderr, new RegExp(`${id} is passing, but its evidence was not written by verify-feature`));
+    }
+    assert.match(result.stderr, /feat-004 is passing, but its evidence names commit abc1234, but no verify-feature trail/);
+    assert.match(result.stderr, /feat-005 is passing, but its evidence names commit fffffff, but no verify-feature trail/);
+    assert.match(result.stderr, /run node scripts\/framework-check\.mjs verify-feature feat-001 \(npm run verify-feature -- feat-001\)/);
   } finally {
     cleanup(root);
   }
@@ -1869,7 +1922,7 @@ test("migrate-feature-state: moves inline state/evidence into shards and strips 
   write(root, "feature_list.json", `${JSON.stringify(
     {
       features: [
-        { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], state: "passing", evidence: "old evidence", layers: [{ label: "L", cmd: "true", repair: "r" }] },
+        { id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], state: "passing", evidence: "All verification layers passed via scripts/verify-feature.sh", layers: [{ label: "L", cmd: "true", repair: "r" }] },
         { id: "feat-002", name: "Two", behavior: "b", verification: "v", dependencies: [], status: "not_started", layers: [{ label: "L", cmd: "true", repair: "r" }] },
       ],
     },
@@ -1887,7 +1940,7 @@ test("migrate-feature-state: moves inline state/evidence into shards and strips 
 
     const shard1 = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
     assert.equal(shard1.state, "passing");
-    assert.equal(shard1.evidence, "old evidence");
+    assert.equal(shard1.evidence, "All verification layers passed via scripts/verify-feature.sh");
     const shard2 = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8"));
     assert.equal(shard2.state, "planned");
 
