@@ -128,6 +128,18 @@ Reach for them when the input space is large and the rule is easy to state: pars
 
 Weigh the cost first. TLA+ needs Java and a model written by hand; the model describes the design, not the code, so it can drift from the code unless someone owns keeping them in step. Lean proofs take expertise and time, and pay off for small, critical algorithms. Model checks can also be slow: keep the model the gate checks small enough that `verify-feature` stays quick, and run the full state space in a scheduled CI job.
 
+## The README Contract
+
+README.md describes the app being built, and says nothing more and nothing less than the repository does (feat-051, feat-052). Three things keep it that way:
+
+- **`npm run lint` checks it mechanically**, in every project that uses the harness:
+  - a conventional structure, based on the Standard Readme convention: one `#` title, a short description right after it, an install section (Install, Installation, Getting Started, Quick Start or Setup), a usage section (Usage, Examples, How to Use, How It Works or What It Does), a License section, and a Table of Contents section once the README passes 100 lines;
+  - nothing the repository doesn't have: every `npm run` / `pnpm run` / `yarn run` script and `make` target in its code, every relative link and every repository path in its inline code must exist. HTML comments, external links and placeholders (`<id>`, `*`, `{…}`, `NNN`, `YYYY`) are skipped.
+
+  Each problem is reported with its line, for example `README.md:42: "npm run deploy" names a script package.json does not define`.
+- **`npm run clean-check` requires an update after each feature passes the gate**, unless the feature declares `"readme": "<reason>"` because its users see no change.
+- **The `readme-review` skill covers what a check can't:** every claim needs evidence in the code, a test or a passing feature (no "works with" for a platform that is only partly supported, no "enforces" where the code only lets you); every capability users can see appears in the README or a document it links; it is written about the app, in the present tense.
+
 ## Session Lifecycle
 
 Every session starts with `./init.sh`, which ends with a short brief (`node scripts/framework-check.mjs brief` prints the same on demand): branch and uncommitted changes, feature counts, the active feature with its behavior and layer commands, the planned features that can start now and those waiting on dependencies, blocked features, stale evidence, the latest session note's known risk and next step, and how old `session-handoff.md` is. It is a few hundred bytes, so a session doesn't need to read all of `feature_list.json`; open it for the features the brief names (feat-037).
@@ -144,7 +156,7 @@ Traces are JSON files in `.harness/traces/`. They are runtime records, not evide
 
 Reusable capability packs live in `skills/` — one folder per skill with a `SKILL.md` (frontmatter `name`/`description`, `When to Use`, workflow, quick-reference checklist). The lint layer validates every skill's structure.
 
-Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest gate runs), `session-handoff` (durable session ends), `adopt` (bootstrapping the harness), `parallel-lanes` (agent-proposed, human-approved parallel lanes), `release` (final pre-release pass), `commit` (focused commits), `review` (pre-gate independent pass), `update-docs` (docs-drift cleanup), `write-skill` (the meta-skill for authoring new ones).
+Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest gate runs), `session-handoff` (durable session ends), `adopt` (bootstrapping the harness), `parallel-lanes` (agent-proposed, human-approved parallel lanes), `release` (final pre-release pass), `commit` (focused commits), `review` (pre-gate independent pass), `testing` (tests per layer, acceptance tests first, visual and property-based checks), `update-docs` (docs-drift cleanup), `readme-review` (README contrasted with the repository), `write-skill` (the meta-skill for authoring new ones).
 
 Project skills may be added under `skills/` — see the `write-skill` skill for the format.
 

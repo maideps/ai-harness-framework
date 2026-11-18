@@ -1607,6 +1607,119 @@ test("verify-feature: a bound pass records a verify-feature trail; an unbound pa
   }
 });
 
+// ---- feat-052 (D-061): README contrasted with the repository ----------------
+
+const GOOD_README = [
+  "# Greeter",
+  "",
+  "[![CI](https://example.com/badge.svg)](https://example.com/ci)",
+  "",
+  "Greets people by name from the command line.",
+  "",
+  "<!-- a draft link that is not published yet: [demo](docs/demo.gif) -->",
+  "",
+  "## Install",
+  "",
+  "```bash",
+  "npm install",
+  "npm run check   # verify (make check works too; make and npm forms mirror each other)",
+  "```",
+  "",
+  "## Usage",
+  "",
+  "Run `npm start` or `node app/greet.mjs`. Per-feature state lives in `.harness/state/<id>.json`; notes in `progress/NNN-YYYY-MM-DD.md`.",
+  "See the [guide](docs/GUIDE.md#setup) and [the spec](https://example.com/spec).",
+  "",
+  "## License",
+  "",
+  "MIT",
+  "",
+].join("\n");
+
+function readmeRepo(readme, { scripts = { check: "x", start: "x" }, makefile = "check:\n\t@echo ok\n", files = { "app/greet.mjs": "", "docs/GUIDE.md": "# Guide\n" } } = {}) {
+  const root = fixture();
+  write(root, "README.md", readme);
+  write(root, "package.json", `${JSON.stringify({ name: "greeter", scripts }, null, 2)}\n`);
+  if (makefile !== null) write(root, "Makefile", makefile);
+  for (const [rel, content] of Object.entries(files)) write(root, rel, content);
+  return root;
+}
+
+test("lint:readme: passes a conventional README whose commands, links and paths exist (feat-052)", () => {
+  const root = readmeRepo(GOOD_README);
+  try {
+    const result = run(root, "lint:readme");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /README\.md follows the conventional structure and names only what exists/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:readme: reports missing sections and claims the repository does not back, by line (feat-052)", () => {
+  const readme = [
+    "Greets people.",
+    "",
+    "## Usage",
+    "",
+    "```bash",
+    "npm run deploy",
+    "make release",
+    "```",
+    "",
+    "Edit `app/missing.mjs`; read [the guide](docs/NOPE.md).",
+    "",
+  ].join("\n");
+  const root = readmeRepo(readme);
+  try {
+    const result = run(root, "lint:readme");
+    assert.equal(result.exit, 1, result.output);
+    for (const expected of [
+      /README\.md:3: start with exactly one level-1 title \(found 0\)/,
+      /add an install section/,
+      /add a License section/,
+      /README\.md:6: "npm run deploy" names a script package\.json does not define/,
+      /README\.md:7: "make release" names a target the Makefile does not define/,
+      /README\.md:10: `app\/missing\.mjs` does not exist in the repository/,
+      /README\.md:10: the link to docs\/NOPE\.md points to a file that does not exist/,
+    ]) {
+      assert.match(result.stderr, expected);
+    }
+    assert.doesNotMatch(result.stderr, /add a usage section/);
+    // A title followed straight by a section (badges alone don't describe anything).
+    write(root, "README.md", GOOD_README.replace("Greets people by name from the command line.\n", ""));
+    assert.match(run(root, "lint:readme").stderr, /README\.md:1: add a short description of what the project does right after the title/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:readme: the README template create-harness places passes the contract in the adopter (feat-052)", () => {
+  const root = fixture();
+  try {
+    adopt(root);
+    if (!existsSync(path.join(root, "docs", "HARNESS.md"))) {
+      spawnSync(process.execPath, [path.join(root, "scripts", "harness-docs.mjs")], { cwd: root, encoding: "utf8" });
+    }
+    const result = run(root, "lint:readme");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:readme: a README over 100 lines needs a table of contents (feat-052)", () => {
+  const long = `${GOOD_README}${"\nMore detail.".repeat(90)}\n`;
+  const root = readmeRepo(long);
+  try {
+    assert.match(run(root, "lint:readme").stderr, /a README over 100 lines needs a "Table of Contents" section/);
+    write(root, "README.md", long.replace("## Install", "## Table of Contents\n\n- [Install](#install)\n\n## Install"));
+    assert.equal(run(root, "lint:readme").exit, 0);
+  } finally {
+    cleanup(root);
+  }
+});
+
 // ---- feat-051 (D-060): README stays current with the app --------------------
 
 // A git repository where README.md is committed first and feat-001's code later; feat-001 is
@@ -1636,7 +1749,7 @@ const readmeLine = (result) => result.output.split(/\r?\n/).find((line) => line.
 test("clean-state-check: fails while README.md predates the latest verified feature, passes once it changes (feat-051)", () => {
   const stale = readmeFixture();
   try {
-    assert.match(readmeLine(run(stale.root, "clean-state-check")), new RegExp(`\\[FAIL\\] README\\.md was last changed before feat-001 passed \\(${stale.codeCommit}\\)\\. Update it to describe what the app does now`));
+    assert.match(readmeLine(run(stale.root, "clean-state-check")), new RegExp(`\\[FAIL\\] README\\.md was last changed before feat-001 passed \\(${stale.codeCommit}\\)\\. Contrast it with the repository \\(the readme-review skill\\) and update it to describe what the app does now`));
     write(stale.root, "README.md", "# App\n\nGreets people with hi.\n");
     assert.match(readmeLine(run(stale.root, "clean-state-check")), /\[PASS\] README\.md has changes since feat-001 passed \(uncommitted\)/);
   } finally {

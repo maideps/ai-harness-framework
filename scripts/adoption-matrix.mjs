@@ -69,7 +69,7 @@ function fillDocs(root, stack) {
   };
   write(
     "README.md",
-    `# Adopted Project (${stack})\n\nThrowaway adoption-matrix fixture for the ${stack} cell.\n\nSee [Harness Command Reference](docs/HARNESS.md).\n\n## Quick Start\n\n\`\`\`bash\n./init.sh\nmake check\n\`\`\`\n`,
+    `# Adopted Project (${stack})\n\nThrowaway adoption-matrix fixture for the ${stack} cell.\n\nSee [Harness Command Reference](docs/HARNESS.md).\n\n## Quick Start\n\n\`\`\`bash\n./init.sh\nmake check\n\`\`\`\n\n## Usage\n\nIt has no product behavior yet; \`npm run check\` verifies the harness wiring.\n\n## License\n\nMIT\n`,
   );
   write(
     "docs/PRODUCT.md",

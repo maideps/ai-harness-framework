@@ -1050,6 +1050,101 @@ function ensureMustRulesEnforced() {
   if (enforced + none > 0) pass(`AGENTS.md MUST rules name what enforces them (${enforced} by a gate, ${none} prose only: enforced-by none)`);
 }
 
+// README contract (feat-052, D-061): README.md follows a conventional structure (based on the
+// Standard Readme convention) and names nothing the repository does not have. What a check
+// cannot judge (is each claim true, is each capability mentioned) is the readme-review skill's.
+const README_SECTIONS = [
+  ["an install section (Install, Installation, Getting Started, Quick Start or Setup)", /^(install|installation|getting started|quick ?start|setup)\b/i],
+  ["a usage section (Usage, Examples, How to Use, How It Works or What It Does)", /^(usage|examples?|how to use|how it works|what (it|the [\w -]+) does)\b/i],
+  ["a License section", /^licen[cs]e\b/i],
+];
+const README_PLACEHOLDER = /[<>*{}$]|\.\.\.|\bN{2,}\b|\bY{4}\b|\bX{2,}\b/;
+
+function readmeContractProblems(text, { scripts = null, targets = null, exists = existsSync } = {}) {
+  // Blank out HTML comments, keeping line numbers.
+  const lines = text.replace(/<!--[\s\S]*?-->/g, (comment) => comment.replace(/[^\n]/g, "")).split(/\r?\n/);
+  const problems = [];
+  const at = (index, message) => problems.push(`README.md:${index + 1}: ${message}`);
+  let fenced = false;
+  const headings = [];
+  const prose = [];
+  const code = [];
+  lines.forEach((line, index) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      return;
+    }
+    if (fenced) {
+      code.push([index, line.replace(/(^|\s)#.*$/, "")]); // a shell comment is not a command
+      return;
+    }
+    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading) headings.push({ index, level: heading[1].length, text: heading[2] });
+    else prose.push([index, line]);
+    for (const span of line.matchAll(/`([^`]+)`/g)) code.push([index, span[1]]);
+  });
+
+  // Structure.
+  const titles = headings.filter((heading) => heading.level === 1);
+  if (titles.length !== 1 || headings[0]?.level !== 1) {
+    at(headings[0]?.index ?? 0, `start with exactly one level-1 title (found ${titles.length})`);
+  }
+  const firstSection = headings.find((heading) => heading.level === 2)?.index ?? lines.length;
+  const described = prose.some(([index, line]) => index > (titles[0]?.index ?? -1) && index < firstSection && line.trim() && !/^\s*!?\[!\[|^\s*!\[/.test(line));
+  if (!described) at(titles[0]?.index ?? 0, "add a short description of what the project does right after the title");
+  const sections = headings.filter((heading) => heading.level === 2);
+  for (const [name, pattern] of README_SECTIONS) {
+    if (!sections.some((section) => pattern.test(section.text))) at(lines.length - 1, `add ${name}`);
+  }
+  if (lines.length > 100 && !sections.some((section) => /^(table of )?contents$/i.test(section.text))) {
+    at(firstSection < lines.length ? firstSection : 0, `a README over 100 lines needs a "Table of Contents" section (${lines.length} lines)`);
+  }
+
+  // Claims: commands, links and paths must exist in the repository.
+  for (const [index, snippet] of code) {
+    if (scripts) {
+      for (const match of snippet.matchAll(/\b(?:npm|pnpm|yarn) run(?: -s| --silent)? ([\w:.-]+)/g)) {
+        if (!scripts.has(match[1])) at(index, `"${match[0]}" names a script package.json does not define`);
+      }
+      for (const match of snippet.matchAll(/\bnpm (test|start)\b/g)) {
+        if (!scripts.has(match[1])) at(index, `"${match[0]}" needs a "${match[1]}" script in package.json`);
+      }
+    }
+    if (targets) {
+      for (const match of snippet.matchAll(/(?:^|[\s;&|(])make ([a-z][\w-]*)/g)) {
+        if (!targets.has(match[1])) at(index, `"make ${match[1]}" names a target the Makefile does not define`);
+      }
+    }
+  }
+  for (const [index, line] of prose) {
+    for (const span of line.matchAll(/`([^`]+)`/g)) {
+      for (const word of span[1].split(/\s+/)) {
+        const candidate = word.replace(/[,;:)]+$/, "");
+        if (!/^\.{0,2}\/?[\w.-]+(\/[\w.-]*)+$/.test(candidate) || README_PLACEHOLDER.test(candidate) || candidate.includes("://")) continue;
+        if (!exists(candidate.replace(/\/$/, ""))) at(index, `\`${candidate}\` does not exist in the repository`);
+      }
+    }
+    for (const link of line.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+      const target = link[1];
+      if (/^([a-z]+:|#)/i.test(target) || README_PLACEHOLDER.test(target)) continue;
+      const file = decodeURI(target.replace(/[#?].*$/, ""));
+      if (file && !exists(file)) at(index, `the link to ${file} points to a file that does not exist`);
+    }
+  }
+  return problems;
+}
+
+function ensureReadmeContract() {
+  if (!existsSync("README.md")) return;
+  const scripts = existsSync("package.json") ? new Set(Object.keys(readJson("package.json").scripts ?? {})) : null;
+  const targets = existsSync("Makefile") ? new Set([...readText("Makefile").matchAll(/^([A-Za-z][\w-]*):/gm)].map((match) => match[1])) : null;
+  const problems = readmeContractProblems(readText("README.md"), { scripts, targets });
+  if (problems.length > 0) {
+    fail(`README.md does not meet the README contract (see the readme-review skill):\n       ${problems.join("\n       ")}`);
+  }
+  pass("README.md follows the conventional structure and names only what exists");
+}
+
 // The quality config is optional, but a malformed one must fail lint, not surface only
 // when someone finally enables the gates (feat-023).
 function ensureQualityConfig() {
@@ -1580,7 +1675,7 @@ function readmeFreshness(verifiedIds) {
   if (ancestor.status === 1) {
     return {
       level: "fail",
-      message: `README.md was last changed before ${id} passed (${evidence.commit}). Update it to describe what the app does now (what ${id} changed for its users, how to run it), or, if users see no change, declare "readme": "<reason>" on ${id} in feature_list.json`,
+      message: `README.md was last changed before ${id} passed (${evidence.commit}). Contrast it with the repository (the readme-review skill) and update it to describe what the app does now, or, if users see no change, declare "readme": "<reason>" on ${id} in feature_list.json`,
     };
   }
   return { level: "warn", message: `cannot tell whether README.md changed after ${id} passed: commit ${evidence.commit} is not in this clone's history` };
@@ -2833,6 +2928,7 @@ switch (mode) {
     ensureNoPlaceholders({ warnOnly: process.env.CW_INIT_SH === "1" });
     ensureSkills();
     ensureCommandSurfaces();
+    ensureReadmeContract();
     ensureMustRulesEnforced();
     ensureProgressLog();
     pass("Harness files, JSON manifests, and framework docs are present");
@@ -2920,6 +3016,10 @@ switch (mode) {
   }
   case "lint:must-rules": {
     ensureMustRulesEnforced();
+    break;
+  }
+  case "lint:readme": {
+    ensureReadmeContract();
     break;
   }
   case "arch:sharded-state": {

@@ -15,7 +15,8 @@ const GIT_IDENTITY = ["-c", "user.name=eval", "-c", "user.email=eval@example.com
 // The three docs create-harness asks an adopter to fill in (lint fails while they match the
 // templates). README must link the generated command reference.
 const FILLED_DOCS = {
-  "README.md": "# Eval App\n\nA small project used to evaluate an agent working under the harness.\n\nCommands: [Harness Command Reference](docs/HARNESS.md)\n",
+  // A conventional README (feat-052): lint checks its structure and the paths it names.
+  "README.md": "# Eval App\n\nA small project used to evaluate an agent working under the harness.\n\n## Install\n\nRun `./init.sh`.\n\n## Usage\n\nCommands: [Harness Command Reference](docs/HARNESS.md)\n\n## License\n\nMIT\n",
   "docs/PRODUCT.md": "# Product\n\nA small project used to evaluate an agent working under the harness.\n",
   "docs/quality-document.md": "# Quality\n\nNothing rated yet.\n",
 };
