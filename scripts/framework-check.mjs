@@ -1059,6 +1059,9 @@ const README_SECTIONS = [
   ["a License section", /^licen[cs]e\b/i],
 ];
 const README_PLACEHOLDER = /[<>*{}$]|\.\.\.|\bN{2,}\b|\bY{4}\b|\bX{2,}\b/;
+// Fenced code is read as commands only under a shell info string or none (feat-053, D-062);
+// ```text, ```json and the like hold sample output or source, not commands.
+const README_SHELL_FENCE = /^(|bash|sh|shell|zsh|console|shell-session|powershell|ps1|pwsh|cmd|bat)$/i;
 
 function readmeContractProblems(text, { scripts = null, targets = null, exists = existsSync } = {}) {
   // Blank out HTML comments, keeping line numbers.
@@ -1066,16 +1069,19 @@ function readmeContractProblems(text, { scripts = null, targets = null, exists =
   const problems = [];
   const at = (index, message) => problems.push(`README.md:${index + 1}: ${message}`);
   let fenced = false;
+  let shellFence = false;
   const headings = [];
   const prose = [];
   const code = [];
   lines.forEach((line, index) => {
-    if (/^\s*(```|~~~)/.test(line)) {
+    const fence = /^\s*(?:```|~~~)\s*(\S*)/.exec(line);
+    if (fence) {
       fenced = !fenced;
+      shellFence = fenced && README_SHELL_FENCE.test(fence[1]);
       return;
     }
     if (fenced) {
-      code.push([index, line.replace(/(^|\s)#.*$/, "")]); // a shell comment is not a command
+      if (shellFence) code.push([index, line.replace(/(^|\s)#.*$/, "")]); // a shell comment is not a command
       return;
     }
     const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);

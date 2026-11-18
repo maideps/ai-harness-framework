@@ -968,3 +968,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a README that names a missing command, file or link, or lacks a conventional section, fails `npm run check` everywhere, with the line to fix.
 - Negative: existing adopters whose README lacks install, usage or license sections fail lint after upgrading until they add them. Claims written in prose, not code ("supports X"), are only checked by the skill's review, not mechanically.
+
+### D-062: README command claims come only from shell code blocks
+
+**Date:** 2026-11-18
+**Status:** accepted
+**Context:** D-061's README check read every line of every fenced code block as a possible command, whatever the fence's language. An adopter's README quoted sample program output in a ```` ```text ```` block; one line of it said "make the computed-target calls explicit…", and lint failed with `"make the" names a target the Makefile does not define`. The adopter could only work around it by cutting the line from the excerpt.
+**Decision:**
+- `npm`, `pnpm` and `yarn` script claims and `make` target claims are taken from inline code spans (as before) and from fenced blocks whose info string, by its first word and in any case, is a shell language: `bash`, `sh`, `shell`, `zsh`, `console`, `shell-session`, `powershell`, `ps1`, `pwsh`, `cmd` or `bat`. A fence with no info string still counts, because most READMEs leave their command blocks untagged.
+- Any other info string (`text`, `json`, `yaml`, `ts`, …) marks sample output or source code, which is not a command the reader runs.
+- Shell comments in a shell block stay ignored. Repository path claims are unchanged: they were and stay checked only in inline code in prose, never in fenced blocks of any language, since a path in sample output or source describes another machine's files as often as this repository's.
+- The fix is a new feature (feat-053) rather than reopening feat-052, so feat-052's verified record stands and the report's rework metric (D-059) is not muddied by an extension.
+**Alternatives considered:**
+- Only read fences explicitly tagged as shell — rejected: untagged command blocks are common, and they would stop being checked silently.
+- Skip prose-looking matches such as `make the` — rejected: guesses at English, and still wrong inside `json` or source code.
+**Consequences:**
+- Positive: sample output and source in a README no longer fail lint; a missing script or target in a shell or untagged block still does.
+- Negative: a command written in a block mislabelled with another language (say `text`) is no longer checked.
