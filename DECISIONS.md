@@ -952,3 +952,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: every feature that changes the app forces a README pass in the same session, in every adopter, with the opt-out stated and reviewable.
 - Negative: the check proves README.md changed, not that the change describes the feature; review judges the content. It runs at session end (`clean-check`), not in `npm run check` or CI.
+
+### D-061: README.md is contrasted with the repository: a conventional structure, nothing more or less than it does
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** D-060 made the README change after each feature, but the user's intent was stronger: contrast the README with the repository, follow a conventional standard, and never let it say more or less than the repository does. Contrasting this repository's own README found both: it claimed the harness "works with" jvm and dotnet projects (only their tests are detected) and that it "enforces" a product layer architecture (no rule for it ships), and it left out the session brief, caught-mistakes-become-checks and upgrade backups.
+**Decision:**
+- `lint` (mode `lint:readme`) checks README.md in every project: a structure based on Standard Readme (one title, a short description, install, usage and License sections, a Table of Contents past 100 lines, with common heading synonyms accepted), and that every script, `make` target, relative link and inline repository path it names exists. HTML comments, external links and placeholders are skipped; problems are reported by line. It runs in `npm run check`, every gate's Layer 1 and the pre-commit hook, because it is fast and deterministic.
+- What a check cannot judge — is each claim true, is each user-visible capability mentioned — is the shipped `readme-review` skill, which the feat-051 failure, AGENTS.md's End of Session step and the `update-docs` skill point to.
+- This repository's README was brought in line by that review, and gained a Table of Contents; the adopter README template, the adoption-matrix and eval fixture READMEs pass the contract.
+**Alternatives considered:**
+- An LLM judging the README inside the gate — rejected: non-deterministic, costs money on every check, and needs a model in CI; the agent working the session is the reader the skill is for.
+- Require every npm script to appear in the README — rejected: the README links the generated command reference (`docs/HARNESS.md`, already required by lint), which lists them all.
+**Consequences:**
+- Positive: a README that names a missing command, file or link, or lacks a conventional section, fails `npm run check` everywhere, with the line to fix.
+- Negative: existing adopters whose README lacks install, usage or license sections fail lint after upgrading until they add them. Claims written in prose, not code ("supports X"), are only checked by the skill's review, not mechanically.

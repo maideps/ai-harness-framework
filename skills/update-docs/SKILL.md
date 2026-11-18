@@ -18,7 +18,7 @@ The same-commit rule, operationalized: no stale documentation.
 2. Update each affected surface:
    - `docs/ARCHITECTURE.md` — layer model, harness boundaries, seam contract changes
    - `.harness/manifest.json` — any layout change (arch-005 fails on unclassified files)
-   - `README.md` — after every feature that passes the gate: what the app being built does, how to run it, what a user can do now (in an adopter, the product; in the framework repository, the harness). `clean-check` fails until it changes after the latest verified feature; a feature with no user-visible change declares `"readme": "<reason>"` instead
+   - `README.md` — follow the `readme-review` skill after every feature that passes the gate: what the app being built does, how to run it, what a user can do now (in an adopter, the product; in the framework repository, the harness). `clean-check` fails until it changes after the latest verified feature; a feature with no user-visible change declares `"readme": "<reason>"` instead
    - `docs/USAGE.md` — command surface or workflow changes
    - `docs/STANDARDS.md` — standards changes
    - `docs/quality-document.md` — ratings for modules touched this session

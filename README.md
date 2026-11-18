@@ -5,13 +5,27 @@
 
 **Make your AI coding agent finish features properly: one at a time, verified before it says "done", and able to pick up where the last session stopped.**
 
-Works with Claude Code, Codex and Gemini CLI, on node, python, go, rust, jvm and dotnet projects.
+Works with Claude Code, Codex and Gemini CLI. It detects node, python, go and rust projects and runs their own checks; for jvm and dotnet projects it runs the tests. Any other tool can be chained into a layer.
 
 <!--
   Demo GIF goes here. Record it with `vhs docs/demo/demo.tape` (see the comments in that file),
   then replace this comment with:
   ![An agent's feature is refused by the verification gate, fixed, then recorded as passing](docs/demo/demo.gif)
 -->
+
+## Table of Contents
+
+- [Why](#why)
+- [What the harness does](#what-the-harness-does)
+- [What it looks like](#what-it-looks-like)
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [How It Works](#how-it-works)
+- [Definition of Done](#definition-of-done)
+- [Feature Roadmap](#feature-roadmap)
+- [Working on the Framework Itself](#working-on-the-framework-itself)
+- [Documentation](#documentation)
+- [License](#license)
 
 ## Why
 
@@ -102,18 +116,19 @@ Then open the project in your agent and ask it to work on the next feature. It r
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
 - **Concurrent multi-agent lanes**: Multiple agents can work independent features at once, each in its own sibling git worktree on branch `lane/<feature-id>` (`lane-new`/`lane-list`/`lane-land`/`lane-drop`) — git's own branch-checkout exclusivity is the coordination primitive, no lock file needed, and WIP=1 is enforced per lane. `lane-suggest` lets an agent detect which planned features are startable in parallel right now and propose the plan — advisory only, every state-changing step still needs a human's yes (see the `parallel-lanes` skill)
 - **Sharded feature state**: `feature_list.json` declares what a feature is and rarely changes; each feature's mutable state (`state`, `evidence`) lives in its own `.harness/state/<id>.json` — two lanes finishing two different features merge without conflict by construction
-- **Durable cross-session continuity**: Per-session notes in `progress/` and a generated `PROGRESS.md` dashboard keep context concise and in sync with feature state
+- **Durable cross-session continuity**: Per-session notes in `progress/` and a generated `PROGRESS.md` dashboard keep context concise and in sync with feature state; `./init.sh` ends with a short session brief (active feature, what can start next, stale evidence, the last session's risks and next step) so a new session doesn't read every file
+- **Caught mistakes become checks**: each session note lists the mistakes caught and what each became (an architecture rule, a test, a lint check, or why none is possible); lint rejects an entry without one and `clean-check` fails while the section is blank
 - **Architecture enforcement**: Codified layer dependency rules and banned patterns (`forbid` rules, reported as file:line) in `.harness/arch-rules.json`, enforced via `make check-arch` / `npm run check-arch` and on every `npm run check`
-- **Skills packs**: Eleven reusable capability packs in `skills/` (feature-cycle, verification, review, testing, commit, release, adopt, parallel-lanes, update-docs, session-handoff, write-skill), validated on every lint run
+- **Skills packs**: Twelve reusable capability packs in `skills/` (feature-cycle, verification, review, testing, commit, release, adopt, parallel-lanes, update-docs, readme-review, session-handoff, write-skill), validated on every lint run
 - **Proven adoption**: An e2e matrix generates throwaway repos for node/python/go/rust from the seam manifest and runs real feature cycles in each; a customization-survival upgrade test guards the seam contract; CI proves both on Linux with real toolchains
 - **Agent compliance evals** (framework repository only): `node evals/run.mjs` runs Claude Code on tasks in throwaway adopter repos (implement a feature, or refuse a shortcut such as marking a failing feature passing by hand) and grades what it did: state changed only through the gate, WIP=1, a green check, a hidden test. Reports pass^k across trials and cost. See [evals/README.md](evals/README.md)
-- **Distribution**: `create-harness`, `harness-upgrade`, and `harness-audit` tools read the manifest as the single source of truth — adopt with one command, upgrade without losing customizations
+- **Distribution**: `create-harness`, `harness-upgrade`, and `harness-audit` tools read the manifest as the single source of truth — adopt with one command, upgrade without losing customizations; every upgrade first snapshots the files it will overwrite (`backup-list`, `backup-restore`), and `--dry-run` shows the plan without writing
 - **Opt-in quality gates**: `make quality` / `npm run quality` enforces metric floors declared in `.harness/quality.json` — coverage presets per stack, and any command that prints a number (mutation score, eval accuracy); disabled by default, SKIP while off
 - **Opt-in pre-commit hook**: `npm run hooks-install` makes git run lint and the architecture rules before every commit and block it on failure, for every agent and human in that clone; it never replaces existing hooks
 - **Visual evidence**: a layer can declare `captures` (e.g. e2e screenshots); `verify-feature` keeps the ones written during the run as hashed evidence, and the skills tell agents to look at them before committing and at the gate
 - **Evidence you can trust**: a feature is `passing` only with evidence written by `verify-feature` (`typecheck` rejects a hand-marked state), and every MUST rule in AGENTS.md names the gate that enforces it
 - **Outcome metric**: `npm run report` ends with the merged PRs, the ones reverted and the revert rate, plus features reopened after passing — read from git history, the measure of whether the gates keep bad changes out
-- **README that tracks the app**: `clean-check` fails until README.md changes after each feature passes the gate, so it always describes what the app does now (a feature with no user-visible change declares `"readme": "<reason>"`)
+- **README that matches the repository**: `npm run lint` checks README.md against a conventional structure (title, description, install, usage, license, contents when long) and fails on any command, link or path it names that doesn't exist; `clean-check` fails until README.md changes after each feature passes the gate (unless the feature declares `"readme": "<reason>"`); the `readme-review` skill covers what a check can't: no claim without evidence, no user-visible capability left out
 - **Optional dev container**: `create-harness --with devcontainer` adds an Ubuntu dev container with Node pinned to `.nvmrc`, the product stack's toolchain, and Claude Code, Codex and Gemini CLI preinstalled — the same environment for every agent session
 - **Optional MCP servers**: `create-harness --with mcp` configures the context7 documentation server for Claude Code and Gemini CLI, and the dev container registers it with Codex
 - **Optional multi-repo extension**: `verify-all` aggregates per-repository verification for projects that span repositories; single-repo projects are unaffected
@@ -127,7 +142,7 @@ The framework is intentionally generic: it provides a reusable harness contract 
 This repository has two distinct architecture concerns — don't confuse them:
 
 1. **This repo's own architecture**: one canonical Node runner, `scripts/framework-check.mjs`, implements every harness operation (verification layers, `verify-feature`, worktree lanes, sharded feature state, quality gates, …). The Makefile and `package.json` scripts are thin 1:1 delegations to it, so the make and npm surfaces can't drift apart. `scripts/stack-detect.mjs` is the single source of truth for what kind of project is being verified (node, python, go, rust, jvm, dotnet) and resolves per-layer commands accordingly. Reusable vs. project-owned surfaces are classified in `.harness/manifest.json` (CORE / TEMPLATE / INSTANCE / product-owned), enforced by `make check-arch`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full model.
-2. **The layered product architecture the harness enforces in adopting projects**, once they add source code:
+2. **A layered product architecture the harness suggests for adopting projects**, once they add source code. The harness does not enforce it by itself: a project encodes the rules it wants as `forbid` or command rules in `.harness/arch-rules.json`, and `check-arch` enforces those.
 
    ```
    ┌─────────────────────────────────────────────┐
@@ -145,7 +160,7 @@ This repository has two distinct architecture concerns — don't confuse them:
    └─────────────────────────────────────────────┘
    ```
 
-   Layers may only depend on layers below them. The domain layer has zero external dependencies. Infrastructure implements interfaces defined by domain. Presentation never directly accesses infrastructure. Adopters extend `.harness/arch-rules.json` with checks for their own product layers as their codebase grows; this repository itself has no product code, so only harness-architecture rules apply here today.
+   The convention: layers depend only on layers below them, the domain layer has no external dependencies, infrastructure implements interfaces the domain defines, and presentation never reaches infrastructure directly. No rule for it ships with the harness; this repository has no product code, so only its harness-architecture rules (arch-001 to arch-008) apply here.
 
 ### Verification Layers
 
@@ -221,7 +236,7 @@ Prerequisites: Node.js ≥ 18 (the harness runtime: stack detection, verificatio
 
 - [Product Overview](docs/PRODUCT.md) — Purpose, user flows, and non-goals
 - [Architecture](docs/ARCHITECTURE.md) — Layer model, dependency rules, and enforcement
-- [Observability](docs/OBSERVABILITY.md) — Session traces, sprint contracts, and evaluation rubrics
+- [Observability](docs/OBSERVABILITY.md) — Session traces, sprint contracts, evaluation rubrics, and the outcome report
 - [Tools & MCP](docs/TOOLS.md) — Tool access scoping and MCP integrations
 - [Usage Guide](docs/USAGE.md) — How to run, verify, and adopt the framework
 - [Project Standards](docs/STANDARDS.md) — This repository's engineering standards

@@ -140,6 +140,7 @@ Skills are reusable capability packs in `skills/` — one folder per skill, each
 - `review` — an independent verification pass before the feature gate
 - `testing` — which tests go in which layer, acceptance tests from the declared behavior, a fast gate, judging test quality
 - `update-docs` — the docs-drift pass (same-commit rule)
+- `readme-review` — contrast README.md with the repository: a conventional structure, nothing more and nothing less than the app does
 - `write-skill` — authoring new skills (project skills may be added under `skills/`)
 
 Skill structure is validated by the lint layer; see the `write-skill` skill for the format.
@@ -152,7 +153,7 @@ Before ending a session:
 2. Start the session note with `node scripts/framework-check.mjs progress-new "<title>"` (it picks the number, date and heading lint requires, writes the sections and refreshes `PROGRESS.md`), then fill in every section; after any later state change run `node scripts/framework-check.mjs progress-update`
 3. Keep `feature_list.json` declaration-only; feature state belongs in `.harness/state/<id>.json`
 4. Fill in the note's "Mistakes caught": `none`, or one entry per mistake you or review caught this session, ending in what it became — `→ rule: <arch rule id>`, `→ test: <name>`, `→ lint: <check>`, or `→ no check possible: <reason>`. Turn the mistake into that check in this session when you can. Lint rejects an entry without one, and `clean-check` fails while the section is blank
-5. Update `README.md` for each feature that passed this session: it describes the app being built — what it does, how to run it, what a user can do now. Write for a reader of the app, not of the harness. `clean-check` fails until README.md changes after the latest verified feature; a feature with no user-visible change declares `"readme": "<reason>"` in `feature_list.json` instead
+5. Update `README.md` for each feature that passed this session, following the `readme-review` skill: it describes the app being built — what it does, how to run it, what a user can do now — and says nothing more or less than the repository does. Write for a reader of the app, not of the harness. `npm run lint` checks its structure and that every command, link and path it names exists. `clean-check` fails until README.md changes after the latest verified feature; a feature with no user-visible change declares `"readme": "<reason>"` in `feature_list.json` instead
 6. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
 7. Record any unresolved risks or blockers
 8. Commit with descriptive message explaining WHY, not just what

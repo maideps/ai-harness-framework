@@ -1373,6 +1373,30 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-052",
+      "name": "README contrasted with the repository",
+      "behavior": "lint checks README.md against a conventional structure and against the repository, the same in this repository and in every adopter. Structure, based on the Standard Readme convention: exactly one level-1 title, a short description before the first section, an install section (Install, Installation, Getting Started, Quick Start or Setup), a usage section (Usage, Examples, How to Use, How It Works or What It/the <name> Does), a License section, and a Table of Contents section when the README is longer than 100 lines. Claims, so the README says nothing the repository does not do: every npm, pnpm or yarn script it runs and every make target in its code exists, every relative link points to an existing file, and every repository path in its inline code exists; HTML comments, external links and placeholders (angle brackets, wildcards, braces, NNN or YYYY) are skipped. Each problem is reported with its line number. What a mechanical check cannot judge, a shipped readme-review skill covers: every capability the README claims has evidence in the code, tests or a passing feature, and every capability users can see appears in the README or a document it links, written about the app being built in the present tense. clean-check's README failure (feat-051) points to the skill. This repository's README is brought in line by that review, the adopter README template passes the check, and USAGE (both copies), AGENTS.md's skills list and a decision record describe it.",
+      "verification": "Runner tests: lint:readme passes a conventional README; it fails, with line numbers, a missing title, description, install, usage or license section, a long README without contents, an unknown npm script or make target, a missing link target and a missing inline path, and ignores HTML comments, external links and placeholders; this repository's README and the adopter template pass; the readme-review skill is validated by lint and shipped by harness-upgrade; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
