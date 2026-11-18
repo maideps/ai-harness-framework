@@ -42,13 +42,15 @@ The harness runs your tests and makes their results count — SKIP is never PASS
 
 7. **Capture what a test cannot assert.** For a UI, a test can pass while the page is visibly wrong (overlapping elements, unreadable text, an empty state where data should be). Have the `e2e` tests save a screenshot at each step that matters, write them to a gitignored folder, and declare it on the layer as `"captures": ["test-results/**/*.png"]` so `verify-feature` keeps them as evidence. Look at them twice: after running `e2e` while developing, before you commit, and at the gate before reporting done. Screenshots are the agent's evidence; videos only help human reviewers, since agents read images but cannot watch video. See USAGE's "Visual Evidence".
 
-8. **Judge the tests, not just the result.** A weak test passes the gate as well as a strong one:
+8. **Reach further where examples sample too little.** When a rule must hold for every input (parsers, money and date arithmetic, sorting, any invariant), add a property-based test (fast-check, Hypothesis, proptest, jqwik) to the `test` layer. When a bug needs a rare interleaving (a state machine, concurrency, retries), a model check (TLA+ with TLC or Apalache) or a proof (Lean) can run as the feature's own layer, if its cost is worth it. See USAGE's "Property-based and Formal Checks".
+
+9. **Judge the tests, not just the result.** A weak test passes the gate as well as a strong one:
    - Coverage: enable your stack's coverage preset in `.harness/quality.json` as a floor, not a goal.
    - Mutation score (Stryker, mutmut, cargo-mutants) for critical modules, as another quality gate: it measures whether the tests catch bugs.
    - In review, check that each test checks the declared behavior, not just what the code currently does.
    - For the features that matter most, a person writes or approves the acceptance test; the agent writes the unit tests.
 
-9. **In CI**, the generated workflow runs `npm run check` and `npm run check-arch`. Add the services `e2e` needs (a database, a browser); keep slow suites in a scheduled job.
+10. **In CI**, the generated workflow runs `npm run check` and `npm run check-arch`. Add the services `e2e` needs (a database, a browser); keep slow suites in a scheduled job.
 
 ## Quick Reference
 
@@ -61,3 +63,4 @@ The harness runs your tests and makes their results count — SKIP is never PASS
 - [ ] `npm run check` under about two minutes; no flaky tests
 - [ ] UI features: e2e screenshots at key steps, declared as captures, looked at before committing and at the gate
 - [ ] Coverage floor on; mutation score for critical modules
+- [ ] Property-based tests where a rule covers every input; a model check or proof only where a rare interleaving matters and the cost is worth it
