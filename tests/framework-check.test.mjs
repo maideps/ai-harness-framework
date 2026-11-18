@@ -1751,6 +1751,21 @@ test("typecheck: malformed captures fail; declaring captures changes the checks 
   }
 });
 
+// ---- feat-045: agents look at captures (shipped skills) ---------------------
+
+test("shipped skills tell agents to look at captures before committing and at the gate, screenshots not video (feat-045)", () => {
+  const skill = (name) => readFileSync(path.resolve(path.dirname(RUNNER), "..", "skills", name, "SKILL.md"), "utf8");
+  const verification = skill("verification");
+  assert.match(verification, /During development, before committing/);
+  assert.match(verification, /At the gate/);
+  assert.match(verification, /you can read images but not watch video/);
+  assert.match(skill("review"), /If a layer declares `captures`, open each copy/);
+  assert.match(skill("testing"), /"captures": \["test-results\/\*\*\/\*\.png"\]/);
+  for (const name of ["verification", "review", "testing"]) {
+    assert.match(skill(name), /video/i, `${name} says what video is for`);
+  }
+});
+
 // ---- feat-049 (D-056): a passing state needs gate evidence -----------------
 
 // Default timestamp: after the fixtures' trail (2026-11-10), as for any pass since trails existed.
