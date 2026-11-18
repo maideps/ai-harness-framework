@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1651,6 +1652,100 @@ test("typecheck: evidence recorded before feat-030 (no checksHash) is never repo
     const result = run(root, "typecheck");
     assert.equal(result.exit, 0, result.output);
     assert.doesNotMatch(result.output, /\[WARN\]/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-044 (D-057): captures collected by verify-feature ----------------
+
+// A committed git fixture whose layer runs shoot.mjs, which writes the named files under
+// shots/; shots/old.png is left over from an earlier run (an hour old). `ignore` decides whether
+// shots/ is gitignored, as the docs require.
+function captureFixture({ writes = ["shots/a.png", "shots/sub/b.png"], captures = ["shots/**/*.png"], ignore = true } = {}) {
+  const root = gitFeatureFixture([
+    evidenceFeature({ state: "active", layers: [{ label: "E2E shots", cmd: `${NODE} shoot.mjs`, repair: "r", captures }] }),
+  ]);
+  write(root, "shoot.mjs", `import { mkdirSync, writeFileSync } from "node:fs";\nimport path from "node:path";\nfor (const file of ${JSON.stringify(writes)}) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, "png:" + file); }\nconsole.log("[PASS] shots taken");\n`);
+  if (ignore) write(root, ".gitignore", "shots/\n");
+  spawnSync("git", ["add", "-A"], { cwd: root });
+  spawnSync("git", ["commit", "-q", "-m", "shoot"], { cwd: root });
+  write(root, "shots/old.png", "png:old");
+  const hourAgo = new Date(Date.now() - 3600 * 1000);
+  utimesSync(path.join(root, "shots/old.png"), hourAgo, hourAgo);
+  return root;
+}
+
+test("verify-feature: collects the captures a layer wrote this run, copies and hashes them, ignores leftovers (feat-044)", () => {
+  const root = captureFixture();
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /Captures \(2\) — open each one and compare it to the feature's declared behavior/);
+    const { state, evidence } = readEvidence(root);
+    assert.equal(state, "passing");
+    const captures = evidence.layers[0].captures;
+    assert.deepEqual(captures.map((capture) => capture.path), [
+      ".harness/logs/feat-001/captures/01-e2e-shots/shots/a.png",
+      ".harness/logs/feat-001/captures/01-e2e-shots/shots/sub/b.png",
+    ]);
+    for (const capture of captures) {
+      const bytes = readFileSync(path.join(root, capture.path));
+      assert.equal(capture.bytes, bytes.length);
+      assert.equal(capture.sha256, createHash("sha256").update(bytes).digest("hex"));
+    }
+    assert.doesNotMatch(result.stdout, /old\.png/, "a file from an earlier run is not evidence");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a layer that declares captures but writes none fails (feat-044)", () => {
+  const root = captureFixture({ writes: [] });
+  try {
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.stdout, /declares captures \(shots\/\*\*\/\*\.png\) but this run wrote none/);
+    assert.notEqual(readEvidence(root).state, "passing");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: captures in a folder git tracks fail with the folder to ignore, before or after the layers (feat-044)", () => {
+  const root = captureFixture({ ignore: false });
+  try {
+    const leftover = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(leftover.exit, 1, leftover.output);
+    assert.match(leftover.stdout, /uncommitted change\(s\) outside harness bookkeeping[\s\S]*Declared captures are among them: add shots\/ to \.gitignore/);
+    rmSync(path.join(root, "shots"), { recursive: true, force: true });
+    const fresh = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(fresh.exit, 1, fresh.output);
+    assert.match(fresh.stdout, /The verification layers left[\s\S]*Declared captures are among them: add shots\/ to \.gitignore/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: malformed captures fail; declaring captures changes the checks hash only where declared (feat-044)", () => {
+  for (const captures of [[], [""], "shots/*.png"]) {
+    const root = featureListFixture([evidenceFeature({ layers: [{ label: "L", cmd: "true", repair: "r", captures }] })]);
+    try {
+      const result = run(root, "typecheck");
+      assert.equal(result.exit, 1, `${JSON.stringify(captures)}: ${result.output}`);
+      assert.match(result.stderr, /captures must be a non-empty list of globs/);
+    } finally {
+      cleanup(root);
+    }
+  }
+  const root = gitFeatureFixture([evidenceFeature({ state: "active" })]);
+  try {
+    assert.equal(run(root, "verify-feature", ["feat-001"]).exit, 0);
+    assert.doesNotMatch(run(root, "typecheck").output, /\[WARN\]/, "a layer without captures keeps its hash");
+    const declarations = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
+    declarations.features[0].layers[0].captures = ["shots/*.png"];
+    writeDeclarations(root, declarations.features);
+    assert.match(run(root, "typecheck").output, /\[WARN\] feat-001 is passing, but its verification layers changed/);
   } finally {
     cleanup(root);
   }
