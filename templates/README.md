@@ -2,6 +2,10 @@
 
 [One paragraph: what this project does and who it serves. Replace this section with your project's description.]
 
+## What It Does Now
+
+[What a user can do with the app today, one line per capability, and how to run it. Update this after every feature that passes the gate: `npm run clean-check` fails until README.md changes after the latest verified feature (feat-051). Describe the app, not the harness.]
+
 ## Quick Start
 
 ```bash

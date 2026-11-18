@@ -1349,6 +1349,30 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-051",
+      "name": "README stays current with the app",
+      "behavior": "A feature passing the gate is the harness's significant change. clean-check fails while README.md has not changed since the most recent gate-verified feature passed: README.md must be changed in that feature's verified commit or a later one, or have uncommitted changes. A feature whose users see no change declares \"readme\": \"<reason>\" in feature_list.json and is skipped (typecheck rejects an empty or non-string value); the check then applies to the latest verified feature without that field. When the history cannot tell (a commit missing from a shallow clone), it warns instead of failing. The same rule runs in this repository and in every adopter: README.md describes the app being built — what it does, how to run it, what a user can do now — not the harness. AGENTS.md gains a MUST rule enforced by clean-check, its End of Session steps and the update-docs and session-handoff skills say what to write, the adopter README template gains a 'What It Does Now' section, docs/USAGE.md and its template document the rule, and a decision record explains it.",
+      "verification": "Runner tests in a temporary git repository: clean-check fails when README.md last changed before the latest verified feature's commit, passes when it changed in that commit, a later one or the working tree, skips a feature that declares readme and checks the previous one, and warns when the evidence commit is unknown; typecheck rejects a malformed readme field; this repository passes after the feature's own README update; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

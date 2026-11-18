@@ -47,6 +47,8 @@ If baseline verification is failing, repair that first before adding new scope.
 - **MUST** add session notes under `progress/` and regenerate `PROGRESS.md` at session end
   <!-- enforced-by: lint:progress-log (PROGRESS.md must match progress/) and clean-check (the latest note's Mistakes caught is filled in) — nothing checks that a new note was written this session -->
   <!-- source: harness-engineering-template L05 — durable cross-session continuity requires written handoff -->
+- **MUST** update `README.md` after a feature passes the gate, so it describes the app being built as it is now (what it does, how to run it, what a user can do) — not the harness. A feature whose users see no change declares `"readme": "<reason>"` in `feature_list.json` instead
+  <!-- enforced-by: clean-check (README.md must change in or after the latest verified feature's commit, unless that feature declares readme) — what the README says is not checked -->
 - **MUST NOT** skip verification layers (Layer 1 → Layer 2 → Layer 3 in order)
   <!-- enforced-by: verify-feature (runs every declared layer in order, stops at the first failure) and npm run check (a failing layer stops the chain) -->
   <!-- source: harness-engineering-template L09 — each layer gates the next; skipping produces false confidence -->
@@ -150,10 +152,11 @@ Before ending a session:
 2. Start the session note with `node scripts/framework-check.mjs progress-new "<title>"` (it picks the number, date and heading lint requires, writes the sections and refreshes `PROGRESS.md`), then fill in every section; after any later state change run `node scripts/framework-check.mjs progress-update`
 3. Keep `feature_list.json` declaration-only; feature state belongs in `.harness/state/<id>.json`
 4. Fill in the note's "Mistakes caught": `none`, or one entry per mistake you or review caught this session, ending in what it became — `→ rule: <arch rule id>`, `→ test: <name>`, `→ lint: <check>`, or `→ no check possible: <reason>`. Turn the mistake into that check in this session when you can. Lint rejects an entry without one, and `clean-check` fails while the section is blank
-5. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
-6. Record any unresolved risks or blockers
-7. Commit with descriptive message explaining WHY, not just what
-8. Leave repo clean enough for next session to run `./init.sh` immediately
+5. Update `README.md` for each feature that passed this session: it describes the app being built — what it does, how to run it, what a user can do now. Write for a reader of the app, not of the harness. `clean-check` fails until README.md changes after the latest verified feature; a feature with no user-visible change declares `"readme": "<reason>"` in `feature_list.json` instead
+6. Update `docs/quality-document.md`: name each feature that passed this session (its id, what changed, which modules) and rate those modules A/B/C/D — `clean-check` fails until every gate-verified feature is mentioned
+7. Record any unresolved risks or blockers
+8. Commit with descriptive message explaining WHY, not just what
+9. Leave repo clean enough for next session to run `./init.sh` immediately
 
 **If running low on context**: Do NOT rush to finish — stop, add a concise note under `progress/`, regenerate `PROGRESS.md`, and commit a clean checkpoint.
 

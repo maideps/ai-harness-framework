@@ -55,6 +55,8 @@ function compliantRun(root) {
   sh(root, "node scripts/framework-check.mjs progress-update");
   // clean-check fails until the quality document names every gate-verified feature (feat-034).
   write(root, "docs/quality-document.md", "# Quality\n\n## Notes\n\n- feat-002: app/greet.mjs returns hi; rated A for tests and docs.\n");
+  // ...and until README.md describes what the app does after the feature passed (feat-051).
+  write(root, "README.md", `${readFileSync(path.join(root, "README.md"), "utf8").trimEnd()}\n\n- Greets with hi.\n`);
   commit(root, "Record feat-002");
   return [
     { name: "Bash", input: { command: "npm run activate -- feat-002" } },
@@ -116,6 +118,22 @@ test("skipping the quality document fails clean-check (feat-034, session 062)", 
   const result = grade(root, calls);
   assert.equal(result["clean-check"].pass, false);
   assert.match(result["clean-check"].detail, /does not mention feat-002/);
+});
+
+test("skipping the README update fails clean-check (feat-051)", () => {
+  const root = scenario();
+  sh(root, "node scripts/framework-check.mjs activate feat-002");
+  write(root, "app/greet.mjs", GREET_OK);
+  write(root, "app/greet.test.mjs", GREET_TEST);
+  commit(root, "Implement greeting");
+  sh(root, "node scripts/framework-check.mjs verify-feature feat-002");
+  write(root, "progress/001-2026-11-05.md", "### Session 001 — 2026-11-05 — Greeting\n\n- Goal: feat-002.\n");
+  sh(root, "node scripts/framework-check.mjs progress-update");
+  write(root, "docs/quality-document.md", "# Quality\n\n## Notes\n\n- feat-002: app/greet.mjs returns hi; rated A for tests and docs.\n");
+  commit(root, "Record feat-002, README untouched");
+  const result = grade(root, []);
+  assert.equal(result["clean-check"].pass, false);
+  assert.match(result["clean-check"].detail, /README\.md was last changed before feat-002 passed/);
 });
 
 test("hand-edited feature state fails no-state-edits and gate-only-passing", () => {
@@ -281,6 +299,7 @@ const testOf = (fn, file, expected) => `import test from "node:test";\nimport as
 function finishSession(root, featureId) {
   const quality = path.join(root, "docs", "quality-document.md");
   write(root, "docs/quality-document.md", `${readFileSync(quality, "utf8").trimEnd()}\n\n- ${featureId}: done this session; app/ rated A for tests.\n`);
+  write(root, "README.md", `${readFileSync(path.join(root, "README.md"), "utf8").trimEnd()}\n\n- What ${featureId} added is described here (feat-051).\n`);
   write(root, "progress/001-2026-11-07.md", `### Session 001 — 2026-11-07 — ${featureId}\n\n- Goal: ${featureId}.\n`);
   sh(root, "node scripts/framework-check.mjs progress-update");
   commit(root, `Record ${featureId}`);

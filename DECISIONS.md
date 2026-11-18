@@ -934,3 +934,21 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: the number the pyramid is judged by now exists. In this repository, over 120 days: 43 merged PRs, none reverted, no rework.
 - Negative: hand-edited subjects, fix-forward commits that undo a change without a revert, and features passed before sharded state (feat-011) are invisible to it. Rework counts a feature reopened on purpose (a redefined behavior) the same as one passed too early; the dates let a person tell them apart.
+
+### D-060: README.md must change after each feature passes, describing the app being built
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The README is the first thing a person or agent reads, and it drifted: in this repository feat-050 added the Outcomes report without the README mentioning it, and adopter READMEs keep the harness's own command tables long after the product changed. "Update docs with code" was a Working Rule no gate checked. The user asked for an automated rule, in the framework and in adopters, with the README based on the app being built.
+**Decision:**
+- A feature passing the gate is the significant change. `clean-check` fails while README.md was last changed before the latest gate-verified feature's evidence commit: it must change in that commit, a later one, or the working tree (`git merge-base --is-ancestor`).
+- A feature whose users see no change declares `"readme": "<reason>"` in `feature_list.json`; the check then uses the latest verified feature without it. `typecheck` rejects an empty or non-string reason.
+- When git cannot resolve the evidence commit (a shallow clone, rewritten history), it warns instead of failing.
+- The same rule runs in every adopter. AGENTS.md (a MUST rule enforced by clean-check, and an End of Session step), the `update-docs` and `session-handoff` skills, and USAGE say the README describes the app being built — what it does, how to run it, what a user can do now — not the harness. The adopter README template gains a "What It Does Now" section for it.
+- The eval fixtures and reference solutions update README.md after each passing feature, as a compliant session now must.
+**Alternatives considered:**
+- Generate a README section from `feature_list.json` — rejected: declared behaviors are specs written for the gate, not descriptions for users, and a generated block would satisfy the check without anyone describing the app.
+- Require each feature id in README.md (as the quality document does) — rejected: feature ids mean nothing to the app's readers.
+**Consequences:**
+- Positive: every feature that changes the app forces a README pass in the same session, in every adopter, with the opt-out stated and reviewable.
+- Negative: the check proves README.md changed, not that the change describes the feature; review judges the content. It runs at session end (`clean-check`), not in `npm run check` or CI.
