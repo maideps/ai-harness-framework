@@ -7,11 +7,78 @@
 //
 //   node scripts/harness-report.mjs [--days N] [--json]
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TRACES_DIR = ".harness/traces";
+
+// ---- Outcomes (feat-050, D-059) --------------------------------------------
+// Whether the verification layers keep bad changes out, read from git history: how many
+// merged pull requests were later reverted, and which features went from passing back to
+// another state (rework). The window is the report's own --days.
+
+function git(cwd, args) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return result.error || (result.status ?? 1) !== 0 ? null : result.stdout;
+}
+
+// The PR a commit subject merged: "Merge pull request #12 from …" (merge commits) or a
+// squash subject ending "(#12)". null for anything else.
+export function mergedPullRequest(subject) {
+  const match = /^Merge pull request #(\d+)\b/.exec(subject) ?? /\(#(\d+)\)\s*$/.exec(subject);
+  return match ? Number(match[1]) : null;
+}
+
+// The PRs a revert commit names: 'Revert "Merge pull request #12 …"' or 'Revert "feat: x (#12)"'.
+export function revertedPullRequests(subject) {
+  if (!/^Revert "/.test(subject)) return [];
+  return [...subject.matchAll(/#(\d+)/g)].map((match) => Number(match[1]));
+}
+
+// Passing → anything else, per feature, by replaying each state shard's history oldest first.
+function reworkEvents(cwd) {
+  const log = git(cwd, ["log", "--reverse", "--format=%x00%H%x09%cI", "-p", "--unified=0", "--", ".harness/state/"]);
+  if (log === null) return [];
+  const lastState = new Map();
+  const events = [];
+  for (const block of log.split("\0").filter(Boolean)) {
+    const [header, ...lines] = block.split(/\r?\n/);
+    const date = header.split("\t")[1];
+    let feature = null;
+    for (const line of lines) {
+      const file = /^\+\+\+ b\/\.harness\/state\/(.+)\.json$/.exec(line);
+      if (file) feature = file[1];
+      const state = /^\+\s*"state":\s*"([^"]+)"/.exec(line);
+      if (!feature || !state) continue;
+      if (lastState.get(feature) === "passing" && state[1] !== "passing") events.push({ feature, date, to: state[1] });
+      lastState.set(feature, state[1]);
+    }
+  }
+  return events;
+}
+
+export function outcomes(cwd = ".", days = 7) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const log = git(cwd, ["log", `--since=${since.toISOString()}`, "--format=%H%x09%s"]);
+  if (log === null) return { available: false };
+  const subjects = log.split(/\r?\n/).filter(Boolean).map((line) => line.slice(line.indexOf("\t") + 1));
+  const merged = [...new Set(subjects.map(mergedPullRequest).filter((number) => number !== null))].sort((a, b) => a - b);
+  const reverts = subjects.filter((subject) => /^Revert "/.test(subject));
+  const revertedSet = new Set(reverts.flatMap(revertedPullRequests));
+  const reverted = merged.filter((number) => revertedSet.has(number));
+  const rework = reworkEvents(cwd).filter((event) => new Date(event.date) >= since);
+  return {
+    available: true,
+    pull_requests_merged: merged.length,
+    pull_requests_reverted: reverted,
+    revert_rate_percent: merged.length === 0 ? null : Math.round((reverted.length / merged.length) * 1000) / 10,
+    commits: subjects.length,
+    revert_commits: reverts.length,
+    rework,
+  };
+}
 
 export function readTraceFiles(tracesDir) {
   if (!existsSync(tracesDir)) return [];
@@ -91,6 +158,26 @@ function render(report) {
   if (sessions.length === 0) {
     console.log("No session records in the window. Start a session with `npm run session-start`.");
   }
+  renderOutcomes(report.outcomes, window_days);
+}
+
+function renderOutcomes(result, days) {
+  console.log("");
+  console.log(`=== Outcomes (last ${days} days) ===`);
+  if (!result?.available) {
+    console.log("  Not a git repository — no outcome data.");
+    return;
+  }
+  const rate = result.revert_rate_percent === null ? "n/a" : `${result.revert_rate_percent}%`;
+  const which = result.pull_requests_reverted.length > 0 ? ` (#${result.pull_requests_reverted.join(", #")})` : "";
+  console.log(`  pull requests merged: ${result.pull_requests_merged}  reverted: ${result.pull_requests_reverted.length}${which}  revert rate: ${rate}`);
+  console.log(`  commits: ${result.commits}  revert commits: ${result.revert_commits}`);
+  if (result.rework.length === 0) {
+    console.log("  rework: none — no feature went from passing back to another state");
+  } else {
+    console.log(`  rework: ${result.rework.length} feature(s) reopened after passing`);
+    for (const event of result.rework) console.log(`    ${event.feature} → ${event.to} on ${event.date.slice(0, 10)}`);
+  }
 }
 
 function main() {
@@ -98,7 +185,8 @@ function main() {
   const daysIndex = args.indexOf("--days");
   const days = daysIndex !== -1 && args[daysIndex + 1] ? Number(args[daysIndex + 1]) : 7;
   const asJson = args.includes("--json");
-  const report = aggregate(TRACES_DIR, Number.isFinite(days) ? days : 7);
+  const windowDays = Number.isFinite(days) ? days : 7;
+  const report = { ...aggregate(TRACES_DIR, windowDays), outcomes: outcomes(".", windowDays) };
   if (asJson) {
     console.log(JSON.stringify(report, null, 2));
   } else {

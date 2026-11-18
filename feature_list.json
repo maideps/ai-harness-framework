@@ -1325,6 +1325,30 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-050",
+      "name": "Revert and rework metric in the report",
+      "behavior": "npm run report (and --json) adds an Outcomes section for the same --days window, read from git history: the pull requests merged (commit subjects 'Merge pull request #N' or squash subjects ending '(#N)'), the ones later reverted (a commit whose subject starts 'Revert \"' and names #N), and the PR revert rate as a percentage; the commits and revert commits in the window; and rework: each feature whose .harness/state/<id>.json went from passing to another state, with the date, found by replaying that file's history. Outside a git repository the section says there is no outcome data instead of failing. docs/OBSERVABILITY.md and its template explain the numbers as the measure of whether the verification layers keep bad changes out, and a decision record says what they do not catch (squash-merge subjects edited by hand, reverts written by hand, features passed before shards existed).",
+      "verification": "Report tests in a temporary git repository: merged PRs from both subject styles, a reverted PR and the revert rate, commit and revert counts, a commit outside the window ignored, rework for a feature that went passing to active and none for one that stayed passing, and the no-git message; npm run report runs on this repository; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
