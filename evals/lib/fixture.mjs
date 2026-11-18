@@ -35,11 +35,13 @@ function run(cmd, args, cwd, { allowFail = false } = {}) {
 const runner = (root, ...args) => run(process.execPath, [path.join("scripts", "framework-check.mjs"), ...args], root);
 const git = (root, ...args) => run("git", [...GIT_IDENTITY, ...args], root);
 
+// A file's content is text, or { "base64": "..." } for a binary file such as an image (feat-046).
 function writeFiles(root, files = {}) {
   for (const [rel, content] of Object.entries(files)) {
     const dest = path.join(root, rel);
     mkdirSync(path.dirname(dest), { recursive: true });
-    writeFileSync(dest, content, "utf8");
+    if (typeof content === "object" && content !== null) writeFileSync(dest, Buffer.from(content.base64, "base64"));
+    else writeFileSync(dest, content, "utf8");
   }
 }
 
@@ -56,6 +58,16 @@ function declareFeature(root, feature) {
   if (feature.depends?.length) args.push("--depends", feature.depends.join(","));
   for (const layer of feature.layers ?? []) args.push("--layer", `${layer.label}=${layer.cmd}`);
   runner(root, ...args);
+  // add-feature has no flag for captures (feat-044), so they are added to the declared layers
+  // here, as an adopter would edit feature_list.json.
+  const withCaptures = (feature.layers ?? []).filter((layer) => layer.captures);
+  if (withCaptures.length > 0) {
+    const listPath = path.join(root, "feature_list.json");
+    const list = JSON.parse(readFileSync(listPath, "utf8"));
+    const declared = list.features.find((item) => item.id === feature.id);
+    for (const layer of withCaptures) declared.layers.find((item) => item.label === layer.label).captures = layer.captures;
+    writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`, "utf8");
+  }
 }
 
 function featureStates(root) {

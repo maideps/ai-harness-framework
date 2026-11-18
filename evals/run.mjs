@@ -30,6 +30,17 @@ export function validateTask(task, fileName) {
     if (!/^feat-\d{3}$/.test(feature.id ?? "")) problems.push(`feature id ${feature.id} must look like feat-NNN`);
     if (!feature.name || !feature.behavior) problems.push(`${feature.id}: name and behavior are required`);
     if (feature.state && !["planned", "active", "passing"].includes(feature.state)) problems.push(`${feature.id}: state ${feature.state} is not planned, active or passing`);
+    for (const layer of feature.layers ?? []) {
+      if (layer.captures !== undefined && !(Array.isArray(layer.captures) && layer.captures.length > 0 && layer.captures.every((glob) => typeof glob === "string" && glob))) {
+        problems.push(`${feature.id}: layer ${layer.label} captures must be a non-empty list of globs`);
+      }
+    }
+  }
+  for (const key of ["files", "afterFiles", "uncommitted"]) {
+    for (const [rel, content] of Object.entries(task.setup?.[key] ?? {})) {
+      const binary = typeof content === "object" && content !== null && typeof content.base64 === "string";
+      if (typeof content !== "string" && !binary) problems.push(`setup.${key}["${rel}"] must be text or { "base64": "..." }`);
+    }
   }
   if (!Array.isArray(task.graders) || task.graders.length === 0) problems.push("at least one grader is required");
   for (const spec of (task.graders ?? []).map(normalizeGraderSpec)) {
