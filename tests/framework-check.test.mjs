@@ -1720,6 +1720,47 @@ test("lint:readme: a README over 100 lines needs a table of contents (feat-052)"
   }
 });
 
+// ---- feat-053 (D-062): README command claims come only from shell fences ----
+
+test("lint:readme: a fence tagged with a non-shell language is not read as commands (feat-053)", () => {
+  const sample = [
+    "Sample output:",
+    "",
+    "```text",
+    "Finding: make the computed-target calls explicit before release.",
+    "Then npm run nothing ever happens here.",
+    "```",
+    "",
+    "```JSON",
+    "{ \"note\": \"make sense of it\" }",
+    "```",
+    "",
+  ].join("\n");
+  const root = readmeRepo(GOOD_README.replace("## License", `${sample}## License`));
+  try {
+    const result = run(root, "lint:readme");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:readme: shell-tagged and untagged fences are still read as commands (feat-053)", () => {
+  const readme = (fence) => GOOD_README.replace("## License", `${fence}\nmake release   # make nothing here\n\`\`\`\n\n## License`);
+  const releaseLine = readme("```bash").split("\n").indexOf("make release   # make nothing here") + 1;
+  for (const fence of ["```bash", "```Shell title=\"run\"", "```console", "```pwsh", "```"]) {
+    const root = readmeRepo(readme(fence));
+    try {
+      const result = run(root, "lint:readme");
+      assert.equal(result.exit, 1, `${fence}: ${result.output}`);
+      assert.match(result.stderr, new RegExp(`README\\.md:${releaseLine}: "make release" names a target the Makefile does not define`), fence);
+      assert.doesNotMatch(result.stderr, /"make nothing"/, `${fence}: a shell comment is not a command`);
+    } finally {
+      cleanup(root);
+    }
+  }
+});
+
 // ---- feat-051 (D-060): README stays current with the app --------------------
 
 // A git repository where README.md is committed first and feat-001's code later; feat-001 is

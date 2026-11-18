@@ -1397,6 +1397,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-053",
+      "name": "README command claims come only from shell fences",
+      "behavior": "lint:readme (feat-052) takes npm, pnpm and yarn script claims and make target claims from inline code spans and from fenced code blocks whose info string is a shell language (bash, sh, shell, zsh, console, shell-session, powershell, ps1, pwsh, cmd, bat; first word, any case) or that have no info string. A fence tagged with any other language (text, json, yaml, ts, ...) is sample output or source, not a command, so prose in it such as 'make the calls explicit' is not reported as a missing make target. Shell comments in a shell fence are still not commands. Repository path claims stay what they were: only inline code in prose is checked, never fenced code of any language. docs/USAGE.md and its template say which fences are read as commands, and a decision record explains the choice.",
+      "verification": "Runner tests: a text fence with 'make the ...' and 'npm run nothing' passes lint:readme; a bash fence with a missing make target still fails with its line; an untagged fence still counts; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [
+        "feat-052"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
