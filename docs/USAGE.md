@@ -45,6 +45,42 @@ The harness runs your tests and makes their results count (SKIP is never PASS; e
 - **A fast gate**: keep `npm run check` under about two minutes, an agent's default command timeout; move slow suites to `e2e` or a scheduled CI job; treat flaky tests as bugs.
 - **Judge the tests, not only the result**: a coverage floor from `.harness/quality.json`, a mutation score for critical modules, review that each test checks the declared behavior, and human-owned acceptance tests for the features that matter most.
 
+## Visual Evidence
+
+A layer can pass while a page is visibly wrong: overlapping buttons, unreadable text, an empty list where data should be. When a feature has output a test cannot fully assert, have its end-to-end tests take screenshots and declare them as the layer's `captures` (feat-044). `verify-feature` then keeps the ones written during that run, copies them into `.harness/logs/<feature>/captures/` and records their hashes in the evidence; a layer that declares captures and writes none fails.
+
+**Playwright example.** Take a screenshot at each step that matters, into a folder git ignores:
+
+```ts
+// tests/e2e/cart.spec.ts
+test("cart shows the discounted total", async ({ page }) => {
+  await page.goto("/cart");
+  await page.screenshot({ path: "test-results/shots/cart-empty.png" });
+  await page.getByRole("button", { name: "Add item" }).click();
+  await page.screenshot({ path: "test-results/shots/cart-discount.png", fullPage: true });
+});
+```
+
+```js
+// playwright.config.js: video is optional and only for people; agents cannot watch it
+export default { outputDir: "test-results", use: { video: "retain-on-failure" } };
+```
+
+Add `test-results/` to `.gitignore`, then declare the captures on the feature's layer in `feature_list.json`:
+
+```json
+{ "label": "Layer 3: E2E", "cmd": "npm run e2e", "repair": "Fix the failing flow and rerun npm run e2e.", "captures": ["test-results/shots/**/*.png"] }
+```
+
+**When to look.** Twice, and the skills (`verification`, `review`, `testing`) say so:
+
+- While developing, after `npm run e2e` and before committing: open each new screenshot and compare it with the declared behavior. Fixing it now is cheap; `verify-feature` refuses uncommitted code, so a defect first seen at the gate costs another commit.
+- At the gate: open the copies `verify-feature` prints before reporting the feature done, and name them in the session note's "Verification run". A capture that contradicts the behavior means the feature is not done, whatever the layers say.
+
+**Screenshots for agents, video for people.** Agents read images but cannot watch video, so a flow an agent must check needs a screenshot at each step; a recording only helps a human reviewer.
+
+**CLI and API projects.** The layer log `verify-feature` already keeps (`.harness/logs/<feature>/<NN>-<label>.log`) is the evidence of what the command printed. For a terminal interface, a layer can record a [VHS](https://github.com/charmbracelet/vhs) tape that writes a screenshot (`Screenshot out/menu.png`) and declare `"captures": ["out/*.png"]`; this repository's own README demo is recorded with VHS (`docs/demo/demo.tape`).
+
 ## Session Lifecycle
 
 Every session starts with `./init.sh`, which ends with a short brief (`node scripts/framework-check.mjs brief` prints the same on demand): branch and uncommitted changes, feature counts, the active feature with its behavior and layer commands, the planned features that can start now and those waiting on dependencies, blocked features, stale evidence, the latest session note's known risk and next step, and how old `session-handoff.md` is. It is a few hundred bytes, so a session doesn't need to read all of `feature_list.json`; open it for the features the brief names (feat-037).

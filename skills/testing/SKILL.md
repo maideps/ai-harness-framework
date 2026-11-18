@@ -40,13 +40,15 @@ The harness runs your tests and makes their results count — SKIP is never PASS
 
 6. **Keep the gate fast.** Keep `npm run check` under about two minutes — longer than an agent's default command timeout and the agent gets a timeout instead of a verdict. Move slow suites to `e2e` or a scheduled CI job. Treat a flaky test as a bug: pin times and seeds, fake the network.
 
-7. **Judge the tests, not just the result.** A weak test passes the gate as well as a strong one:
+7. **Capture what a test cannot assert.** For a UI, a test can pass while the page is visibly wrong (overlapping elements, unreadable text, an empty state where data should be). Have the `e2e` tests save a screenshot at each step that matters, write them to a gitignored folder, and declare it on the layer as `"captures": ["test-results/**/*.png"]` so `verify-feature` keeps them as evidence. Look at them twice: after running `e2e` while developing, before you commit, and at the gate before reporting done. Screenshots are the agent's evidence; videos only help human reviewers, since agents read images but cannot watch video. See USAGE's "Visual Evidence".
+
+8. **Judge the tests, not just the result.** A weak test passes the gate as well as a strong one:
    - Coverage: enable your stack's coverage preset in `.harness/quality.json` as a floor, not a goal.
    - Mutation score (Stryker, mutmut, cargo-mutants) for critical modules, as another quality gate: it measures whether the tests catch bugs.
    - In review, check that each test checks the declared behavior, not just what the code currently does.
    - For the features that matter most, a person writes or approves the acceptance test; the agent writes the unit tests.
 
-8. **In CI**, the generated workflow runs `npm run check` and `npm run check-arch`. Add the services `e2e` needs (a database, a browser); keep slow suites in a scheduled job.
+9. **In CI**, the generated workflow runs `npm run check` and `npm run check-arch`. Add the services `e2e` needs (a database, a browser); keep slow suites in a scheduled job.
 
 ## Quick Reference
 
@@ -57,4 +59,5 @@ The harness runs your tests and makes their results count — SKIP is never PASS
 - [ ] Bugs reproduced by a failing test before the fix
 - [ ] No test weakened to pass; a test contradicting the behavior is fixed and called out
 - [ ] `npm run check` under about two minutes; no flaky tests
+- [ ] UI features: e2e screenshots at key steps, declared as captures, looked at before committing and at the gate
 - [ ] Coverage floor on; mutation score for critical modules
