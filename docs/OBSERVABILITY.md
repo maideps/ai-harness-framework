@@ -68,6 +68,14 @@ make report        # or: npm run report [-- --days N] [-- --json]
 
 Aggregates `.harness/traces/` into a session digest: per-session start/end, duration, open/closed state, active feature, decisions recorded, files modified, and feature evidence — plus totals for the window (default: last 7 days).
 
+The report ends with **Outcomes** for the same window, read from git history (feat-050): whether the verification layers keep bad changes out.
+
+- **Pull requests merged, reverted and the revert rate.** A merge is a commit subject `Merge pull request #N …` or a squash subject ending `(#N)`; a PR counts as reverted when a later commit subject starting `Revert "` names `#N`. A rising revert rate means changes are getting past the gates that should have stopped them.
+- **Commits and revert commits** in the window, for scale.
+- **Rework:** each feature whose `.harness/state/<id>.json` went from `passing` to another state, with the date. A feature reopened after passing was declared done too early: look at what its layers missed and turn it into a check.
+
+What it cannot see: subjects edited by hand (a squash subject without `(#N)`, a revert written without git's `Revert "…"` subject), fixes that undo a change without reverting it, and features that passed before state lived in `.harness/state/`. Outside a git repository the section says there is no outcome data.
+
 ## Periodic Sweep
 
 ```bash

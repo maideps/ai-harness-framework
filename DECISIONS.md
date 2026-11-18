@@ -918,3 +918,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: adopters with a state machine or a parser have a documented, checked path into the gate without new harness machinery.
 - Negative: guidance only; nothing measures whether adopters use it, and the example commands depend on tool versions the harness does not pin.
+
+### D-059: The report measures outcomes: PR reverts and feature rework
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The verification pyramid this work follows was judged by its outcome (a team merging thousands of agent PRs a month with about 0.5% reverted), but the harness measured only inputs: which gates ran, which evidence exists. Without an outcome number nobody can tell whether the layers added since D-051 keep bad changes out.
+**Decision:**
+- `npm run report` adds Outcomes for its `--days` window, read from git history: merged pull requests (subjects `Merge pull request #N` or squash subjects ending `(#N)`), the ones a later `Revert "…#N…"` commit reverted, the revert rate, commit and revert counts, and rework — a feature whose `.harness/state/<id>.json` went from `passing` to another state, found by replaying that file's history.
+- It reads only git, so it works the same in every adopter and in CI; outside a repository it says there is no data.
+- It reports, it does not gate: a revert can be the right call, and a threshold would push people to fix forward instead of reverting.
+**Alternatives considered:**
+- Query GitHub for PRs and reverts — rejected: needs a token and network, and only works on GitHub; commit subjects carry the same facts for the default merge and revert flows.
+- Count any commit mentioning "revert" — rejected: too many false positives; git's own `Revert "…"` subject is unambiguous.
+**Consequences:**
+- Positive: the number the pyramid is judged by now exists. In this repository, over 120 days: 43 merged PRs, none reverted, no rework.
+- Negative: hand-edited subjects, fix-forward commits that undo a change without a revert, and features passed before sharded state (feat-011) are invisible to it. Rework counts a feature reopened on purpose (a redefined behavior) the same as one passed too early; the dates let a person tell them apart.
