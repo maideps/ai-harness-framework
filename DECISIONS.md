@@ -901,3 +901,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a UI feature's gate now keeps what its tests saw, tied to the commit, ready for the agent (feat-045) and a reviewer to look at.
 - Negative: collecting does not mean anyone looked; that is feat-045's skill step and feat-046's eval. Copies live in local logs, so another machine sees only the hashes. Agents can read images but not video, so for agent self-checks screenshots matter more than recordings.
+
+### D-058: Property-based and formal checks are guidance, not shipped tooling
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** The verification pyramid that prompted this work names runtime and formal verification (TLA+, Lean) above lint and tests. Example-based tests check the cases someone thought of; property-based tests and model checking find the ones nobody did. The harness supports six stacks and most adopters' features are ordinary CRUD, UI and glue code.
+**Decision:**
+- docs/USAGE.md (both copies) places them in the existing layers: property-based tests (fast-check, Hypothesis, proptest or quickcheck, jqwik) are ordinary tests in the `test` layer or a feature's own layer; model checks (TLA+ with TLC or Apalache) and proofs (Lean via `lake build`) run as a feature's own layer, because their result is pass or fail, not a number for a quality gate. The section gives one property example, two layer declarations, the requirement that the tool exit non-zero on a violation, and the costs.
+- The `testing` skill gains a step on when to reach for each.
+- The harness ships no formal tooling, no dependency and no preset: each tool is per stack, Java- or toolchain-heavy, and worth it only for a few features. A layer is already the integration point.
+- This repository's own candidate is the WIP=1 and lane landing logic under concurrency (`activate`, `lane-new`, `lane-land` across worktrees), a small state machine where interleavings matter. It is not adopted: no bug in it has been found by sessions or review so far, and a TLA+ model would add a Java toolchain to CI and a spec that must be kept in step with the runner. Revisit if lane landing misbehaves.
+**Alternatives considered:**
+- Ship fast-check as a dev dependency and add properties to the runner's tests — rejected for now: the harness keeps zero dependencies, and the runner's riskiest logic is file and git handling, where example tests in throwaway repositories catch what matters.
+- A `formal` quality-gate preset — rejected: the result is a verdict, not a metric.
+**Consequences:**
+- Positive: adopters with a state machine or a parser have a documented, checked path into the gate without new harness machinery.
+- Negative: guidance only; nothing measures whether adopters use it, and the example commands depend on tool versions the harness does not pin.

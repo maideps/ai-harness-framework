@@ -81,6 +81,53 @@ Add `test-results/` to `.gitignore`, then declare the captures on the feature's 
 
 **CLI and API projects.** The layer log `verify-feature` already keeps (`.harness/logs/<feature>/<NN>-<label>.log`) is the evidence of what the command printed. For a terminal interface, a layer can record a [VHS](https://github.com/charmbracelet/vhs) tape that writes a screenshot (`Screenshot out/menu.png`) and declare `"captures": ["out/*.png"]`; this repository's own README demo is recorded with VHS (`docs/demo/demo.tape`).
 
+## Property-based and Formal Checks
+
+Example tests check the cases someone thought of. Two stronger kinds of check fit into the same layers; the harness ships neither, and most features need neither (feat-047, D-058).
+
+**Property-based tests** state a rule that must hold for every input, and the tool generates hundreds of inputs, shrinking any failure to the smallest one. They are ordinary tests: they run in the `test` layer, or in the feature's own layer, like any other.
+
+| Stack | Tool |
+|---|---|
+| JavaScript, TypeScript | fast-check |
+| Python | Hypothesis |
+| Rust | proptest, quickcheck |
+| JVM | jqwik |
+
+For a feature whose declared behavior is "`cartTotal()` applies a 10% discount above $100 and never returns less than $0":
+
+```js
+// cart.property.test.mjs (node --test, fast-check)
+import test from "node:test";
+import fc from "fast-check";
+import { cartTotal } from "./cart.mjs";
+
+test("the discount applies above $100 and the total is never negative", () => {
+  fc.assert(fc.property(fc.array(fc.integer({ min: 0, max: 50_000 })), (cents) => {
+    const subtotal = cents.reduce((sum, c) => sum + c, 0);
+    const total = cartTotal(cents);
+    return total >= 0 && total === (subtotal > 10_000 ? Math.round(subtotal * 0.9) : subtotal);
+  }));
+});
+```
+
+Reach for them when the input space is large and the rule is easy to state: parsers and serializers (decode of encode is the identity), money and date arithmetic, sorting and merging, anything with an invariant.
+
+**Model checking and proofs** check a design, not samples: every reachable state of a model (TLA+ with the TLC checker or Apalache), or a machine-checked proof (Lean). They fit state machines, concurrency, retries and distributed protocols, where a bug needs a rare interleaving that tests almost never produce.
+
+- Run them as a feature's own layer, because the result is pass or fail. A quality gate in `.harness/quality.json` is for a number (coverage, a score), not a verdict.
+- The check must exit non-zero when it finds a violation, or the layer passes whatever it finds; check your tool version's exit codes before trusting a PASS.
+
+```json
+{ "label": "Model check: order workflow", "cmd": "java -cp tools/tla2tools.jar tlc2.TLC -workers auto -config specs/Orders.cfg specs/Orders.tla", "repair": "Read the counterexample trace TLC printed; fix the design or the spec, then rerun." }
+```
+
+```json
+{ "label": "Proofs: rounding lemmas", "cmd": "lake build", "repair": "Fix the proof or the definition Lean rejected, then rerun lake build." }
+```
+
+Weigh the cost first. TLA+ needs Java and a model written by hand; the model describes the design, not the code, so it can drift from the code unless someone owns keeping them in step. Lean proofs take expertise and time, and pay off for small, critical algorithms. Model checks can also be slow: keep the model the gate checks small enough that `verify-feature` stays quick, and run the full state space in a scheduled CI job.
+
 ## Session Lifecycle
 
 Every session starts with `./init.sh`, which ends with a short brief (`node scripts/framework-check.mjs brief` prints the same on demand): branch and uncommitted changes, feature counts, the active feature with its behavior and layer commands, the planned features that can start now and those waiting on dependencies, blocked features, stale evidence, the latest session note's known risk and next step, and how old `session-handoff.md` is. It is a few hundred bytes, so a session doesn't need to read all of `feature_list.json`; open it for the features the brief names (feat-037).
