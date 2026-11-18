@@ -18,7 +18,8 @@ The same-commit rule, operationalized: no stale documentation.
 2. Update each affected surface:
    - `docs/ARCHITECTURE.md` — layer model, harness boundaries, seam contract changes
    - `.harness/manifest.json` — any layout change (arch-005 fails on unclassified files)
-   - `README.md` and `docs/USAGE.md` — command surface or workflow changes
+   - `README.md` — after every feature that passes the gate: what the app being built does, how to run it, what a user can do now (in an adopter, the product; in the framework repository, the harness). `clean-check` fails until it changes after the latest verified feature; a feature with no user-visible change declares `"readme": "<reason>"` instead
+   - `docs/USAGE.md` — command surface or workflow changes
    - `docs/STANDARDS.md` — standards changes
    - `docs/quality-document.md` — ratings for modules touched this session
    - `skills/` — if the change alters a skill's workflow
@@ -37,7 +38,8 @@ The same-commit rule, operationalized: no stale documentation.
 
 - [ ] Touched surfaces identified
 - [ ] ARCHITECTURE.md and manifest updated for layout changes
-- [ ] README/USAGE updated for command changes
+- [ ] README describes the app as it is after this session's features (or the feature declares `readme`)
+- [ ] USAGE updated for command changes
 - [ ] Templates + instance copies in sync
 - [ ] Every MUST rule in AGENTS.md has an accurate enforced-by comment
 - [ ] Same commit as the code change

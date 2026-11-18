@@ -139,6 +139,9 @@ export function buildFixture(task, { parent } = {}) {
     // named in the quality document (feat-034).
     const quality = path.join(root, "docs", "quality-document.md");
     writeFileSync(quality, `${readFileSync(quality, "utf8").trimEnd()}\n\n- ${feature.id} (${feature.name}): verified in an earlier session.\n`, "utf8");
+    // ...and README.md describes what the app can do since then (feat-051).
+    const readme = path.join(root, "README.md");
+    writeFileSync(readme, `${readFileSync(readme, "utf8").trimEnd()}\n\n- ${feature.name}: available.\n`, "utf8");
     commitAll(root, `Verify ${feature.id}`);
   }
   for (const feature of (task.setup?.features ?? []).filter((item) => item.state === "active")) {

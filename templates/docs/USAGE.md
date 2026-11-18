@@ -34,7 +34,7 @@ The generated [Harness Command Reference](HARNESS.md) lists Makefile targets and
    ```
    The gate runs the feature's own verification layers, refuses to pass a feature whose dependencies are not `passing`, and records evidence in `.harness/state/<feature-id>.json` — `feature_list.json` itself is never rewritten (feat-011, D-017).
 5. The gate writes the trail to `.harness/trails/` itself on a bound pass (feat-034); `npm run vcr` records a full-run trail for work no feature gate covers.
-6. End the session: start the note with `node scripts/framework-check.mjs progress-new "<title>"` and fill it in, including "Mistakes caught" (`none`, or each mistake caught this session and the rule, test or lint check it became) (or write `progress/NNN-YYYY-MM-DD.md` yourself and run `node scripts/framework-check.mjs progress-update`), update `session-handoff.md` and `docs/quality-document.md`, then run `npm run clean-check` and commit.
+6. End the session: start the note with `node scripts/framework-check.mjs progress-new "<title>"` and fill it in, including "Mistakes caught" (`none`, or each mistake caught this session and the rule, test or lint check it became) (or write `progress/NNN-YYYY-MM-DD.md` yourself and run `node scripts/framework-check.mjs progress-update`), update `session-handoff.md` and `docs/quality-document.md`, update `README.md` so it describes the app as it is now (what it does, how to run it, what a user can do; `clean-check` fails until README.md changes after the latest verified feature, and a feature with no user-visible change declares `"readme": "<reason>"` in `feature_list.json` instead, feat-051), then run `npm run clean-check` and commit.
 
 ## Testing Your Product
 

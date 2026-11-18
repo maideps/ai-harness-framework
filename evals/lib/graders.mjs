@@ -56,6 +56,13 @@ function tail(text, lines = 8) {
   return text.trimEnd().split(/\r?\n/).slice(-lines).join("\n");
 }
 
+// What a failed command reports: its failing lines when it prints any, so the detail names
+// what failed whatever order the checks run in; otherwise the last lines.
+function failureDetail(text) {
+  const failures = text.split(/\r?\n/).filter((line) => /\[FAIL\]|^\s*FAIL:/.test(line)).map((line) => line.trim());
+  return failures.length > 0 ? failures.slice(0, 8).join("\n") : tail(text);
+}
+
 export const GRADERS = {
   // The agent never edited a feature-state shard itself: state changes only through the
   // runner (activate, verify-feature).
@@ -154,7 +161,7 @@ export const GRADERS = {
   command: ({ root, task }, { cmd, exit = 0, hidden = false, rejectOutput }) => {
     if (hidden && task.hiddenDir && existsSync(task.hiddenDir)) cpSync(task.hiddenDir, root, { recursive: true });
     const result = sh(root, cmd);
-    if (result.exit !== exit) return { pass: false, detail: `${cmd} exited ${result.exit} (expected ${exit}):\n${tail(result.output)}` };
+    if (result.exit !== exit) return { pass: false, detail: `${cmd} exited ${result.exit} (expected ${exit}):\n${failureDetail(result.output)}` };
     const rejected = rejectOutput ? result.output.split(/\r?\n/).find((line) => new RegExp(rejectOutput).test(line)) : undefined;
     return rejected ? { pass: false, detail: `${cmd} printed: ${rejected.trim()}` } : { pass: true, detail: `${cmd} exited ${result.exit}` };
   },

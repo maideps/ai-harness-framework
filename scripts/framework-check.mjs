@@ -691,6 +691,9 @@ function ensureFeatureShape() {
     if ("dependencies" in feature && !Array.isArray(feature.dependencies)) {
       fail(`feature ${feature.id} dependencies must be an array`);
     }
+    if ("readme" in feature && (typeof feature.readme !== "string" || !feature.readme.trim())) {
+      fail(`feature ${feature.id} readme must be a non-empty reason why README.md needs no change (feat-051)`);
+    }
     if (!Array.isArray(feature.layers) || feature.layers.length === 0) {
       fail(`feature ${feature.id} must define at least one verification layer`);
     }
@@ -1552,6 +1555,35 @@ function globToRegExp(glob) {
     else source += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
   }
   return new RegExp(`^${source}$`);
+}
+
+// ---- README stays current (feat-051, D-060) --------------------------------
+// verifiedIds: gate-verified features (bound evidence). The newest one without a "readme"
+// opt-out is the change README.md must postdate: changed in its verified commit, a later commit,
+// or the working tree. A commit git cannot resolve (shallow clone, rewritten history) warns.
+function readmeFreshness(verifiedIds) {
+  const { features } = existsSync("feature_list.json") ? loadFeaturesWithState() : { features: [] };
+  const latest = features
+    .filter((feature) => verifiedIds.includes(feature.id) && !feature.readme)
+    .map((feature) => ({ id: feature.id, evidence: parseEvidence(feature) }))
+    .filter(({ evidence }) => typeof evidence?.commit === "string")
+    .sort((a, b) => String(b.evidence.timestamp ?? "").localeCompare(String(a.evidence.timestamp ?? "")))[0];
+  if (!latest) return { level: "pass", message: "No gate-verified feature asks for a README update yet" };
+  if (!existsSync("README.md")) return { level: "fail", message: "README.md is missing — it describes the app being built" };
+  const { id, evidence } = latest;
+  const pending = gitCapture(["status", "--porcelain", "--", "README.md"]);
+  if (pending) return { level: "pass", message: `README.md has changes since ${id} passed (uncommitted)` };
+  const readmeCommit = gitCapture(["log", "-1", "--format=%H", "--", "README.md"]);
+  if (!readmeCommit) return { level: "fail", message: `README.md has never been committed; describe the app, including what ${id} added, and commit it` };
+  const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", evidence.commit, readmeCommit]);
+  if (ancestor.status === 0) return { level: "pass", message: `README.md changed at or after ${id} passed (${evidence.commit})` };
+  if (ancestor.status === 1) {
+    return {
+      level: "fail",
+      message: `README.md was last changed before ${id} passed (${evidence.commit}). Update it to describe what the app does now (what ${id} changed for its users, how to run it), or, if users see no change, declare "readme": "<reason>" on ${id} in feature_list.json`,
+    };
+  }
+  return { level: "warn", message: `cannot tell whether README.md changed after ${id} passed: commit ${evidence.commit} is not in this clone's history` };
 }
 
 // ---- Opt-in pre-commit hook (feat-043, D-054) ------------------------------
@@ -2609,6 +2641,15 @@ function cleanStateCheck() {
       `${qualityDoc} does not mention ${unmentioned.join(", ")}. Add a line for each (for example under Notes: what changed and which modules), rate those modules in the Modules table, and commit.`,
     );
   }
+
+  // A feature passing the gate is a significant change: README.md must describe the app as it
+  // is now (feat-051, D-060). It has to change in the latest verified feature's commit or later
+  // (or in the working tree), unless that feature declares "readme": "<reason>".
+  console.log("");
+  console.log("--- README ---");
+  const readme = readmeFreshness(verified);
+  if (readme.level === "warn") console.log(`  [WARN] ${readme.message}`);
+  else check(readme.level === "pass", readme.message, readme.message);
 
   // Lint accepts a blank "Mistakes caught" so a fresh skeleton passes (feat-036); the end of
   // the session is where it must be filled in (feat-042, D-053).

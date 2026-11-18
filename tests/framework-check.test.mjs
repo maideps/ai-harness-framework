@@ -1607,6 +1607,81 @@ test("verify-feature: a bound pass records a verify-feature trail; an unbound pa
   }
 });
 
+// ---- feat-051 (D-060): README stays current with the app --------------------
+
+// A git repository where README.md is committed first and feat-001's code later; feat-001 is
+// passing with bound evidence naming the code commit (`at`: "readme" or "code").
+function readmeFixture({ readmeAfter = false, extra = [] } = {}) {
+  const root = gitFeatureFixture([evidenceFeature({ state: "active" }), ...extra]);
+  const gitIn = (...args) => spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: root, encoding: "utf8" });
+  write(root, "README.md", "# App\n\nGreets people.\n");
+  gitIn("add", "-A");
+  gitIn("commit", "-q", "-m", "readme");
+  write(root, "app.mjs", "export const greet = () => 'hi';\n");
+  gitIn("add", "-A");
+  gitIn("commit", "-q", "-m", "code");
+  const codeCommit = gitIn("rev-parse", "--short", "HEAD").stdout.trim();
+  const evidence = JSON.stringify({ summary: "All verification layers passed via node scripts/framework-check.mjs verify-feature", timestamp: "2026-11-17T10:00:00.000Z", commit: codeCommit, dirty: false, bound: true, checksHash: "0123456789abcdef", layers: [] });
+  write(root, ".harness/state/feat-001.json", `${JSON.stringify({ state: "passing", evidence }, null, 2)}\n`);
+  if (readmeAfter) {
+    write(root, "README.md", "# App\n\nGreets people with hi.\n");
+    gitIn("add", "README.md");
+    gitIn("commit", "-q", "-m", "describe hi");
+  }
+  return { root, gitIn, codeCommit };
+}
+
+const readmeLine = (result) => result.output.split(/\r?\n/).find((line) => line.includes("README.md") && /\[(PASS|FAIL|WARN)\]/.test(line)) ?? "";
+
+test("clean-state-check: fails while README.md predates the latest verified feature, passes once it changes (feat-051)", () => {
+  const stale = readmeFixture();
+  try {
+    assert.match(readmeLine(run(stale.root, "clean-state-check")), new RegExp(`\\[FAIL\\] README\\.md was last changed before feat-001 passed \\(${stale.codeCommit}\\)\\. Update it to describe what the app does now`));
+    write(stale.root, "README.md", "# App\n\nGreets people with hi.\n");
+    assert.match(readmeLine(run(stale.root, "clean-state-check")), /\[PASS\] README\.md has changes since feat-001 passed \(uncommitted\)/);
+  } finally {
+    cleanup(stale.root);
+  }
+  const fresh = readmeFixture({ readmeAfter: true });
+  try {
+    assert.match(readmeLine(run(fresh.root, "clean-state-check")), new RegExp(`\\[PASS\\] README\\.md changed at or after feat-001 passed \\(${fresh.codeCommit}\\)`));
+  } finally {
+    cleanup(fresh.root);
+  }
+});
+
+test("clean-state-check: a feature that declares readme is skipped; an unknown commit warns (feat-051)", () => {
+  const { root } = readmeFixture({ readmeAfter: true });
+  try {
+    // feat-002 passed later with no user-visible change: the README is still judged against feat-001.
+    const declarations = JSON.parse(readFileSync(path.join(root, "feature_list.json"), "utf8"));
+    declarations.features.push({ ...evidenceFeature({ id: "feat-002", name: "Two" }), readme: "internal refactor, nothing users see" });
+    writeDeclarations(root, declarations.features);
+    const evidence = JSON.stringify({ summary: "All verification layers passed via node scripts/framework-check.mjs verify-feature", timestamp: "2026-11-18T10:00:00.000Z", commit: "fffffff", dirty: false, bound: true, checksHash: "0123456789abcdef", layers: [] });
+    write(root, ".harness/state/feat-002.json", `${JSON.stringify({ state: "passing", evidence }, null, 2)}\n`);
+    assert.match(readmeLine(run(root, "clean-state-check")), /\[PASS\] README\.md changed at or after feat-001 passed/);
+
+    delete declarations.features[1].readme;
+    writeDeclarations(root, declarations.features);
+    assert.match(readmeLine(run(root, "clean-state-check")), /\[WARN\] cannot tell whether README\.md changed after feat-002 passed: commit fffffff is not in this clone's history/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: a readme opt-out must be a non-empty reason (feat-051)", () => {
+  for (const readme of ["", "  ", true]) {
+    const root = featureListFixture([evidenceFeature({ readme })]);
+    try {
+      const result = run(root, "typecheck");
+      assert.equal(result.exit, 1, `${JSON.stringify(readme)}: ${result.output}`);
+      assert.match(result.stderr, /readme must be a non-empty reason why README\.md needs no change/);
+    } finally {
+      cleanup(root);
+    }
+  }
+});
+
 test("clean-state-check: fails until docs/quality-document.md mentions every gate-verified feature (feat-034)", () => {
   const bound = JSON.stringify({ summary: "s", commit: "abc1234", dirty: false, bound: true, checksHash: "0123456789abcdef", layers: [] });
   const legacy = JSON.stringify({ summary: "s", commit: "abc1234", dirty: true, layers: [] });
