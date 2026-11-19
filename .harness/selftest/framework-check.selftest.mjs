@@ -180,7 +180,7 @@ test("e2e: adopter CI skips the framework adoption matrix", () => {
 // ---- feat-029: harness self-tests leave an adopter's per-feature path ------
 //
 // A fixture is an adopter unless its manifest sets frameworkRepository: true. Its
-// .harness/selftest/ holds a failing *.test.mjs, so a mode that runs the harness self-tests fails
+// .harness/selftest/ holds a failing *.selftest.mjs, so a mode that runs the harness self-tests fails
 // and one that skips them passes; its scripts/adoption-matrix.mjs is a stub that only prints a
 // marker. The matrix runs
 // this suite inside adoption cells (CW_ADOPTION_CELL=1), and CI may set CW_SKIP_ADOPTION_MATRIX,
@@ -201,7 +201,7 @@ function selfTestFixture({ framework = false, failing = true } = {}) {
   );
   write(
     root,
-    ".harness/selftest/harness.test.mjs",
+    ".harness/selftest/harness.selftest.mjs",
     `import { test } from "node:test";\nimport assert from "node:assert/strict";\ntest("harness self-test", () => assert.equal(1, ${failing ? 2 : 1}));\n`,
   );
   write(root, "scripts/adoption-matrix.mjs", "console.log('STUB ADOPTION MATRIX RAN');\n");
@@ -235,7 +235,7 @@ test("test: in the framework repository the layer still runs the harness self-te
   }
 });
 
-test("selftest: runs .harness/selftest/*.test.mjs on demand and fails when one fails", () => {
+test("selftest: runs .harness/selftest/*.selftest.mjs on demand and fails when one fails", () => {
   const failing = selfTestFixture();
   const passing = selfTestFixture({ failing: false });
   try {
@@ -256,7 +256,7 @@ test("node --test discovers product tests without discovering harness self-tests
   const root = fixture();
   try {
     write(root, "tests/product.test.mjs", `import { test } from "node:test";\ntest("product test", () => {});\n`);
-    write(root, ".harness/selftest/harness.test.mjs", `import { test } from "node:test";\ntest("harness self-test", () => { throw new Error("should not run"); });\n`);
+    write(root, ".harness/selftest/harness.selftest.mjs", `import { test } from "node:test";\ntest("harness self-test", () => { throw new Error("should not run"); });\n`);
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT;
     const result = spawnSync(process.execPath, ["--test"], { cwd: root, encoding: "utf8", env });

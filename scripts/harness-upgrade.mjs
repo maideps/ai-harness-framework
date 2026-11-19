@@ -186,7 +186,10 @@ export function planLegacySelfTests(root, shippedHashes = LEGACY_SELF_TEST_HASHE
       const content = readFileSync(path.join(testDir, entry.name), "utf8").replace(/\r\n/g, "\n");
       return createHash("sha256").update(content, "utf8").digest("hex") === shippedHashes[entry.name];
     })
-    .map((entry) => ({ from: `tests/${entry.name}`, to: `.harness/selftest/${entry.name}` }));
+    .map((entry) => ({
+      from: `tests/${entry.name}`,
+      to: `.harness/selftest/${entry.name.replace(/\.test\.mjs$/, ".selftest.mjs")}`,
+    }));
 }
 
 export function migrateLegacySelfTests(root, files) {

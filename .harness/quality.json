@@ -5,7 +5,7 @@
     {
       "name": "coverage",
       "probe": "node --test-coverage-include=scripts -e 0",
-      "cmd": "node --test --experimental-test-coverage \"--test-coverage-include=scripts/**\" \".harness/selftest/*.test.mjs\"",
+      "cmd": "node --test --experimental-test-coverage \"--test-coverage-include=scripts/**\" \".harness/selftest/*.selftest.mjs\"",
       "metric": { "pattern": "all files\\s*\\|\\s*([\\d.]+)" },
       "min": 65
     }
