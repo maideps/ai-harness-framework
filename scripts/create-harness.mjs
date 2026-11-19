@@ -135,6 +135,8 @@ function instantiatePackageJson(root, { wasFreshlyCreated }) {
   pkg.name = instanceName;
   pkg.version = "0.1.0";
   pkg.private = true;
+  pkg.description = "TODO: describe your project";
+  delete pkg.files;
   delete pkg.publishConfig;
   delete pkg.repository;
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");

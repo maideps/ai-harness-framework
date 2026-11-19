@@ -32,6 +32,8 @@ test("adopt: a brand-new target gets an instance-specific, private package.json"
     assert.equal(pkg.publishConfig, undefined);
     assert.equal(pkg.repository, undefined);
     assert.equal(pkg.version, "0.1.0");
+    assert.equal(pkg.description, "TODO: describe your project");
+    assert.equal(pkg.files, undefined);
     // The reusable command surface must still come from the framework.
     assert.deepEqual(pkg.scripts, frameworkPkg.scripts);
   } finally {
