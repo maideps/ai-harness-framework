@@ -20,7 +20,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateHarnessDocs } from "./harness-docs.mjs";
-import { detectRuntime } from "./stack-detect.mjs";
+import { detectRuntime, isUvProject } from "./stack-detect.mjs";
 
 export const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -215,9 +215,12 @@ function instantiateCiWorkflow(root, { wasFreshlyCreated }) {
   const version = existsSync(path.join(root, ".python-version"))
     ? "python-version-file: .python-version"
     : 'python-version: "3.12"';
-  const step = `      - uses: actions/setup-python@v5\n        with:\n          ${version}\n\n`;
+  const steps = [
+    `      - uses: actions/setup-python@v5\n        with:\n          ${version}\n`,
+    ...(isUvProject(root) ? ["      - uses: astral-sh/setup-uv@v10\n"] : []),
+  ].join("\n");
   const workflow = readFileSync(file, "utf8");
-  writeFileSync(file, workflow.replace(CI_SETUP_STEP, `${step}${CI_SETUP_STEP}`), "utf8");
+  writeFileSync(file, workflow.replace(CI_SETUP_STEP, `${steps}\n${CI_SETUP_STEP}`), "utf8");
 }
 
 // Full adoption: CORE + templates + runtime surfaces. `components` opts into optional

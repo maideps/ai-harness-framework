@@ -43,6 +43,16 @@ export function detectPackageManager(cwd = ".") {
   return "npm";
 }
 
+export function isUvProject(cwd = ".") {
+  if (existsSync(path.join(cwd, "uv.lock"))) return true;
+  try {
+    const pyproject = readFileSync(path.join(cwd, "pyproject.toml"), "utf8");
+    return /^\s*\[tool\.uv(?:\.[^\]]+)?\]\s*(?:#.*)?$/m.test(pyproject);
+  } catch {
+    return false;
+  }
+}
+
 function hasNodeDependencies(cwd = ".") {
   try {
     const manifest = JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8"));
@@ -100,6 +110,16 @@ export function resolveLayer(runtime, layer, cwd = ".") {
       return { cmd: value.trim(), skip: "" };
     }
     case "python": {
+      if (isUvProject(cwd)) {
+        switch (layer) {
+          case "lint": return { cmd: "uv run ruff check .", skip: "" };
+          case "typecheck": return { cmd: "uv run mypy", skip: "" };
+          case "test": return { cmd: "uv run pytest -q", skip: "" };
+          case "build": return { cmd: "", skip: "no python build step configured" };
+          case "e2e": return { cmd: "", skip: "no e2e tests configured" };
+          default: return { cmd: "", skip: `no ${layer} step configured` };
+        }
+      }
       const py = pythonInterpreter();
       switch (layer) {
         case "lint":
@@ -249,7 +269,7 @@ export function getInstallCommand(cwd = ".") {
           return "";
       }
     }
-    case "python": return `pip install -e ".[dev]"`;
+    case "python": return isUvProject(cwd) ? "uv sync --locked" : `pip install -e ".[dev]"`;
     case "go": return "go mod download";
     case "rust": return "cargo fetch";
     default: return "";
@@ -263,8 +283,8 @@ export const PY_COMPILE_EXCLUDE = "(^|[/\\\\])(\\.?venv|env|node_modules|build|d
 // The stack's verification chain for init.sh: an ordered list of steps, each
 // with its own allowed exit codes (python's pytest exits 5 when no tests exist,
 // which is not a failure). Steps with an args array run without a shell.
-export function getVerifyChain() {
-  const runtime = detectRuntime();
+export function getVerifyChain(cwd = ".") {
+  const runtime = detectRuntime(cwd);
   switch (runtime) {
     case "node": {
       const scripts = readNodeScripts();
@@ -284,6 +304,16 @@ export function getVerifyChain() {
       return chain;
     }
     case "python": {
+      if (isUvProject(cwd)) {
+        return [
+          { cmd: "uv", args: ["run", "pytest", "-q"], allowedExitCodes: [0, 5] },
+          {
+            cmd: "uv",
+            args: ["run", "python", "-m", "compileall", "-q", "-x", PY_COMPILE_EXCLUDE, "."],
+            allowedExitCodes: [0],
+          },
+        ];
+      }
       const py = pythonInterpreter(); // e.g. "python3", "python", or "py -3"
       if (!py) return [];
       const [interpreter, ...flags] = py.split(/\s+/).filter(Boolean);
