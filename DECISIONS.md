@@ -985,3 +985,18 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: sample output and source in a README no longer fail lint; a missing script or target in a shell or untagged block still does.
 - Negative: a command written in a block mislabelled with another language (say `text`) is no longer checked.
+
+### D-063: copyCore leaves an optional component's files out, whatever tree it copies from
+
+**Date:** 2026-11-17
+**Status:** accepted
+**Context:** D-031 made optional components opt-in: `placeTemplates` places a component's templates only when `components` asks for it. `copyCore` was never covered by that rule. It copies each CORE surface (`scripts/` among them) from the tree it runs in. In this repository `scripts/` has no multi-repo files, so nothing showed. An adopter that activated multi-repo has `scripts/verify-all` and `scripts/verify-all.mjs` in its own `scripts/`, and its self-tests and adoption matrix run `create-harness` from that tree. Upgrading ai-invoice-intake and studio-booking-saas to 7aefd1d brought `tests/create-harness.test.mjs` in for the first time. Two of its tests then failed there: "a plain adoption places no optional-component files" and "rerunning with the same component ... only adds what's missing". `./init.sh` runs the self-tests, so it failed in both repos. The same copy also gave every plain adoption-matrix cell built from such an adopter the component unasked.
+**Decision:**
+- `copyCore` skips any file whose repository-relative path matches an optional component's markers, using the same `optionalComponentFor` check `placeTemplates` uses. A component's files reach an adopter only through the `components` opt-in.
+- `copyCore` takes a `source` option, defaulting to this harness, so a test can copy from a fixture tree that has the component's files.
+**Alternatives considered:**
+- Loosen the two tests to ignore files the source tree already had — rejected: the tests are right; a plain adoption from such an adopter did receive the component.
+- Remove `scripts/verify-all*` from the manifest's CORE `scripts/` surface some other way, such as moving them out of `scripts/` — rejected: adopters already have them at those paths, and the manifest's markers already say which files belong to the component.
+**Consequences:**
+- Positive: `create-harness`, its tests and the adoption matrix give the same result whether they run from this repository or from an adopter with the component.
+- Negative: a CORE file can no longer share a path with an optional component's marker; it would be skipped. No current CORE file does.
