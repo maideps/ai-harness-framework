@@ -17,6 +17,8 @@ make help        # list all available commands
 
 `scripts/stack-detect.mjs` is the single source of truth for "what kind of project is this". It detects the runtime from manifest markers — node (`package.json`), python (`pyproject.toml`/`requirements.txt`), go (`go.mod`), rust (`Cargo.toml`), jvm (`pom.xml`/gradle), dotnet (`.csproj`/`.sln`) — and resolves the right command per verification layer (`ruff`, `mypy`, `pytest`, `go vet`/`test`/`build`, `cargo test`/`build`, `mvn test`, `dotnet test`, …).
 
+Python layers use `uv run` when `uv.lock` is present, `poetry run` when `poetry.lock` is present, or the project `.venv` interpreter when available. Mypy uses configured `files` from `pyproject.toml`, `mypy.ini`, `.mypy.ini` or `setup.cfg`; otherwise it checks `src/`.
+
 For node projects, the package.json script keys are the layer commands (`scripts.lint`, `scripts.test`, …). A layer that is not configured reports **SKIP** — which does not count as verified. Only **PASS** counts; **FAIL** stops the chain.
 
 ## Command Surface
