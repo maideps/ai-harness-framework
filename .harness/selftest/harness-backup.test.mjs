@@ -10,7 +10,7 @@ import {
   pinBackup,
   resolveBackupId,
   restoreBackup,
-} from "../scripts/harness-backup.mjs";
+} from "../../scripts/harness-backup.mjs";
 
 function write(root, rel, content) {
   const dest = path.join(root, rel);

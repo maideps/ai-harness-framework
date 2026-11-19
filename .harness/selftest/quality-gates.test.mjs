@@ -6,13 +6,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adopt } from "../scripts/create-harness.mjs";
-import { extractMetric, validateQualityConfig } from "../scripts/quality-gates.mjs";
-import { resolveQualityPreset } from "../scripts/stack-detect.mjs";
+import { adopt } from "../../scripts/create-harness.mjs";
+import { extractMetric, validateQualityConfig } from "../../scripts/quality-gates.mjs";
+import { resolveQualityPreset } from "../../scripts/stack-detect.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RUNNER = path.join(HERE, "..", "scripts", "framework-check.mjs");
-const TEMPLATE = path.join(HERE, "..", "templates", "quality.json");
+const RUNNER = path.join(HERE, "..", "..", "scripts", "framework-check.mjs");
+const TEMPLATE = path.join(HERE, "..", "..", "templates", "quality.json");
 const NODE = `"${process.execPath}"`;
 
 // A stand-in for a coverage/mutation tool: prints a table row, writes a JSON report, or exits

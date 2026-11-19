@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adopt } from "../scripts/create-harness.mjs";
+import { adopt } from "../../scripts/create-harness.mjs";
 
 // scripts/framework-check.mjs is a monolithic CLI (fail() calls process.exit
 // directly, every mode reads relative to process.cwd()) rather than a module
@@ -16,7 +16,7 @@ import { adopt } from "../scripts/create-harness.mjs";
 // + output — the same technique scripts/adoption-matrix.mjs already uses to
 // exercise check-arch and verify-feature in throwaway directories.
 
-const RUNNER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "scripts", "framework-check.mjs");
+const RUNNER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "scripts", "framework-check.mjs");
 
 function fixture() {
   return mkdtempSync(path.join(os.tmpdir(), "cw-framework-check-"));
@@ -179,9 +179,10 @@ test("e2e: adopter CI skips the framework adoption matrix", () => {
 
 // ---- feat-029: harness self-tests leave an adopter's per-feature path ------
 //
-// A fixture is an adopter unless its manifest sets frameworkRepository: true. Its tests/ holds a
-// failing *.test.mjs, so a mode that runs the harness self-tests fails and one that skips them
-// passes; its scripts/adoption-matrix.mjs is a stub that only prints a marker. The matrix runs
+// A fixture is an adopter unless its manifest sets frameworkRepository: true. Its
+// .harness/selftest/ holds a failing *.test.mjs, so a mode that runs the harness self-tests fails
+// and one that skips them passes; its scripts/adoption-matrix.mjs is a stub that only prints a
+// marker. The matrix runs
 // this suite inside adoption cells (CW_ADOPTION_CELL=1), and CI may set CW_SKIP_ADOPTION_MATRIX,
 // so the tests that depend on their absence unset both. node:test marks this file's process with
 // NODE_TEST_CONTEXT, and a nested `node --test` that inherits it skips every file and exits 0, so
@@ -196,6 +197,11 @@ function selfTestFixture({ framework = false, failing = true } = {}) {
   write(
     root,
     "tests/harness.test.mjs",
+    `import { test } from "node:test";\nimport assert from "node:assert/strict";\ntest("product test", () => assert.equal(1, 1));\n`,
+  );
+  write(
+    root,
+    ".harness/selftest/harness.test.mjs",
     `import { test } from "node:test";\nimport assert from "node:assert/strict";\ntest("harness self-test", () => assert.equal(1, ${failing ? 2 : 1}));\n`,
   );
   write(root, "scripts/adoption-matrix.mjs", "console.log('STUB ADOPTION MATRIX RAN');\n");
@@ -229,19 +235,36 @@ test("test: in the framework repository the layer still runs the harness self-te
   }
 });
 
-test("selftest: runs tests/*.test.mjs on demand and fails when one fails", () => {
+test("selftest: runs .harness/selftest/*.test.mjs on demand and fails when one fails", () => {
   const failing = selfTestFixture();
   const passing = selfTestFixture({ failing: false });
   try {
     const failed = run(failing, "selftest", [], {}, { unset: NESTED_TEST_VARS });
     assert.equal(failed.exit, 1, failed.output);
     assert.match(failed.output, /FAIL: runner unit tests failed/);
+    assert.doesNotMatch(failed.output, /product test/);
     const passed = run(passing, "selftest", [], {}, { unset: NESTED_TEST_VARS });
     assert.equal(passed.exit, 0, passed.output);
     assert.match(passed.stdout, /PASS: Runner unit tests pass/);
   } finally {
     cleanup(failing);
     cleanup(passing);
+  }
+});
+
+test("node --test discovers product tests without discovering harness self-tests", () => {
+  const root = fixture();
+  try {
+    write(root, "tests/product.test.mjs", `import { test } from "node:test";\ntest("product test", () => {});\n`);
+    write(root, ".harness/selftest/harness.test.mjs", `import { test } from "node:test";\ntest("harness self-test", () => { throw new Error("should not run"); });\n`);
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT;
+    const result = spawnSync(process.execPath, ["--test"], { cwd: root, encoding: "utf8", env });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, /product test/);
+    assert.doesNotMatch(result.stdout, /harness self-test/);
+  } finally {
+    cleanup(root);
   }
 });
 

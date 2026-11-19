@@ -18,7 +18,7 @@
     "package.json",
     "init.sh",
     "scripts/",
-    "tests/",
+    ".harness/selftest/",
     "skills/",
     "templates/",
     ".harness/manifest.json",
@@ -92,6 +92,7 @@
     ".harness/traces/.gitkeep"
   ],
   "productRoots": [
+    "tests/",
     "evals/",
     ".github/workflows/publish.yml",
     "repo-completion-plan.md"
