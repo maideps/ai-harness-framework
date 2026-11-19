@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 
-import { adopt, HARNESS_ROOT, placeTemplates } from "../scripts/create-harness.mjs";
+import { adopt, copyCore, HARNESS_ROOT, placeTemplates } from "../scripts/create-harness.mjs";
 
 function fixture(name) {
   return mkdtempSync(path.join(os.tmpdir(), `cw-create-harness-${name}-`));
@@ -116,6 +116,26 @@ test("adopt: the sanitized name is derived from the target directory name", () =
     assert.equal(pkg.name, "my-cool-project");
   } finally {
     cleanup(parent);
+  }
+});
+
+// D-063: an adopter that activated multi-repo has scripts/verify-all in its own tree, and its
+// self-tests and adoption matrix run create-harness from that tree. copyCore must not carry it.
+test("copyCore: leaves an optional component's files out even when the source tree has them", () => {
+  const source = fixture("core-source");
+  const root = fixture("core-target");
+  try {
+    for (const rel of ["scripts/framework-check.mjs", "scripts/verify-all", "scripts/verify-all.mjs"]) {
+      mkdirSync(path.dirname(path.join(source, rel)), { recursive: true });
+      writeFileSync(path.join(source, rel), "// fixture\n", "utf8");
+    }
+    copyCore(root, { source });
+    assert.ok(existsSync(path.join(root, "scripts", "framework-check.mjs")));
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all")));
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all.mjs")));
+  } finally {
+    cleanup(source);
+    cleanup(root);
   }
 });
 
