@@ -10,7 +10,7 @@ import {
   detectPackageManager,
   getInstallCommand,
   resolveLayer,
-} from "../scripts/stack-detect.mjs";
+} from "../../scripts/stack-detect.mjs";
 
 function fixture(files) {
   const root = mkdtempSync(path.join(os.tmpdir(), "cw-unit-"));

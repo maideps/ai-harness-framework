@@ -43,7 +43,7 @@ function sha256(buffer) {
 // harnessRoot, walked with forward slashes regardless of host OS (this is
 // used both as a filesystem-relative path under root and as the manifest's
 // stored key, so it must stay host-independent).
-function collectSourceRelPaths(harnessRoot, surfaces) {
+function collectSourceRelPaths(harnessRoot, surfaces, extraPaths = []) {
   const relPaths = [];
   const walk = (dir, relDir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -64,7 +64,7 @@ function collectSourceRelPaths(harnessRoot, surfaces) {
       relPaths.push(surface);
     }
   }
-  return relPaths;
+  return [...new Set([...relPaths, ...extraPaths])];
 }
 
 function snapshotState(root, relPaths) {
@@ -109,8 +109,8 @@ export function listBackups(root) {
 // Snapshots the current on-disk state of every file the given surfaces are
 // about to overwrite. Returns { skipped: true, reason, id } when identical
 // to the most recent backup, otherwise { skipped: false, id, path, fileCount }.
-export function createBackup(root, surfaces, harnessRoot) {
-  const relPaths = collectSourceRelPaths(harnessRoot, surfaces);
+export function createBackup(root, surfaces, harnessRoot, extraPaths = []) {
+  const relPaths = collectSourceRelPaths(harnessRoot, surfaces, extraPaths);
   const files = snapshotState(root, relPaths);
   const checksum = overallChecksum(files);
 

@@ -5,9 +5,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderHarnessDocs } from "../scripts/harness-docs.mjs";
+import { renderHarnessDocs } from "../../scripts/harness-docs.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RUNNER = path.join(ROOT, "scripts", "framework-check.mjs");
 const GENERATOR = path.join(ROOT, "scripts", "harness-docs.mjs");
 

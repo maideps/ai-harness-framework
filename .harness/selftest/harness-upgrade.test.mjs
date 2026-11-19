@@ -1,16 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { checkChainsWithoutArch, missingHarnessScripts, missingMakeTargets, upgrade } from "../scripts/harness-upgrade.mjs";
+import {
+  checkChainsWithoutArch,
+  migrateLegacySelfTests,
+  missingHarnessScripts,
+  missingMakeTargets,
+  planLegacySelfTests,
+  upgrade,
+} from "../../scripts/harness-upgrade.mjs";
 
-// These tests also run inside adopters (tests/ is CORE), where the harness root is the adopter
+// These tests also run inside adopters (.harness/selftest/ is CORE), where the harness root is the adopter
 // itself: they compare against whatever harness root they run in, never against fixed content.
-const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const harnessFile = (rel) => readFileSync(path.join(HARNESS_ROOT, rel), "utf8");
 
 function tempDir() {
@@ -32,7 +40,7 @@ function adopter() {
   write(root, ".harness/manifest.json", `${JSON.stringify({
     harness: "old",
     version: "0.0.1",
-    core: ["scripts/"],
+    core: ["scripts/", "tests/"],
     instance: ["README.md"],
     templates: [],
     productRoots: ["app/", "web/"],
@@ -41,12 +49,43 @@ function adopter() {
   return root;
 }
 
-test("harness-upgrade: refreshes the runner's own tests along with the runner (feat-019)", () => {
+test("harness-upgrade: preserves same-named and other adopter tests", () => {
   const root = adopter();
+  write(root, "tests/framework-check.test.mjs", "// adopter product test\n");
+  write(root, "tests/product.test.mjs", "// adopter product test\n");
   try {
     const report = upgrade(root);
-    assert.ok(report.overwritten.includes("tests/"), JSON.stringify(report.overwritten));
-    assert.equal(readFileSync(path.join(root, "tests/framework-check.test.mjs"), "utf8"), harnessFile("tests/framework-check.test.mjs"));
+    assert.ok(report.overwritten.includes(".harness/selftest/"), JSON.stringify(report.overwritten));
+    assert.deepEqual(report.migrated, []);
+    assert.equal(readFileSync(path.join(root, "tests/framework-check.test.mjs"), "utf8"), "// adopter product test\n");
+    assert.equal(
+      readFileSync(path.join(root, ".harness/selftest/framework-check.test.mjs"), "utf8"),
+      harnessFile(".harness/selftest/framework-check.test.mjs"),
+    );
+    assert.equal(readFileSync(path.join(root, "tests/product.test.mjs"), "utf8"), "// adopter product test\n");
+    const manifest = JSON.parse(readFileSync(path.join(root, ".harness/manifest.json"), "utf8"));
+    assert.ok(manifest.productRoots.includes("tests/"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("harness-upgrade: moves only an exact legacy self-test", () => {
+  const root = adopter();
+  const legacy = "// a test shipped by an older harness\n";
+  write(root, "tests/framework-check.test.mjs", legacy);
+  write(root, "tests/product.test.mjs", "// adopter product test\n");
+  try {
+    const hash = createHash("sha256").update(legacy).digest("hex");
+    const planned = planLegacySelfTests(root, { "framework-check.test.mjs": hash });
+    assert.deepEqual(planned, [{
+      from: "tests/framework-check.test.mjs",
+      to: ".harness/selftest/framework-check.test.mjs",
+    }]);
+    migrateLegacySelfTests(root, planned);
+    assert.ok(!existsSync(path.join(root, "tests/framework-check.test.mjs")));
+    assert.equal(readFileSync(path.join(root, ".harness/selftest/framework-check.test.mjs"), "utf8"), legacy);
+    assert.equal(readFileSync(path.join(root, "tests/product.test.mjs"), "utf8"), "// adopter product test\n");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -85,7 +124,7 @@ test("harness-upgrade: updates the manifest classification and keeps the adopter
     for (const key of ["harness", "version", "core", "instance", "templates", "optionalComponents", "customizationPoints"]) {
       assert.deepEqual(theirs[key], ours[key], key);
     }
-    assert.deepEqual(theirs.productRoots, ["app/", "web/"]);
+    assert.deepEqual(theirs.productRoots, ["app/", "web/", "tests/"]);
     assert.equal(theirs.featureIdPattern, "^ours-\\d+$");
     assert.ok(report.overwritten.some((surface) => surface.startsWith(".harness/manifest.json")));
   } finally {
@@ -136,7 +175,8 @@ test("harness-upgrade --dry-run: writes nothing, takes no backup, and reports th
     assert.equal(dry.dryRun, true);
     assert.equal(dry.backup.reason, "dry run");
     assert.ok(dry.files.added.length > 0, "a bare adopter is missing framework files");
-    assert.ok(dry.files.updated.includes("tests/framework-check.test.mjs"), JSON.stringify(dry.files.updated));
+    assert.ok(dry.files.added.includes(".harness/selftest/framework-check.test.mjs"), JSON.stringify(dry.files.added));
+    assert.deepEqual(dry.migrated, []);
 
     const real = upgrade(root);
     assert.equal(real.dryRun, false);
@@ -180,7 +220,8 @@ test("harness-upgrade CLI: --dry-run prints the plan and writes nothing; an unkn
     assert.equal(dry.status, 0, dry.stderr);
     assert.match(dry.stdout, /dry run: nothing was written/);
     assert.match(dry.stdout, /Framework-owned files: \d+ would change, \d+ would be added, \d+ unchanged/);
-    assert.match(dry.stdout, /update {2}tests\/framework-check\.test\.mjs/);
+    assert.match(dry.stdout, /add {5}\.harness\/selftest\/framework-check\.test\.mjs/);
+    assert.doesNotMatch(dry.stdout, /Would migrate legacy harness self-tests:/);
     assert.match(dry.stdout, /Nothing was written\. Apply with:/);
     assert.deepEqual(snapshotTree(root), before);
 

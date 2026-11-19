@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { missingSelfChecks } from "../scripts/harness-audit.mjs";
+import { missingSelfChecks } from "../../scripts/harness-audit.mjs";
 
 function tempDir() {
   return mkdtempSync(path.join(os.tmpdir(), "cw-harness-audit-"));

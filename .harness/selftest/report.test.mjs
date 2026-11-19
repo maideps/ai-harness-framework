@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { aggregate, mergedPullRequest, outcomes, revertedPullRequests } from "../scripts/harness-report.mjs";
+import { aggregate, mergedPullRequest, outcomes, revertedPullRequests } from "../../scripts/harness-report.mjs";
 
 function fixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), "cw-report-"));

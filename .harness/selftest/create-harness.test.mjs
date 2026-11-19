@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 
-import { adopt, HARNESS_ROOT, placeTemplates } from "../scripts/create-harness.mjs";
+import { adopt, HARNESS_ROOT, placeTemplates } from "../../scripts/create-harness.mjs";
 
 function fixture(name) {
   return mkdtempSync(path.join(os.tmpdir(), `cw-create-harness-${name}-`));
@@ -55,16 +55,16 @@ test("adopt: an already-customized package.json is never rewritten", () => {
   }
 });
 
-// feat-027: the framework's own productRoots (publish.yml, repo-completion-plan.md) used to
-// land in every new adopter's manifest, exempting files the adopter does not have.
-test("adopt: a brand-new target starts with empty productRoots and the framework's classification", () => {
+// feat-027: the framework's own productRoots do not land in every new adopter's manifest;
+// tests/ is included because it is a conventional product test directory.
+test("adopt: a brand-new target starts with tests/ product-owned and the framework's classification", () => {
   const root = fixture("manifest");
   try {
     adopt(root, { skipExisting: true });
     const manifest = JSON.parse(readFileSync(path.join(root, ".harness", "manifest.json"), "utf8"));
     const frameworkManifest = JSON.parse(readFileSync(path.join(HARNESS_ROOT, ".harness", "manifest.json"), "utf8"));
 
-    assert.deepEqual(manifest.productRoots, []);
+    assert.deepEqual(manifest.productRoots, ["tests/"]);
     // feat-029: frameworkRepository marks the framework's own repository only.
     const expected = { ...frameworkManifest };
     delete expected.frameworkRepository;
