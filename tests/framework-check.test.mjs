@@ -86,6 +86,29 @@ test("ensureNoPlaceholders: passes once a doc is edited; still fails for any doc
   }
 });
 
+test("ensureNoPlaceholders: warns when package description is still the framework description", () => {
+  const root = fixture();
+  try {
+    adopt(root, { skipExisting: true });
+    const pkgPath = path.join(root, "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    pkg.description =
+      "A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows";
+    writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+
+    const lint = run(root, "lint", [], { CW_INIT_SH: "1" });
+    assert.equal(lint.exit, 0, lint.output);
+    assert.match(lint.output, /\[WARN\] package\.json description is still the framework's description/);
+
+    pkg.description = "A description for my project";
+    writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+    const customizedLint = run(root, "lint", [], { CW_INIT_SH: "1" });
+    assert.doesNotMatch(customizedLint.output, /package\.json description is still/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("ensureNoPlaceholders: init.sh's CW_INIT_SH warns instead of failing, so a first run completes", () => {
   const root = fixture();
   try {
