@@ -1694,6 +1694,20 @@ test("lint:readme: reports missing sections and claims the repository does not b
   }
 });
 
+test("lint:readme: ignores routes and slash-delimited identifiers that are not repository paths (#65)", () => {
+  const readme = GOOD_README.replace(
+    "Run `npm start` or `node app/greet.mjs`.",
+    "Run `npm start` or `node app/greet.mjs`. The service answers `GET /health/live` and `GET /app/health` with `{\"status\": \"ok\"}`, `application/json`, `openai/gpt-4o-mini`, `groq/llama-3.1-8b-instant` and `pgvector/pgvector:pg17`.",
+  );
+  const root = readmeRepo(readme);
+  try {
+    const result = run(root, "lint:readme");
+    assert.equal(result.exit, 0, result.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("lint:readme: the README template create-harness places passes the contract in the adopter (feat-052)", () => {
   const root = fixture();
   try {

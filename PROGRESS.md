@@ -109,4 +109,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 089 — 2026-11-17 — README stays current with the app (feat-051)](progress/089-2026-11-17.md)
 - [Session 090 — 2026-11-17 — README contrasted with the repository (feat-052)](progress/090-2026-11-17.md)
 - [Session 091 — 2026-11-18 — README command claims only from shell fences (feat-053)](progress/091-2026-11-18.md)
+- [Session 092 — 2026-11-19 — Ignore non-path README terms](progress/092-2026-11-19.md)
 <!-- END GENERATED PROGRESS -->

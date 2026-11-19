@@ -1126,7 +1126,9 @@ function readmeContractProblems(text, { scripts = null, targets = null, exists =
     for (const span of line.matchAll(/`([^`]+)`/g)) {
       for (const word of span[1].split(/\s+/)) {
         const candidate = word.replace(/[,;:)]+$/, "");
-        if (!/^\.{0,2}\/?[\w.-]+(\/[\w.-]*)+$/.test(candidate) || README_PLACEHOLDER.test(candidate) || candidate.includes("://")) continue;
+        if (!/^(?:\.\/)?[\w.-]+(?:\/[\w.-]*)+$/.test(candidate) || README_PLACEHOLDER.test(candidate) || candidate.includes("://")) continue;
+        const rootEntry = candidate.replace(/^\.\//, "").split("/")[0];
+        if (!exists(rootEntry)) continue;
         if (!exists(candidate.replace(/\/$/, ""))) at(index, `\`${candidate}\` does not exist in the repository`);
       }
     }
