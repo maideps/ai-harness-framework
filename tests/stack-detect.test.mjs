@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -21,6 +21,15 @@ function fixture(files) {
     writeFileSync(full, content, "utf8");
   }
   return root;
+}
+
+function addPythonStub(root) {
+  const executable = process.platform === "win32"
+    ? path.join(root, ".venv", "Scripts", "python.exe")
+    : path.join(root, ".venv", "bin", "python");
+  mkdirSync(path.dirname(executable), { recursive: true });
+  writeFileSync(executable, process.platform === "win32" ? "@exit /b 0\n" : "#!/bin/sh\nexit 0\n", "utf8");
+  if (process.platform !== "win32") chmodSync(executable, 0o755);
 }
 
 test("detectRuntime: product stacks take precedence over the harness package.json", () => {
@@ -108,7 +117,7 @@ test("uv projects use uv sync and run Python layers inside the project environme
   rmSync(locked, { recursive: true, force: true });
 
   const configured = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n\n[tool.uv]\n" });
-  assert.equal(getInstallCommand(configured), "uv sync --locked");
+  assert.equal(getInstallCommand(configured), "uv sync");
   rmSync(configured, { recursive: true, force: true });
 
   const standard = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n" });
@@ -145,9 +154,64 @@ test("resolveLayer: python test resolves or SKIPs honestly", () => {
   }
   const lint = resolveLayer("python", "lint", root);
   if (lint.cmd) {
-    assert.equal(lint.cmd, "ruff check .");
+    assert.match(lint.cmd, /ruff check \.$/);
   } else {
-    assert.match(lint.skip, /ruff is not installed/);
+    assert.match(lint.skip, /ruff is not installed|uv is not installed|poetry is not installed/);
   }
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("resolveLayer: python lockfiles select uv and poetry runners", () => {
+  const bin = mkdtempSync(path.join(os.tmpdir(), "cw-python-runners-"));
+  const originalPath = process.env.PATH;
+  for (const name of ["uv", "poetry"]) {
+    const executable = path.join(bin, process.platform === "win32" ? `${name}.cmd` : name);
+    writeFileSync(executable, process.platform === "win32" ? "@exit /b 0\n" : "#!/bin/sh\nexit 0\n", "utf8");
+    if (process.platform !== "win32") chmodSync(executable, 0o755);
+  }
+  process.env.PATH = `${bin}${path.delimiter}${originalPath ?? ""}`;
+  try {
+    for (const [lockfile, runner] of [["uv.lock", "uv run"], ["poetry.lock", "poetry run"]]) {
+      const root = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n", [lockfile]: "" });
+      assert.equal(resolveLayer("python", "lint", root).cmd, `${runner} ruff check .`);
+      assert.equal(resolveLayer("python", "typecheck", root).cmd, `${runner} mypy src/`);
+      assert.equal(resolveLayer("python", "test", root).cmd, `${runner} python -m pytest -q`);
+      rmSync(root, { recursive: true, force: true });
+    }
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+    rmSync(bin, { recursive: true, force: true });
+  }
+});
+
+test("resolveLayer: python .venv uses its interpreter and configured mypy files", { skip: process.platform === "win32" }, () => {
+  const root = fixture({
+    "pyproject.toml": "[project]\nname = \"x\"\n[tool.mypy]\nfiles = [\"apps\", \"packages\"]\n",
+  });
+  addPythonStub(root);
+  const python = '"./.venv/bin/python"';
+  assert.equal(resolveLayer("python", "lint", root).cmd, `${python} -m ruff check .`);
+  assert.equal(resolveLayer("python", "typecheck", root).cmd, `${python} -m mypy`);
+  assert.equal(resolveLayer("python", "test", root).cmd, `${python} -m pytest -q`);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("resolveLayer: mypy uses configured files from supported configs and defaults to src/", { skip: process.platform === "win32" }, () => {
+  for (const [config, content] of [
+    ["pyproject.toml", "[project]\nname = \"x\"\n[tool.mypy]\nfiles = [\"apps\", \"packages\"]\n"],
+    ["mypy.ini", "[mypy]\nfiles = apps, packages\n"],
+    [".mypy.ini", "[mypy]\nfiles = apps, packages\n"],
+    ["setup.cfg", "[mypy]\nfiles = apps, packages\n"],
+  ]) {
+    const root = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n", [config]: content });
+    addPythonStub(root);
+    assert.equal(resolveLayer("python", "typecheck", root).cmd, '"./.venv/bin/python" -m mypy');
+    rmSync(root, { recursive: true, force: true });
+  }
+
+  const root = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n" });
+  addPythonStub(root);
+  assert.equal(resolveLayer("python", "typecheck", root).cmd, '"./.venv/bin/python" -m mypy src/');
   rmSync(root, { recursive: true, force: true });
 });

@@ -63,23 +63,90 @@ function hasNodeDependencies(cwd = ".") {
   }
 }
 
-function toolAvailable(probe) {
+function toolAvailable(probe, cwd = ".") {
   try {
     // The probe is the complete command — callers pass the full version probe
     // (e.g. "go version", "cargo --version"). Appending --version here broke
     // tools whose probe already carried the flag ("go version --version").
-    execSync(probe, { stdio: "pipe", shell: true });
+    execSync(probe, { stdio: "pipe", shell: true, cwd });
     return true;
   } catch {
     return false;
   }
 }
 
-function pythonInterpreter() {
+function pythonInterpreter(cwd = ".") {
   for (const candidate of ["python3", "python", "py -3"]) {
-    if (toolAvailable(`${candidate} --version`)) return candidate;
+    if (toolAvailable(`${candidate} --version`, cwd)) return candidate;
   }
   return "";
+}
+
+function pythonRunner(cwd = ".") {
+  const at = (rel) => existsSync(path.join(cwd, rel));
+  if (at("uv.lock")) {
+    return { kind: "uv", prefix: "uv run", python: "uv run python" };
+  }
+  if (at("poetry.lock")) {
+    return { kind: "poetry", prefix: "poetry run", python: "poetry run python" };
+  }
+
+  const interpreter = process.platform === "win32"
+    ? path.join(".venv", "Scripts", "python.exe")
+    : path.join(".venv", "bin", "python");
+  if (at(interpreter)) {
+    const executable = `".${path.sep}${interpreter}"`;
+    return { kind: "venv", prefix: executable, python: executable };
+  }
+
+  return { kind: "global", prefix: "", python: pythonInterpreter(cwd) };
+}
+
+function pythonRunnerAvailable(runner, cwd) {
+  if (runner.kind === "uv") return toolAvailable("uv --version", cwd);
+  if (runner.kind === "poetry") return toolAvailable("poetry --version", cwd);
+  if (runner.kind === "venv") return toolAvailable(`${runner.prefix} --version`, cwd);
+  return true;
+}
+
+function pythonToolCommand(runner, tool) {
+  return runner.kind === "venv"
+    ? `${runner.prefix} -m ${tool}`
+    : `${runner.prefix}${runner.prefix ? " " : ""}${tool}`;
+}
+
+function pythonToolProbe(runner, tool) {
+  const prefix = runner.kind === "uv" ? "uv run --no-sync" : runner.prefix;
+  const command = runner.kind === "venv"
+    ? `${prefix} -m ${tool}`
+    : `${prefix}${prefix ? " " : ""}${tool}`;
+  return `${command} --version`;
+}
+
+function hasMypyFiles(cwd) {
+  const configs = [
+    ["pyproject.toml", "tool.mypy"],
+    ["mypy.ini", "mypy"],
+    [".mypy.ini", "mypy"],
+    ["setup.cfg", "mypy"],
+  ];
+  for (const [file, sectionName] of configs) {
+    try {
+      const lines = readFileSync(path.join(cwd, file), "utf8").split(/\r?\n/);
+      let inSection = false;
+      for (const line of lines) {
+        const section = line.match(/^\s*\[([^\]]+)\]/);
+        if (section) {
+          inSection = section[1].toLowerCase() === sectionName;
+        } else if (inSection && /^\s*files\s*(?:=|:)/i.test(line) && !/^\s*[#;]/.test(line)) {
+          return true;
+        }
+      }
+    } catch {
+      // Missing or unreadable config — try the next supported file.
+    }
+  }
+  return false;
 }
 
 function readNodeScripts(cwd = ".") {
@@ -110,26 +177,33 @@ export function resolveLayer(runtime, layer, cwd = ".") {
       return { cmd: value.trim(), skip: "" };
     }
     case "python": {
-      if (isUvProject(cwd)) {
-        switch (layer) {
-          case "lint": return { cmd: "uv run ruff check .", skip: "" };
-          case "typecheck": return { cmd: "uv run mypy", skip: "" };
-          case "test": return { cmd: "uv run pytest -q", skip: "" };
-          case "build": return { cmd: "", skip: "no python build step configured" };
-          case "e2e": return { cmd: "", skip: "no e2e tests configured" };
-          default: return { cmd: "", skip: `no ${layer} step configured` };
-        }
-      }
-      const py = pythonInterpreter();
+      const runner = pythonRunner(cwd);
       switch (layer) {
-        case "lint":
-          return toolAvailable("ruff --version") ? { cmd: "ruff check .", skip: "" } : { cmd: "", skip: "ruff is not installed" };
-        case "typecheck":
-          return toolAvailable("mypy --version") ? { cmd: "mypy src/", skip: "" } : { cmd: "", skip: "mypy is not installed" };
-        case "test":
-          return py && toolAvailable(`${py} -m pytest --version`)
-            ? { cmd: `${py} -m pytest -q`, skip: "" }
-            : { cmd: "", skip: py ? "pytest is not installed" : "python interpreter not found" };
+        case "lint": {
+          if (!pythonRunnerAvailable(runner, cwd)) return { cmd: "", skip: `${runner.kind} is not installed` };
+          const command = pythonToolCommand(runner, "ruff");
+          return toolAvailable(pythonToolProbe(runner, "ruff"), cwd)
+            ? { cmd: `${command} check .`, skip: "" }
+            : { cmd: "", skip: "ruff is not installed" };
+        }
+        case "typecheck": {
+          if (!pythonRunnerAvailable(runner, cwd)) return { cmd: "", skip: `${runner.kind} is not installed` };
+          const command = pythonToolCommand(runner, "mypy");
+          if (!toolAvailable(pythonToolProbe(runner, "mypy"), cwd)) {
+            return { cmd: "", skip: "mypy is not installed" };
+          }
+          return { cmd: hasMypyFiles(cwd) ? command : `${command} src/`, skip: "" };
+        }
+        case "test": {
+          if (runner.kind === "global" && !runner.python) {
+            return { cmd: "", skip: "python interpreter not found" };
+          }
+          if (!pythonRunnerAvailable(runner, cwd)) return { cmd: "", skip: `${runner.kind} is not installed` };
+          const python = runner.kind === "uv" ? "uv run --no-sync python" : runner.python;
+          const probe = `${python} -m pytest --version`;
+          if (!toolAvailable(probe, cwd)) return { cmd: "", skip: "pytest is not installed" };
+          return { cmd: `${runner.python} -m pytest -q`, skip: "" };
+        }
         case "build":
           return { cmd: "", skip: "no python build step configured" };
         case "e2e":
@@ -269,7 +343,11 @@ export function getInstallCommand(cwd = ".") {
           return "";
       }
     }
-    case "python": return isUvProject(cwd) ? "uv sync --locked" : `pip install -e ".[dev]"`;
+    case "python": {
+      // --locked needs a lockfile; a [tool.uv] project without one lets uv sync create it.
+      if (!isUvProject(cwd)) return `pip install -e ".[dev]"`;
+      return existsSync(path.join(cwd, "uv.lock")) ? "uv sync --locked" : "uv sync";
+    }
     case "go": return "go mod download";
     case "rust": return "cargo fetch";
     default: return "";
