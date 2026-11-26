@@ -340,7 +340,7 @@ The sweep never touches instance state — it only organizes runtime trace artif
 The seam contract in `.harness/manifest.json` states exactly what ships and what does not:
 
 - **CORE** — ships as-is: `AGENTS.md`, `CLAUDE.md`, `Makefile`, `package.json`, `init.sh`, `scripts/`, `templates/`, `.harness/manifest.json`, `.harness/arch-rules.json`.
-- **TEMPLATES** — skeletons you fill in for your project: `LICENSE` (copied once at adoption), `.nvmrc`, project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`).
+- **TEMPLATES** — skeletons you fill in for your project: `LICENSE` (copied once at adoption), `.nvmrc`, project `README.md`, `.gitignore`, `feature-list.json`, `progress.md`, `DECISIONS.md`, `session-handoff.md`, `quality-document.md`, sprint contract, evaluator rubric, and project docs (`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILITY.md`, `docs/TOOLS.md`, `docs/USAGE.md`, `docs/STANDARDS.md`).
 - **INSTANCE** — your project's own state, never overwritten by harness upgrades: the root `LICENSE`, `.nvmrc`, and the files you filled from the templates plus your roadmap, progress, and decisions.
 - **PRODUCT-OWNED** — your product code. List its directories in the manifest's `productRoots` so the classification rule (arch-005) exempts them.
 
@@ -348,6 +348,8 @@ Adoption steps:
 
 1. Copy CORE files and `templates/` into your repository.
 2. Copy each template to its declared destination and fill it in. The manifest's `templates` entries carry the mapping machine-readably: `{ "from": "templates/progress.md", "to": "PROGRESS.md" }` means copy that dashboard skeleton to `PROGRESS.md`; regenerate its generated block after changing feature declarations or adding session notes. Entries with `"keep": true` stay under `templates/` as reference material.
+
+   Put your project's own agent rules in `docs/STANDARDS.md`. If you already have project-specific rules in a root `AGENTS.md` or `CLAUDE.md`, merge them into `docs/STANDARDS.md`: `create-harness` leaves existing files untouched, but a later `harness-upgrade` overwrites those CORE files.
 
    | Template (from) | Destination (to) |
    |---|---|
@@ -365,6 +367,7 @@ Adoption steps:
    | templates/docs/OBSERVABILITY.md | docs/OBSERVABILITY.md |
    | templates/docs/TOOLS.md | docs/TOOLS.md |
    | templates/docs/USAGE.md | docs/USAGE.md |
+   | templates/docs/STANDARDS.md | docs/STANDARDS.md |
    | templates/docs/decisions/index.md | docs/decisions/index.md |
    | templates/ci.yml | .github/workflows/ci.yml |
    | templates/sprint-contract.md | (keep — reference) |
