@@ -34,6 +34,9 @@ function run(cmd, args, cwd, { allowFail = false } = {}) {
 }
 
 const runner = (root, ...args) => run(process.execPath, [path.join("scripts", "framework-check.mjs"), ...args], root);
+// Fixture features have nothing open to clarify (feat-054): record none before activating.
+const NO_CLARIFICATIONS = path.join(mkdtempSync(path.join(os.tmpdir(), "eval-clarify-")), "none.json");
+writeFileSync(NO_CLARIFICATIONS, "[]", "utf8");
 const git = (root, ...args) => run("git", [...GIT_IDENTITY, ...args], root);
 
 // A file's content is text, or { "base64": "..." } for a binary file such as an image (feat-046).
@@ -133,6 +136,7 @@ export function buildFixture(task, { parent } = {}) {
   commitAll(root, "Declare features");
 
   for (const feature of (task.setup?.features ?? []).filter((item) => item.state === "passing")) {
+    runner(root, "clarify", feature.id, "--record", NO_CLARIFICATIONS);
     runner(root, "activate", feature.id);
     commitAll(root, `Start ${feature.id}`);
     runner(root, "verify-feature", feature.id);
@@ -146,6 +150,7 @@ export function buildFixture(task, { parent } = {}) {
     commitAll(root, `Verify ${feature.id}`);
   }
   for (const feature of (task.setup?.features ?? []).filter((item) => item.state === "active")) {
+    runner(root, "clarify", feature.id, "--record", NO_CLARIFICATIONS);
     runner(root, "activate", feature.id);
     commitAll(root, `Start ${feature.id}`);
   }

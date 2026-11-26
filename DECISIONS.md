@@ -1000,3 +1000,22 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: `create-harness`, its tests and the adoption matrix give the same result whether they run from this repository or from an adopter with the component.
 - Negative: a CORE file can no longer share a path with an optional component's marker; it would be skipped. No current CORE file does.
+
+### D-064: A feature is clarified before it is activated, and the answers are recorded, not merged into the declaration
+
+**Date:** 2026-11-26
+**Status:** accepted
+**Context:** A feature's `behavior` is the spec (AGENTS.md), but declarations are written in one sitting and leave things open: terms nobody defined, edge cases nobody mentioned, sentences the verification never checks. The working rules only said to stop and ask when the behavior "looks wrong", so open questions were settled by guessing mid-implementation, and the guess left no trace. GitHub Spec Kit's spec-driven development flow has a `/clarify` step for this: before planning, the agent asks about what the spec leaves underspecified.
+**Decision:**
+- `npm run clarify -- <id>` prints the declaration, five fixed questions and mechanical flags (vague wording, a verification that names no test or command, a behavior sentence with no word in common with the verification). The flags are heuristics and only advise.
+- The agent answers each question from the repository (citing a path) or asks the human. `clarify --record <file>` stores the answers as `clarifications` in `.harness/state/<id>.json`: a list of question, answer and source, or `none`. A source must be `human` or an existing repository path.
+- `npm run activate` refuses a feature with no clarifications. `--skip-clarify` exists for a human; it records `skipped`, and the session brief shows it while the feature is active.
+- Answers are recorded beside the declaration, never written into `feature_list.json`. An answer that would change what done means is a change to the spec: the agent stops and asks for the `behavior` to be edited.
+**Alternatives considered:**
+- Rewrite the `behavior` with the answers, as Spec Kit edits its spec — rejected: `feature_list.json` is the declaration and changes only when features are declared (D-017), so lanes rarely touch it; rewriting it at every activation would bring merge conflicts back onto that shared file, and an edited spec would no longer show what was declared and what was decided later.
+- Advisory only, no gate on activate — rejected: the step would be skipped exactly when it matters, as the AGENTS.md rule already was.
+- Fail activation on any mechanical flag — rejected: the flags are word heuristics with false positives (a behavior that lists vague words as examples flags itself).
+**Consequences:**
+- Positive: open questions are answered before code is written, with a source, and the shard keeps them for review and later sessions.
+- Negative: one more command before every activation, and adopters' scripts or tests that call `activate` directly need `clarify --record` first or `--skip-clarify`. `harness-upgrade` reports the new `clarify` command for package.json and ships the skill.
+
