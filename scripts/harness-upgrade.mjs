@@ -8,7 +8,6 @@
 //   node scripts/harness-upgrade.mjs <adopter-dir>
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -42,18 +41,23 @@ const FRAMEWORK_MANIFEST_KEYS = [
   "customizationPoints",
 ];
 
-const LEGACY_SELF_TEST_HASHES = {
-  "adoption-matrix.test.mjs": "412540c06e3c9d094c44a7bc67f5a2711cb39ae953dabb5fdc443100beb89c97",
-  "create-harness.test.mjs": "c55c48ed5f8a71b8d607bb4dc2137a6a60dfd2bb2ac7bc57bc260bd2fae326e1",
-  "framework-check.test.mjs": "7a8fccf566cf265165f221d62eb9190c995af0d2d8f11ba9546aabc839f1e0b9",
-  "harness-audit.test.mjs": "0807d6ed0b85adae59aa3e196e0b97cc0d39a84ade17f64e90c43ee17af765a8",
-  "harness-backup.test.mjs": "9475576315677c281951b96d39e4aa3713a7dcded829bcc2a69d9111b14f5592",
-  "harness-docs.test.mjs": "1ec53cc0fcf3fad31999521d2799f9ca58dc09d01d3c822fac08899682366bfc",
-  "harness-upgrade.test.mjs": "7de796e17fd3a917ee73a21fe7632bf432ee8ba7ba5f58284c8475156db2079c",
-  "quality-gates.test.mjs": "e17d9c581b0aacde591812f560c2373939886e1f84467732394ec5f50be71c6d",
-  "report.test.mjs": "62bc922e81c20441a7828165b7797ee36c62d7d86211a89b1ea5e53228333432",
-  "stack-detect.test.mjs": "c76252cbec21f55ab0730727a9254181eb3b7d82e5c1de855c722738fc5e3ab9",
-};
+// The self-tests older harnesses shipped in tests/, by name. While tests/ was a mustNotEdit
+// CORE surface every upgrade overwrote these files, so a file with one of these names there is
+// the harness's own, whatever release it came from. Matching content would recognise only the
+// latest release and strand older adopters' copies as failing product tests (#66).
+const LEGACY_SELF_TEST_NAMES = [
+  "adoption-matrix.test.mjs",
+  "agent-guidance.test.mjs",
+  "create-harness.test.mjs",
+  "framework-check.test.mjs",
+  "harness-audit.test.mjs",
+  "harness-backup.test.mjs",
+  "harness-docs.test.mjs",
+  "harness-upgrade.test.mjs",
+  "quality-gates.test.mjs",
+  "report.test.mjs",
+  "stack-detect.test.mjs",
+];
 
 function readJson(file) {
   try {
@@ -174,18 +178,14 @@ function upgradeManifest(root, { dryRun = false } = {}) {
 }
 
 // Older harnesses shipped their self-tests in tests/. Only migrate names that
-// the old CORE surface could have supplied; leave adopter tests in that tree.
-export function planLegacySelfTests(root, shippedHashes = LEGACY_SELF_TEST_HASHES) {
+// the old CORE surface supplied; leave adopter tests in that tree.
+export function planLegacySelfTests(root, shippedNames = LEGACY_SELF_TEST_NAMES) {
   const manifest = readJson(path.join(root, ".harness", "manifest.json"));
   if (!manifest?.core?.includes("tests/")) return [];
   const testDir = path.join(root, "tests");
   if (!existsSync(testDir)) return [];
   return readdirSync(testDir, { withFileTypes: true })
-    .filter((entry) => {
-      if (!entry.isFile() || !entry.name.endsWith(".test.mjs") || !shippedHashes[entry.name]) return false;
-      const content = readFileSync(path.join(testDir, entry.name), "utf8").replace(/\r\n/g, "\n");
-      return createHash("sha256").update(content, "utf8").digest("hex") === shippedHashes[entry.name];
-    })
+    .filter((entry) => entry.isFile() && shippedNames.includes(entry.name))
     .map((entry) => ({
       from: `tests/${entry.name}`,
       to: `.harness/selftest/${entry.name.replace(/\.test\.mjs$/, ".selftest.mjs")}`,
