@@ -24,6 +24,7 @@
     "LICENSE",
     ".harness/manifest.json",
     ".harness/arch-rules.json",
+    ".harness/selftest/",
     "README.md"
   ],
   "scripts": {

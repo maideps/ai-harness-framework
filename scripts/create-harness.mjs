@@ -152,7 +152,7 @@ function instantiateManifest(root, { wasFreshlyCreated }) {
   if (!wasFreshlyCreated) return;
   const manifestPath = path.join(root, ".harness", "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  manifest.productRoots = [];
+  manifest.productRoots = ["tests/"];
   delete manifest.frameworkRepository;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }

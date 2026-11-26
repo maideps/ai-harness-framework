@@ -1376,17 +1376,18 @@ function isFrameworkRepository() {
   }
 }
 
-// The harness's own unit tests (tests/*.test.mjs, CORE). Files are enumerated and passed
+// The harness's own unit tests (.harness/selftest/*.selftest.mjs, CORE). Files are enumerated and passed
 // explicitly: glob patterns in --test args are expanded by Node on Windows but passed
 // literally on Linux.
 function runSelfTests() {
-  const testFiles = existsSync("tests")
-    ? readdirSync("tests")
-        .filter((name) => name.endsWith(".test.mjs"))
-        .map((name) => path.join("tests", name))
+  const selfTestDir = path.join(".harness", "selftest");
+  const testFiles = existsSync(selfTestDir)
+    ? readdirSync(selfTestDir)
+        .filter((name) => name.endsWith(".selftest.mjs"))
+        .map((name) => path.join(selfTestDir, name))
     : [];
   if (testFiles.length === 0) {
-    console.log("[SKIP] No harness self-tests found (tests/*.test.mjs)");
+    console.log("[SKIP] No harness self-tests found (.harness/selftest/*.selftest.mjs)");
     return;
   }
   const result = spawnSync(process.execPath, ["--test", ...testFiles], { stdio: "inherit" });

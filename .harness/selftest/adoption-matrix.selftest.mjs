@@ -4,9 +4,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { cellEnv, normalizeFixtureScripts, spawnRunner } from "../scripts/adoption-matrix.mjs";
-import { adopt, HARNESS_ROOT, loadManifest } from "../scripts/create-harness.mjs";
-import { upgrade } from "../scripts/harness-upgrade.mjs";
+import { cellEnv, normalizeFixtureScripts, spawnRunner } from "../../scripts/adoption-matrix.mjs";
+import { adopt, HARNESS_ROOT, loadManifest } from "../../scripts/create-harness.mjs";
+import { upgrade } from "../../scripts/harness-upgrade.mjs";
 
 test("adopter scaffold has project CI and an editable Node version", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "cw-adopter-test-"));

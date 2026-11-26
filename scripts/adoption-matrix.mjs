@@ -269,7 +269,7 @@ function runUpgradeTest() {
     check(readFileSync(licensePath, "utf8") === licenseTemplate + licenseCustomization, "LICENSE customization survived re-upgrade");
     check(readFileSync(path.join(root, "README.md"), "utf8").includes("PROJECT-SPECIFIC LINE"), "README customization survived");
     check(JSON.parse(readFileSync(featureListPath, "utf8")).features[0].name === "Customized Feature Name", "feature content survived");
-    check(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots.join(",") === "src/,custom/", "manifest productRoots survived");
+    check(JSON.parse(readFileSync(manifestPath, "utf8")).productRoots.join(",") === "src/,custom/,tests/", "manifest productRoots survived with tests/");
     check(readFileSync(path.join(root, "Makefile"), "utf8").includes("## Custom target"), "extra Makefile target survived");
     check(JSON.parse(readFileSync(pkgPath, "utf8")).scripts.custom === "echo custom", "extra package.json script survived");
     check(readFileSync(path.join(root, ".nvmrc"), "utf8") === "22.14.0\n", ".nvmrc customization survived");

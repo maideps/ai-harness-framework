@@ -270,8 +270,7 @@ export function resolveQualityPreset(runtime, gate, cwd = ".") {
   const report = `${QUALITY_REPORT_DIR}/coverage`;
   switch (runtime) {
     case "node": {
-      // The harness's own tests live in the adopter's tests/ too, so running them under
-      // coverage would measure the harness, not the product. Use the product's own script.
+      // Use the product's own script.
       const script = readNodeScripts(cwd).coverage;
       if (typeof script !== "string" || !script.trim()) {
         return none('package.json has no coverage script (for example "c8 --reporter=text node --test" or "vitest run --coverage")');

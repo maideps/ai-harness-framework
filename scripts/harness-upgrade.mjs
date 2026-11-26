@@ -7,7 +7,7 @@
 //
 //   node scripts/harness-upgrade.mjs <adopter-dir>
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,9 +22,7 @@ export const MUST_NOT_EDIT_SURFACES = [
   "codex.md",
   "GEMINI.md",
   "scripts/",
-  // The runner's own tests travel with the runner: left behind, old tests run against new
-  // scripts and fail the adopter's npm run test (feat-019).
-  "tests/",
+  ".harness/selftest/",
 ];
 
 // The manifest's classification belongs to the framework (customizationPoints.mustNotEdit);
@@ -41,6 +39,24 @@ const FRAMEWORK_MANIFEST_KEYS = [
   "templates",
   "optionalComponents",
   "customizationPoints",
+];
+
+// The self-tests older harnesses shipped in tests/, by name. While tests/ was a mustNotEdit
+// CORE surface every upgrade overwrote these files, so a file with one of these names there is
+// the harness's own, whatever release it came from. Matching content would recognise only the
+// latest release and strand older adopters' copies as failing product tests (#66).
+const LEGACY_SELF_TEST_NAMES = [
+  "adoption-matrix.test.mjs",
+  "agent-guidance.test.mjs",
+  "create-harness.test.mjs",
+  "framework-check.test.mjs",
+  "harness-audit.test.mjs",
+  "harness-backup.test.mjs",
+  "harness-docs.test.mjs",
+  "harness-upgrade.test.mjs",
+  "quality-gates.test.mjs",
+  "report.test.mjs",
+  "stack-detect.test.mjs",
 ];
 
 function readJson(file) {
@@ -152,10 +168,38 @@ function upgradeManifest(root, { dryRun = false } = {}) {
   for (const key of FRAMEWORK_MANIFEST_KEYS) {
     if (key in ours) merged[key] = ours[key];
   }
+  const productRoots = new Set(Array.isArray(merged.productRoots) ? merged.productRoots : []);
+  productRoots.add("tests/");
+  merged.productRoots = [...productRoots];
   const text = `${JSON.stringify(merged, null, 2)}\n`;
   if (text === readFileSync(file, "utf8")) return false;
   if (!dryRun) writeFileSync(file, text, "utf8");
   return true;
+}
+
+// Older harnesses shipped their self-tests in tests/. Only migrate names that
+// the old CORE surface supplied; leave adopter tests in that tree.
+export function planLegacySelfTests(root, shippedNames = LEGACY_SELF_TEST_NAMES) {
+  const manifest = readJson(path.join(root, ".harness", "manifest.json"));
+  if (!manifest?.core?.includes("tests/")) return [];
+  const testDir = path.join(root, "tests");
+  if (!existsSync(testDir)) return [];
+  return readdirSync(testDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && shippedNames.includes(entry.name))
+    .map((entry) => ({
+      from: `tests/${entry.name}`,
+      to: `.harness/selftest/${entry.name.replace(/\.test\.mjs$/, ".selftest.mjs")}`,
+    }));
+}
+
+export function migrateLegacySelfTests(root, files) {
+  for (const { from, to } of files) {
+    const source = path.join(root, from);
+    const destination = path.join(root, to);
+    mkdirSync(path.dirname(destination), { recursive: true });
+    if (existsSync(destination)) rmSync(source);
+    else renameSync(source, destination);
+  }
 }
 
 // Harness commands (`node scripts/...`) the adopter's package.json does not define yet.
@@ -257,6 +301,7 @@ function shippedSkillSurfaces() {
 export function upgrade(root, { dryRun = false } = {}) {
   const skills = shippedSkillSurfaces();
   const report = { dryRun, overwritten: [], preserved: [] };
+  report.migrated = planLegacySelfTests(root);
   const plan = [];
   for (const surface of [...MUST_NOT_EDIT_SURFACES, ...skills]) {
     const src = path.join(HARNESS_ROOT, surface);
@@ -284,8 +329,14 @@ export function upgrade(root, { dryRun = false } = {}) {
   // .harness/backups/, gitignored).
   report.backup = dryRun
     ? { skipped: true, reason: "dry run" }
-    : createBackup(root, [...MUST_NOT_EDIT_SURFACES, ...skills, "templates/", ".harness/manifest.json"], HARNESS_ROOT);
+    : createBackup(
+        root,
+        [...MUST_NOT_EDIT_SURFACES, ...skills, "templates/", ".harness/manifest.json"],
+        HARNESS_ROOT,
+        report.migrated.map(({ from }) => from),
+      );
   if (!dryRun) {
+    migrateLegacySelfTests(root, report.migrated);
     // Every planned file is copied, unchanged ones included, as before the plan existed:
     // a copy also carries the file mode.
     for (const item of plan) {
@@ -293,11 +344,11 @@ export function upgrade(root, { dryRun = false } = {}) {
       copyFileSync(item.src, item.dest);
     }
   }
-  if (upgradeManifest(root, { dryRun })) report.overwritten.push(".harness/manifest.json classification (productRoots kept)");
+  if (upgradeManifest(root, { dryRun })) report.overwritten.push(".harness/manifest.json classification (tests/ added to productRoots)");
   report.created = createMissingInstanceFiles(root, { dryRun });
   if (ensureTrailsGitkeep(root, { dryRun })) report.created.push(".harness/trails/.gitkeep");
   report.preserved.push(
-    `Makefile, package.json, init.sh, .harness/manifest.json productRoots, .harness/arch-rules.json, project skills in skills/, docs/, README.md, the customisable templates (${keptTemplates.join(", ")}), all INSTANCE state`,
+    `Makefile, package.json, init.sh, .harness/manifest.json project productRoots, .harness/arch-rules.json, project skills in skills/, docs/, README.md, the customisable templates (${keptTemplates.join(", ")}), all INSTANCE state`,
   );
   report.missingScripts = missingHarnessScripts(root);
   report.missingMakeTargets = missingMakeTargets(root);
@@ -339,6 +390,10 @@ function main() {
   for (const file of added) console.log(`    add     ${file}`);
   console.log(dryRun ? "  Would overwrite (mustNotEdit CORE):" : "  Overwritten (mustNotEdit CORE):");
   for (const surface of report.overwritten) console.log(`    ${surface}`);
+  if (report.migrated.length > 0) {
+    console.log(dryRun ? "  Would migrate legacy harness self-tests:" : "  Migrated legacy harness self-tests:");
+    for (const { from, to } of report.migrated) console.log(`    ${from} -> ${to}`);
+  }
   if (report.created.length > 0) {
     console.log(dryRun ? "  Would create (new instance files, yours from then on):" : "  Created (new instance files, yours from now on):");
     for (const file of report.created) console.log(`    ${file}`);
