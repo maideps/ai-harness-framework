@@ -9,6 +9,7 @@ import {
   detectRuntime,
   detectPackageManager,
   getInstallCommand,
+  getVerifyChain,
   resolveLayer,
 } from "../scripts/stack-detect.mjs";
 
@@ -94,6 +95,32 @@ test("getInstallCommand: skips empty node projects and uses lock-preserving inst
   const unlocked = fixture({ "package.json": JSON.stringify({ devDependencies: { example: "^1.0.0" } }) });
   assert.equal(getInstallCommand(unlocked), "npm install");
   rmSync(unlocked, { recursive: true, force: true });
+});
+
+// Layer commands for uv projects are covered by "python lockfiles select uv and poetry runners".
+test("uv projects install with uv sync and init.sh verifies inside the project environment", () => {
+  const locked = fixture({
+    "pyproject.toml": "[project]\nname = \"x\"\n",
+    "uv.lock": "",
+  });
+  assert.equal(getInstallCommand(locked), "uv sync --locked");
+  assert.deepEqual(getVerifyChain(locked), [
+    { cmd: "uv", args: ["run", "pytest", "-q"], allowedExitCodes: [0, 5] },
+    {
+      cmd: "uv",
+      args: ["run", "python", "-m", "compileall", "-q", "-x", PY_COMPILE_EXCLUDE, "."],
+      allowedExitCodes: [0],
+    },
+  ]);
+  rmSync(locked, { recursive: true, force: true });
+
+  const configured = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n\n[tool.uv]\n" });
+  assert.equal(getInstallCommand(configured), "uv sync");
+  rmSync(configured, { recursive: true, force: true });
+
+  const standard = fixture({ "pyproject.toml": "[project]\nname = \"x\"\n" });
+  assert.equal(getInstallCommand(standard), 'pip install -e ".[dev]"');
+  rmSync(standard, { recursive: true, force: true });
 });
 
 test("PY_COMPILE_EXCLUDE matches both path separators", () => {

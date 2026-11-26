@@ -43,6 +43,16 @@ export function detectPackageManager(cwd = ".") {
   return "npm";
 }
 
+export function isUvProject(cwd = ".") {
+  if (existsSync(path.join(cwd, "uv.lock"))) return true;
+  try {
+    const pyproject = readFileSync(path.join(cwd, "pyproject.toml"), "utf8");
+    return /^\s*\[tool\.uv(?:\.[^\]]+)?\]\s*(?:#.*)?$/m.test(pyproject);
+  } catch {
+    return false;
+  }
+}
+
 function hasNodeDependencies(cwd = ".") {
   try {
     const manifest = JSON.parse(readFileSync(path.join(cwd, "package.json"), "utf8"));
@@ -333,7 +343,11 @@ export function getInstallCommand(cwd = ".") {
           return "";
       }
     }
-    case "python": return `pip install -e ".[dev]"`;
+    case "python": {
+      // --locked needs a lockfile; a [tool.uv] project without one lets uv sync create it.
+      if (!isUvProject(cwd)) return `pip install -e ".[dev]"`;
+      return existsSync(path.join(cwd, "uv.lock")) ? "uv sync --locked" : "uv sync";
+    }
     case "go": return "go mod download";
     case "rust": return "cargo fetch";
     default: return "";
@@ -347,8 +361,8 @@ export const PY_COMPILE_EXCLUDE = "(^|[/\\\\])(\\.?venv|env|node_modules|build|d
 // The stack's verification chain for init.sh: an ordered list of steps, each
 // with its own allowed exit codes (python's pytest exits 5 when no tests exist,
 // which is not a failure). Steps with an args array run without a shell.
-export function getVerifyChain() {
-  const runtime = detectRuntime();
+export function getVerifyChain(cwd = ".") {
+  const runtime = detectRuntime(cwd);
   switch (runtime) {
     case "node": {
       const scripts = readNodeScripts();
@@ -368,6 +382,16 @@ export function getVerifyChain() {
       return chain;
     }
     case "python": {
+      if (isUvProject(cwd)) {
+        return [
+          { cmd: "uv", args: ["run", "pytest", "-q"], allowedExitCodes: [0, 5] },
+          {
+            cmd: "uv",
+            args: ["run", "python", "-m", "compileall", "-q", "-x", PY_COMPILE_EXCLUDE, "."],
+            allowedExitCodes: [0],
+          },
+        ];
+      }
       const py = pythonInterpreter(); // e.g. "python3", "python", or "py -3"
       if (!py) return [];
       const [interpreter, ...flags] = py.split(/\s+/).filter(Boolean);

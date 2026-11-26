@@ -367,6 +367,20 @@ test("adopt: the CI workflow takes the Python version from .python-version when 
   }
 });
 
+test("adopt: uv Python products install uv before running project setup", () => {
+  const root = fixture("ci-python-uv");
+  try {
+    writeFileSync(path.join(root, "pyproject.toml"), "[project]\nname = \"x\"\n\n[tool.uv]\n", "utf8");
+    adopt(root, { skipExisting: true });
+    const workflow = ciWorkflowOf(root);
+    assert.ok(workflow.indexOf("setup-python") < workflow.indexOf("setup-uv"));
+    assert.ok(workflow.indexOf("setup-uv") < workflow.indexOf("npm run setup --if-present"));
+    assert.match(workflow, /astral-sh\/setup-uv@v10/);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("adopt: other stacks and an existing CI workflow get no setup-python step", () => {
   const goRoot = fixture("ci-go");
   const existingRoot = fixture("ci-existing");
