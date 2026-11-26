@@ -44,6 +44,8 @@ const requiredDirs = ["docs", "templates", "scripts", ".harness", "skills"];
 // bracketed marker strings — those drift out of the templates' prose independently of whether
 // a doc was actually filled in, which is exactly how this check went silently vacuous before.
 const PLACEHOLDER_DOCS = ["README.md", "docs/PRODUCT.md", "docs/quality-document.md"];
+const FRAMEWORK_PACKAGE_DESCRIPTION =
+  "A general-purpose AI agent harness framework for building reliable, predictable multi-session engineering workflows";
 const requiredMakeTargets = [
   "check",
   "lint",
@@ -553,6 +555,12 @@ function templateSourceFor(to) {
 
 function ensureNoPlaceholders({ warnOnly = false } = {}) {
   const problems = [];
+  if (!isFrameworkRepository() && existsSync("package.json")) {
+    const description = readJson("package.json").description;
+    if (description === FRAMEWORK_PACKAGE_DESCRIPTION) {
+      problems.push("package.json description is still the framework's description — fill it in for this project");
+    }
+  }
   for (const doc of PLACEHOLDER_DOCS) {
     if (!existsSync(doc)) {
       problems.push(`${doc} is missing — copy the skeleton from templates/ and fill it in for this project`);

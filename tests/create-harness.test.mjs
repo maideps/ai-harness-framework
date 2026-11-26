@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 
-import { adopt, HARNESS_ROOT, placeTemplates } from "../scripts/create-harness.mjs";
+import { adopt, copyCore, HARNESS_ROOT, placeTemplates } from "../scripts/create-harness.mjs";
 
 function fixture(name) {
   return mkdtempSync(path.join(os.tmpdir(), `cw-create-harness-${name}-`));
@@ -32,6 +32,8 @@ test("adopt: a brand-new target gets an instance-specific, private package.json"
     assert.equal(pkg.publishConfig, undefined);
     assert.equal(pkg.repository, undefined);
     assert.equal(pkg.version, "0.1.0");
+    assert.equal(pkg.description, "TODO: describe your project");
+    assert.equal(pkg.files, undefined);
     // The reusable command surface must still come from the framework.
     assert.deepEqual(pkg.scripts, frameworkPkg.scripts);
   } finally {
@@ -114,6 +116,26 @@ test("adopt: the sanitized name is derived from the target directory name", () =
     assert.equal(pkg.name, "my-cool-project");
   } finally {
     cleanup(parent);
+  }
+});
+
+// D-063: an adopter that activated multi-repo has scripts/verify-all in its own tree, and its
+// self-tests and adoption matrix run create-harness from that tree. copyCore must not carry it.
+test("copyCore: leaves an optional component's files out even when the source tree has them", () => {
+  const source = fixture("core-source");
+  const root = fixture("core-target");
+  try {
+    for (const rel of ["scripts/framework-check.mjs", "scripts/verify-all", "scripts/verify-all.mjs"]) {
+      mkdirSync(path.dirname(path.join(source, rel)), { recursive: true });
+      writeFileSync(path.join(source, rel), "// fixture\n", "utf8");
+    }
+    copyCore(root, { source });
+    assert.ok(existsSync(path.join(root, "scripts", "framework-check.mjs")));
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all")));
+    assert.ok(!existsSync(path.join(root, "scripts", "verify-all.mjs")));
+  } finally {
+    cleanup(source);
+    cleanup(root);
   }
 });
 
@@ -340,6 +362,20 @@ test("adopt: the CI workflow takes the Python version from .python-version when 
     writeFileSync(path.join(root, ".python-version"), "3.11\n", "utf8");
     adopt(root, { skipExisting: true });
     assert.match(ciWorkflowOf(root), /python-version-file: \.python-version\n/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("adopt: uv Python products install uv before running project setup", () => {
+  const root = fixture("ci-python-uv");
+  try {
+    writeFileSync(path.join(root, "pyproject.toml"), "[project]\nname = \"x\"\n\n[tool.uv]\n", "utf8");
+    adopt(root, { skipExisting: true });
+    const workflow = ciWorkflowOf(root);
+    assert.ok(workflow.indexOf("setup-python") < workflow.indexOf("setup-uv"));
+    assert.ok(workflow.indexOf("setup-uv") < workflow.indexOf("npm run setup --if-present"));
+    assert.match(workflow, /astral-sh\/setup-uv@v10/);
   } finally {
     cleanup(root);
   }
