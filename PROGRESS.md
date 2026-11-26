@@ -112,4 +112,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 092 — 2026-11-18 — copyCore skips optional-component files](progress/092-2026-11-18.md)
 - [Session 093 — 2026-11-19 — Document project agent rules](progress/093-2026-11-19.md)
 - [Session 094 — 2026-11-19 — Adopter package metadata](progress/094-2026-11-19.md)
+- [Session 095 — 2026-11-26 — Python layers run in the project environment](progress/095-2026-11-26.md)
 <!-- END GENERATED PROGRESS -->
