@@ -1708,6 +1708,23 @@ test("lint:readme: ignores routes and slash-delimited identifiers that are not r
   }
 });
 
+test("lint:readme: a path under a missing root directory is still reported when it reads as a path (#65)", () => {
+  const readme = GOOD_README.replace(
+    "Run `npm start` or `node app/greet.mjs`.",
+    "Run `npm start` or `node app/greet.mjs`. Edit `aap/greet.mjs`, `src/components/` and `./lib/util`.",
+  );
+  const root = readmeRepo(readme);
+  try {
+    const result = run(root, "lint:readme");
+    assert.equal(result.exit, 1, result.output);
+    for (const missing of ["aap/greet.mjs", "src/components/", "./lib/util"]) {
+      assert.match(result.stderr, new RegExp("`" + missing.replace(/[./]/g, "\\$&") + "` does not exist in the repository"));
+    }
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("lint:readme: the README template create-harness places passes the contract in the adopter (feat-052)", () => {
   const root = fixture();
   try {
