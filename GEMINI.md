@@ -10,9 +10,10 @@ The canonical workflow contract remains in AGENTS.md.
 ## Startup
 
 1. Read AGENTS.md.
-2. Read feature_list.json.
-3. Read PROGRESS.md.
-4. Run ./init.sh.
+2. Read docs/STANDARDS.md.
+3. Read feature_list.json.
+4. Read PROGRESS.md.
+5. Run ./init.sh.
 
 ## State Files
 

@@ -28,14 +28,17 @@ export function loadManifest() {
   return JSON.parse(readFileSync(path.join(HARNESS_ROOT, ".harness", "manifest.json"), "utf8"));
 }
 
-function copyRecursive(src, dest, { skipExisting = false } = {}) {
+// `rel` is the repository-relative path of `src` ("scripts/"), so `skip` sees paths in the
+// manifest's own form ("scripts/verify-all").
+function copyRecursive(src, dest, { skipExisting = false, skip = () => false, rel = "" } = {}) {
   mkdirSync(dest, { recursive: true });
   for (const entry of readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
+    const relPath = `${rel}${entry.name}`;
     if (entry.isDirectory()) {
-      copyRecursive(srcPath, destPath, { skipExisting });
-    } else if (skipExisting && existsSync(destPath)) {
+      copyRecursive(srcPath, destPath, { skipExisting, skip, rel: `${relPath}/` });
+    } else if (skip(relPath) || (skipExisting && existsSync(destPath))) {
       continue;
     } else {
       copyFileSync(srcPath, destPath);
@@ -43,16 +46,21 @@ function copyRecursive(src, dest, { skipExisting = false } = {}) {
   }
 }
 
-// Copy every CORE surface (exact files and directories) into the target.
-export function copyCore(root, { skipExisting = false } = {}) {
+// Copy every CORE surface (exact files and directories) into the target. Files that belong
+// to an optional component stay out even when the source tree has them: an adopter that
+// activated multi-repo runs create-harness (its self-tests, the adoption matrix) from its own
+// tree, whose scripts/ holds verify-all. Only placeTemplates' components opt-in places those
+// (D-063). `source` defaults to this harness; tests point it at a fixture tree.
+export function copyCore(root, { skipExisting = false, source = HARNESS_ROOT } = {}) {
   const manifest = loadManifest();
+  const skip = (rel) => optionalComponentFor(manifest, rel) !== null;
   const copied = [];
   for (const surface of manifest.core) {
-    const src = path.join(HARNESS_ROOT, surface);
-    if (!existsSync(src)) continue;
+    const src = path.join(source, surface);
+    if (!existsSync(src) || skip(surface)) continue;
     const dest = path.join(root, surface);
     if (surface.endsWith("/")) {
-      copyRecursive(src, dest.replace(/[\\/]$/, ""), { skipExisting });
+      copyRecursive(src, dest.replace(/[\\/]$/, ""), { skipExisting, skip, rel: surface });
     } else {
       mkdirSync(path.dirname(dest), { recursive: true });
       if (skipExisting && existsSync(dest)) continue;
@@ -127,6 +135,8 @@ function instantiatePackageJson(root, { wasFreshlyCreated }) {
   pkg.name = instanceName;
   pkg.version = "0.1.0";
   pkg.private = true;
+  pkg.description = "TODO: describe your project";
+  delete pkg.files;
   delete pkg.publishConfig;
   delete pkg.repository;
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
