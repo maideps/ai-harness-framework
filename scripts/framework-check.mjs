@@ -1134,7 +1134,13 @@ function readmeContractProblems(text, { scripts = null, targets = null, exists =
     for (const span of line.matchAll(/`([^`]+)`/g)) {
       for (const word of span[1].split(/\s+/)) {
         const candidate = word.replace(/[,;:)]+$/, "");
-        if (!/^\.{0,2}\/?[\w.-]+(\/[\w.-]*)+$/.test(candidate) || README_PLACEHOLDER.test(candidate) || candidate.includes("://")) continue;
+        if (!/^(?:\.{1,2}\/)?[\w.-]+(?:\/[\w.-]*)+$/.test(candidate) || README_PLACEHOLDER.test(candidate) || candidate.includes("://")) continue;
+        // Routes (/health/live) never match above. A term whose first segment is not in the
+        // repository (application/json, openai/gpt-4o-mini) is still a path claim when it reads as
+        // one: explicitly relative, a directory with a trailing slash, or a file with an extension.
+        // A typo or a renamed root directory is then reported instead of skipped (#65).
+        const pathLike = /^\.{1,2}\/|\/$|\.[A-Za-z][A-Za-z0-9]*$/.test(candidate);
+        if (!pathLike && !exists(candidate.replace(/^\.\//, "").split("/")[0])) continue;
         if (!exists(candidate.replace(/\/$/, ""))) at(index, `\`${candidate}\` does not exist in the repository`);
       }
     }
