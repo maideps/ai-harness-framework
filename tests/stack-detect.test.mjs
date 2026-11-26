@@ -97,15 +97,13 @@ test("getInstallCommand: skips empty node projects and uses lock-preserving inst
   rmSync(unlocked, { recursive: true, force: true });
 });
 
-test("uv projects use uv sync and run Python layers inside the project environment", () => {
+// Layer commands for uv projects are covered by "python lockfiles select uv and poetry runners".
+test("uv projects install with uv sync and init.sh verifies inside the project environment", () => {
   const locked = fixture({
     "pyproject.toml": "[project]\nname = \"x\"\n",
     "uv.lock": "",
   });
   assert.equal(getInstallCommand(locked), "uv sync --locked");
-  assert.equal(resolveLayer("python", "lint", locked).cmd, "uv run ruff check .");
-  assert.equal(resolveLayer("python", "typecheck", locked).cmd, "uv run mypy");
-  assert.equal(resolveLayer("python", "test", locked).cmd, "uv run pytest -q");
   assert.deepEqual(getVerifyChain(locked), [
     { cmd: "uv", args: ["run", "pytest", "-q"], allowedExitCodes: [0, 5] },
     {
