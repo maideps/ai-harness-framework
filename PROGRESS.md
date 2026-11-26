@@ -114,5 +114,6 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 094 — 2026-11-19 — Adopter package metadata](progress/094-2026-11-19.md)
 - [Session 095 — 2026-11-26 — Python layers run in the project environment](progress/095-2026-11-26.md)
 - [Session 096 — 2026-11-26 — Use uv environments for Python adopters](progress/096-2026-11-26.md)
-- [Session 097 — 2026-11-26 — Separate harness self-tests from product tests](progress/097-2026-11-26.md)
+- [Session 097 — 2026-11-26 — Ignore non-path README terms](progress/097-2026-11-26.md)
+- [Session 098 — 2026-11-26 — Separate harness self-tests from product tests](progress/098-2026-11-26.md)
 <!-- END GENERATED PROGRESS -->
