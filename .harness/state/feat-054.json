@@ -1,0 +1,26 @@
+{
+  "state": "passing",
+  "evidence": "{\"summary\":\"All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation)\",\"timestamp\":\"2026-11-26T23:38:12.717Z\",\"commit\":\"ccae8c0\",\"dirty\":false,\"bound\":true,\"checksHash\":\"5b6d18fc70f76085\",\"layers\":[{\"label\":\"Layer 1: Static checks\",\"cmd\":\"npm run lint\",\"result\":\"PASS\",\"skipReported\":false,\"durationMs\":772,\"log\":\".harness/logs/feat-054/01-layer-1-static-checks.log\"},{\"label\":\"Layer 2: Runtime tests\",\"cmd\":\"npm run test\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":59015,\"log\":\".harness/logs/feat-054/02-layer-2-runtime-tests.log\"},{\"label\":\"Layer 3: System confirmation\",\"cmd\":\"npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":221985,\"log\":\".harness/logs/feat-054/03-layer-3-system-confirmation.log\"}]}",
+  "clarifications": [
+    {
+      "question": "Do the mechanical flags ever block activation, for example a behavior that lists vague words as examples?",
+      "answer": "No. Flags are word heuristics and only advise; activation depends only on clarifications being recorded. feat-054's own behavior flags itself for listing the vague words.",
+      "source": "DECISIONS.md"
+    },
+    {
+      "question": "What does --record accept as a source, and what does an empty list mean?",
+      "answer": "A source is the word human or a path that exists in the repository, optionally with :line or #anchor. An empty JSON list records none; the string skipped is refused because only activate --skip-clarify records it.",
+      "source": "skills/clarify/SKILL.md"
+    },
+    {
+      "question": "What happens to a feature that is already active, or already has a shard, when the gate ships?",
+      "answer": "Nothing changes for it: activate returns early for an active feature, and later state writes keep any recorded clarifications. Only new activations need clarify.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Which callers of activate outside the runner need updating?",
+      "answer": "The self-tests, the eval fixture builder and the eval graders test, which record none before activating, as a compliant agent would.",
+      "source": "evals/lib/fixture.mjs"
+    }
+  ]
+}
