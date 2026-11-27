@@ -40,7 +40,7 @@ jobs:
         run: npm run evidence-check -- --base origin/${{ github.base_ref }}
 
       - name: Full harness check (includes the adoption matrix)
-        run: npm run check
+        run: npm run check -- --full
 
       - name: Architecture rules
         run: npm run check-arch
@@ -57,7 +57,7 @@ jobs:
       # where make is available (the primary dev machine lacks make).
       - name: Makefile surface
         if: matrix.node == '18'
-        run: make check
+        run: make check FULL=1
 
   # Adopters develop on Windows too: the runner's unit tests and architecture rules run there,
   # so path-separator and line-ending bugs fail CI instead of every Windows adopter's check

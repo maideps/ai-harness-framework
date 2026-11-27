@@ -28,7 +28,7 @@ jobs:
         run: npm run evidence-check -- --base origin/${{ github.base_ref }}
 
       - name: Verify project
-        run: npm run check
+        run: npm run check -- --full
 
       - name: Verify architecture
         run: npm run check-arch

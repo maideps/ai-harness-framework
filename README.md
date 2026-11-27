@@ -172,7 +172,7 @@ Every feature passes through these layers, grouped into three gates (static chec
 | 3b | End-to-End | `make e2e` / `npm run e2e` | Full system integration |
 | 4 | Quality Gates (opt-in) | `make quality` / `npm run quality` | Coverage, mutation score or any metric stays above its floor |
 
-Run all layers with `make check` (lint → check-arch → typecheck → test → build → e2e → optional verify-all → optional quality); `npm run check` is the make-free equivalent. The verify-all layer SKIPs when multi-repo markers are absent, and the quality layer while `.harness/quality.json` is disabled. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
+Run all layers with `make check` (lint → check-arch → typecheck → test → build → e2e → optional verify-all → optional quality); `npm run check` is the make-free equivalent. When a branch changes only documentation, `check` runs lint alone and reports the other layers as SKIP, not verified; `npm run check-full` (or `npm run check -- --full`) always runs every layer. The verify-all layer SKIPs when multi-repo markers are absent, and the quality layer while `.harness/quality.json` is disabled. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
 
 Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 

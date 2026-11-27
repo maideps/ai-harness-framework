@@ -1,13 +1,19 @@
-.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate evidence-check backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate evidence-check check-full backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
 # Stack detection is centralized in scripts/stack-detect.mjs.
 
+## Verification scoped to the change: every layer (check-full), or only lint when the change
+## touches only documentation, the other layers reported SKIP (feat-056).
+## Usage: make check [FULL=1]
+check:
+	@node scripts/framework-check.mjs check $(if $(FULL),--full)
+
 ## Full verification — all layers in order, architecture rules right after lint.
 ## Layers that are not configured report SKIP and do not count as verified.
-check: lint check-arch typecheck test build e2e verify-all quality
-	@echo "=== make check: complete ==="
+check-full: lint check-arch typecheck test build e2e verify-all quality
+	@echo "=== make check-full: complete ==="
 	@echo "  Any layer that reported SKIP was not configured and does not count as verified."
 
 ## Layer 1: Static analysis

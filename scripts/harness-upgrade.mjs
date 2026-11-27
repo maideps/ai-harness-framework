@@ -216,8 +216,9 @@ export function missingHarnessScripts(root, harnessRoot = HARNESS_ROOT) {
   const ours = scripts(path.join(harnessRoot, "package.json")) ?? {};
   const theirs = scripts(path.join(root, "package.json"));
   if (!theirs) return [];
+  // check-full is an npm chain, not a node command, but `npm run check` needs it (feat-056).
   return Object.entries(ours)
-    .filter(([name, command]) => /^node scripts\//.test(command) && !(name in theirs))
+    .filter(([name, command]) => (/^node scripts\//.test(command) || name === "check-full") && !(name in theirs))
     .map(([name, command]) => ({ name, command }));
 }
 
@@ -265,15 +266,18 @@ export function checkChainsWithoutArch(root) {
   const lacking = [];
   let check;
   try {
-    check = JSON.parse(read("package.json") ?? "null")?.scripts?.check;
+    const scripts = JSON.parse(read("package.json") ?? "null")?.scripts;
+    // Since feat-056 the chain lives in check-full; check is then the scoping runner mode.
+    check = typeof scripts?.["check-full"] === "string" ? scripts["check-full"] : scripts?.check;
   } catch {
     check = undefined;
   }
   if (typeof check === "string" && !/\bcheck-arch\b/.test(check)) {
-    lacking.push({ surface: "package.json", fix: 'add "npm run check-arch" to the "check" script, right after "npm run lint"' });
+    lacking.push({ surface: "package.json", fix: 'add "npm run check-arch" to the "check-full" (or older "check") script, right after "npm run lint"' });
   }
   const lines = (read("Makefile") ?? "").split("\n");
-  const start = lines.findIndex((line) => /^check:/.test(line));
+  const fullStart = lines.findIndex((line) => /^check-full:/.test(line));
+  const start = fullStart !== -1 ? fullStart : lines.findIndex((line) => /^check:/.test(line));
   if (start !== -1) {
     let end = start + 1;
     while (end < lines.length && lines[end].startsWith("\t")) end += 1;

@@ -848,13 +848,15 @@ function validateFeatureId(featureId) {
 // (feat-038, D-049). Only a plain `&&` chain of `npm run` steps that contains both is reduced;
 // anything else keeps `npm run check`, so a customised setup never loses a check.
 function confirmationLayerCommand(packageJsonPath = "package.json") {
-  const fallback = "npm run check";
-  let check;
+  let scripts;
   try {
-    check = JSON.parse(readFileSync(packageJsonPath, "utf8")).scripts?.check;
+    scripts = JSON.parse(readFileSync(packageJsonPath, "utf8")).scripts ?? {};
   } catch {
-    return fallback;
+    return "npm run check";
   }
+  // Since feat-056 the full chain lives in check-full and check is the scoping runner mode.
+  const fallback = typeof scripts["check-full"] === "string" ? "npm run check-full" : "npm run check";
+  const check = typeof scripts["check-full"] === "string" ? scripts["check-full"] : scripts.check;
   if (typeof check !== "string" || /\|\||;|\||[<>`$]/.test(check)) return fallback;
   const steps = check.split("&&").map((step) => step.trim());
   if (steps.some((step) => !/^npm run [\w:-]+$/.test(step))) return fallback;
@@ -2072,8 +2074,20 @@ function isEvidenceBookkeeping(file) {
   return isBookkeepingPath(file) || POST_GATE_PATHS.includes(file);
 }
 
+const DEFAULT_BASE_REFS = ["origin/HEAD", "origin/master", "origin/main", "master", "main"];
+
+// The merge-base of HEAD with the first default-branch ref that exists, or null.
+function findDefaultBase() {
+  for (const ref of DEFAULT_BASE_REFS) {
+    if (gitCapture(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]) === null) continue;
+    const base = gitCapture(["merge-base", ref, "HEAD"]);
+    if (base) return { ref, base };
+  }
+  return null;
+}
+
 function resolveEvidenceBase(explicitBase) {
-  const candidates = explicitBase ? [explicitBase] : ["origin/HEAD", "origin/master", "origin/main", "master", "main"];
+  const candidates = explicitBase ? [explicitBase] : DEFAULT_BASE_REFS;
   for (const ref of candidates) {
     if (gitCapture(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]) === null) continue;
     const base = gitCapture(["merge-base", ref, "HEAD"]);
@@ -2152,6 +2166,77 @@ function evidenceCheck(args) {
     fail(`evidence does not match the code this branch merges:\n       ${problems.join("\n       ")}`);
   }
   pass(`Evidence matches the merged code for ${newlyPassing.map((feature) => feature.id).join(", ")}`);
+}
+
+// ---- Checks scoped to what the change touched (feat-056, D-066) -----------------------
+// `npm run check` is this runner mode; the full chain lives in the check-full script. A change
+// that touches only documentation runs lint (which validates the README, AGENTS.md rules,
+// command surfaces and progress log) and reports every other step as SKIP, never as PASS.
+
+function isDocumentationPath(file) {
+  if (file.startsWith("docs/")) return true;
+  return file.endsWith(".md") && !file.startsWith("skills/") && !file.startsWith("templates/");
+}
+
+// Changed files relative to the current directory: the branch's diff from its merge-base with
+// the default branch, plus uncommitted and untracked files. null when no base can be found.
+function changedFilesForScope() {
+  if (gitCapture(["rev-parse", "--show-prefix"]) === null) return null;
+  const found = findDefaultBase();
+  if (!found) return null;
+  const committed = gitCapture(["diff", "--name-only", "--relative", `${found.base}..HEAD`]);
+  const working = gitCapture(["diff", "--name-only", "--relative", "HEAD"]);
+  const untracked = gitCapture(["ls-files", "--others", "--exclude-standard"]);
+  if (committed === null || working === null || untracked === null) return null;
+  const files = [committed, working, untracked].flatMap((text) => text.split(/\r?\n/)).map((line) => line.trim()).filter(Boolean);
+  return { ref: found.ref, files: [...new Set(files)].sort() };
+}
+
+// The steps of check-full when it is a plain `&&` chain of `npm run` steps, else null.
+function checkFullSteps() {
+  let script;
+  try {
+    script = readJson("package.json").scripts?.["check-full"];
+  } catch {
+    return null;
+  }
+  if (typeof script !== "string" || /\|\||;|\||[<>`$]/.test(script)) return null;
+  const steps = script.split("&&").map((step) => step.trim());
+  return steps.every((step) => /^npm run [\w:-]+$/.test(step)) ? steps : null;
+}
+
+function runNpmScript(command) {
+  const result = spawnSync(command, { stdio: "inherit", shell: true });
+  return result.error ? 1 : (result.status ?? 1);
+}
+
+function scopedCheck(args) {
+  const unknown = args.filter((arg) => arg !== "--full");
+  if (unknown.length > 0) fail(`unknown check option ${unknown[0]} (expected --full)`);
+  if (!existsSync("package.json") || typeof readJson("package.json").scripts?.["check-full"] !== "string") {
+    fail('check needs a "check-full" script in package.json holding the full chain (see docs/USAGE.md)');
+  }
+  let reason = null;
+  if (args.includes("--full")) reason = "--full";
+  else if (process.env.HARNESS_CHECK_FULL === "1") reason = "HARNESS_CHECK_FULL=1";
+  const steps = checkFullSteps();
+  const scope = reason ? null : changedFilesForScope();
+  if (!reason) {
+    if (!scope) reason = "no default-branch base to compare with";
+    else if (scope.files.length === 0) reason = "no changed files";
+    else if (!scope.files.every(isDocumentationPath)) reason = `${scope.files.filter((file) => !isDocumentationPath(file)).length} non-documentation file(s) changed`;
+    else if (!steps || !steps.includes("npm run lint")) reason = "check-full is not a plain chain of npm run steps with npm run lint";
+  }
+  if (reason) {
+    console.log(`=== check scope: full (${reason}) — running npm run check-full ===`);
+    process.exit(runNpmScript("npm run check-full"));
+  }
+  const skipped = steps.filter((step) => step !== "npm run lint");
+  console.log(`=== check scope: docs-only change (${scope.files.length} file(s) against ${scope.ref}) — running npm run lint; ${skipped.length} other step(s) SKIP ===`);
+  const status = runNpmScript("npm run lint");
+  if (status !== 0) process.exit(status);
+  for (const step of skipped) console.log(`[SKIP] ${step} — docs-only change (not verified)`);
+  console.log(`=== check: lint passed; ${skipped.length} step(s) skipped for a docs-only change and not verified — npm run check -- --full runs them ===`);
 }
 
 // The framework's own workflow and the one it ships run evidence-check on pull requests
@@ -2242,6 +2327,8 @@ function verifyFeature(featureId, { allowDirty = false } = {}) {
       encoding: "utf8",
       stdio: ["inherit", "pipe", "pipe"],
       shell: true,
+      // A gate never scopes: a Layer 3 of npm run check runs every step (feat-056).
+      env: { ...process.env, HARNESS_CHECK_FULL: "1" },
       maxBuffer: 256 * 1024 * 1024,
     });
     const durationMs = Date.now() - started;
@@ -3159,6 +3246,8 @@ function printHelp() {
   console.log("  verify-feature F=<id>  Run all verification layers for a feature (commit its code first)");
   console.log("  clarify F=<id> [RECORD=<file>]  Print a feature's clarify checklist and flags, or record the answers");
   console.log("  activate F=<id>        Activate a feature when dependencies allow and its clarifications are recorded");
+  console.log("  check [FULL=1]   Run check-full, or only lint when the change touches only documentation (other layers SKIP)");
+  console.log("  check-full       Every layer in order: lint, check-arch, typecheck, test, build, e2e, verify-all, quality");
   console.log("  evidence-check [BASE=<ref>]  Fail if a feature passing on this branch changed code after its evidence commit");
   console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
@@ -3423,6 +3512,10 @@ switch (mode) {
   }
   case "evidence-check": {
     evidenceCheck(args);
+    break;
+  }
+  case "check": {
+    scopedCheck(args);
     break;
   }
   case "verify-chain": {
