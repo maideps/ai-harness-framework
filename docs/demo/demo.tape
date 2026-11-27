@@ -11,8 +11,12 @@
 # active feature, the verification gate refuses a failing test, and passes after the fix.
 # Everything runs in a temporary folder; this repository is only read (git clone of it).
 #
-# Only setup is hidden: filling in the three docs that create-harness asks you to fill, git
-# commits, and writing the demo's code and test. Every command shown runs in real time.
+# Only setup is hidden: filling in the three docs that create-harness asks you to fill, adding
+# app/ to the manifest's productRoots, recording the feature's clarifications, git commits, and
+# writing the demo's code and test. Every command shown runs in real time.
+#
+# On Windows, run it in Docker from the repository root (the official image plus node and git):
+#   docker run --rm -v "$PWD:/vhs" -w /vhs <vhs image with node and git> docs/demo/demo.tape
 
 Output docs/demo/demo.gif
 
@@ -32,43 +36,55 @@ Set Theme "Catppuccin Mocha"
 Hide
 Type 'export FRAMEWORK="$PWD" PS1="\[\e[1;36m\]$ \[\e[0m\]" && cd "$(mktemp -d)" && git clone -q "$FRAMEWORK" ai-harness-framework && clear'
 Enter
-Sleep 3s
+Wait+Line@2m /^\$ ?$/
 Show
 
 # --- 1. Add the harness to a project ----------------------------------------------------------
 Type "node ai-harness-framework/scripts/create-harness.mjs my-app"
 Sleep 400ms
 Enter
-Sleep 3s
+Wait+Line@2m /^\$ ?$/
+Sleep 2s
 
 # Hidden: fill in the docs create-harness asks for, and commit the starting point.
 Hide
-Type `cd my-app && printf '# My App\n\nA demo project.\n\nCommands: [Harness Command Reference](docs/HARNESS.md)\n' > README.md && printf '# Product\n\nA demo project.\n' > docs/PRODUCT.md && printf '# Quality\n\nNothing rated yet.\n' > docs/quality-document.md && git init -q && git add -A && git -c user.name=demo -c user.email=demo@example.com commit -qm 'Adopt the harness' && clear`
+Type `cd my-app && printf '# My App\n\nA demo project.\n\n## Install\n\nnpm install\n\n## Usage\n\nnpm test\n\nCommands: [Harness Command Reference](docs/HARNESS.md)\n\n## License\n\nMIT\n' > README.md && printf '# Product\n\nA demo project.\n' > docs/PRODUCT.md && printf '# Quality\n\nNothing rated yet.\n' > docs/quality-document.md && node -e 'const f=".harness/manifest.json",fs=require("fs"),m=JSON.parse(fs.readFileSync(f));m.productRoots.push("app/");fs.writeFileSync(f,JSON.stringify(m,null,2)+"\n")' && git init -q && git add -A && git -c user.name=demo -c user.email=demo@example.com commit -qm 'Adopt the harness' && clear`
 Enter
-Sleep 3s
+Wait+Line@2m /^\$ ?$/
 Show
 
 # --- 2. Declare a feature with its own test, and start it --------------------------------------
 Type `npm run -s add-feature -- feat-002 "Greeting" --behavior "greet() returns hi" --layer "Layer 2b: App tests=node --test app/greet.test.mjs"`
 Sleep 400ms
 Enter
-Sleep 1500ms
+Wait+Line@2m /^\$ ?$/
+Sleep 2s
+
+# Hidden: record the feature's clarifications (none open), which activate requires.
+Hide
+Type `printf '[]\n' > /tmp/clarify.json && npm run -s clarify -- feat-002 --record /tmp/clarify.json && clear`
+Enter
+Wait+Line@2m /^\$ ?$/
+Show
+
 Type "npm run -s activate -- feat-002"
 Sleep 400ms
 Enter
-Sleep 1500ms
+Wait+Line@2m /^\$ ?$/
+Sleep 1s
 
 # --- 3. WIP=1: a second feature can't start until this one passes ------------------------------
 Type "npm run -s activate -- feat-001"
 Sleep 400ms
 Enter
+Wait+Line@2m /^\$ ?$/
 Sleep 2500ms
 
 # Hidden: the "agent's" first attempt, with a bug its test catches.
 Hide
 Type `mkdir -p app && printf 'export const greet = () => "hello";\n' > app/greet.mjs && printf 'import test from "node:test";\nimport assert from "node:assert";\nimport { greet } from "./greet.mjs";\ntest("greet() returns hi", () => assert.equal(greet(), "hi"));\n' > app/greet.test.mjs && git add -A && git -c user.name=demo -c user.email=demo@example.com commit -qm 'Add greet' && clear`
 Enter
-Sleep 2s
+Wait+Line@2m /^\$ ?$/
 Show
 
 # --- 4. The agent says it's done. The gate checks. ---------------------------------------------
@@ -86,7 +102,7 @@ Sleep 5s
 Hide
 Type `printf 'export const greet = () => "hi";\n' > app/greet.mjs && git add -A && git -c user.name=demo -c user.email=demo@example.com commit -qm 'Fix greet' && clear`
 Enter
-Sleep 2s
+Wait+Line@2m /^\$ ?$/
 Show
 
 # --- 5. After the fix, the gate passes and records the evidence --------------------------------

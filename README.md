@@ -7,11 +7,7 @@
 
 Works with Claude Code, Codex and Gemini CLI. It detects node, python, go and rust projects and runs their own checks; for jvm and dotnet projects it runs the tests. Any other tool can be chained into a layer.
 
-<!--
-  Demo GIF goes here. Record it with `vhs docs/demo/demo.tape` (see the comments in that file),
-  then replace this comment with:
-  ![An agent's feature is refused by the verification gate, fixed, then recorded as passing](docs/demo/demo.gif)
--->
+![An agent's feature is refused by the verification gate, fixed, then recorded as passing](docs/demo/demo.gif)
 
 ## Table of Contents
 

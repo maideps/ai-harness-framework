@@ -117,4 +117,5 @@ After adding or updating a session note, regenerate this file with `node scripts
 - [Session 097 — 2026-11-26 — Ignore non-path README terms](progress/097-2026-11-26.md)
 - [Session 098 — 2026-11-26 — Separate harness self-tests from product tests](progress/098-2026-11-26.md)
 - [Session 099 — 2026-11-26 — Clarify before activating (feat-054)](progress/099-2026-11-26.md)
+- [Session 100 — 2026-11-26 — Record the README demo GIF](progress/100-2026-11-26.md)
 <!-- END GENERATED PROGRESS -->
