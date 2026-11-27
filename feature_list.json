@@ -1447,6 +1447,126 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-055",
+      "name": "Pull requests carry evidence for the commit they merge",
+      "behavior": "npm run evidence-check (and its make mirror) compares the branch with its base (the merge-base with the default branch, or --base <ref>) and finds every feature whose state shard became passing on the branch. For each, the commit named in its evidence must be an ancestor of HEAD, and every file changed between that commit and HEAD must be harness bookkeeping: .harness/state/, .harness/trails/, progress/, PROGRESS.md, README.md and docs/quality-document.md. Otherwise it fails, naming the feature, its evidence commit and each non-bookkeeping file that changed after it, and says to rerun verify-feature. A branch that passes no feature reports so and passes. The shipped CI workflow and the adopter CI template run it on pull requests, so a pull request whose code changed after verification cannot go green. docs/USAGE.md and its template describe the command, AGENTS.md names it as the gate behind the MUST about committing before verify-feature, and a decision record explains why the check runs at the pull request rather than only at verify time.",
+      "verification": "Runner tests in throwaway repositories: a branch whose feature passed on its last code commit passes evidence-check; a code edit committed after the evidence commit fails, naming the feature and the file; a progress note or state shard committed after it still passes; an evidence commit that is not an ancestor of HEAD fails; a branch with no newly passing feature passes; --base selects the base. Lint confirms both CI workflows run evidence-check on pull requests. npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-056",
+      "name": "Checks scoped to what the change touched",
+      "behavior": "npm run check classifies the files changed against the merge-base with the default branch, plus uncommitted and untracked files. When every changed file is documentation (a .md file outside skills/ and templates/, or a file under docs/), it runs only the lint layer, which already validates the progress log, the README and skills, and reports each other layer as SKIP with the reason docs-only change; those skips never count as PASS. Any other changed file, no detectable base, or --full runs every layer as today. The classification and the layers it ran are printed before the first layer. verify-feature, CI on the default branch and the adopter CI template always run the full chain. docs/USAGE.md, docs/HARNESS.md and their templates describe the scoping and --full, and a decision record explains why only documentation is scoped.",
+      "verification": "Runner tests in throwaway repositories: a change to README.md alone runs lint and reports the other layers as SKIP with the docs-only reason; a change to a script plus a .md file runs every layer; a change to a SKILL.md runs every layer; --full runs every layer on a docs-only change; a repository with no default-branch base runs every layer; verify-feature still runs every declared layer on a docs-only change. npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-057",
+      "name": "Lanes get their own ports and environment",
+      "behavior": "npm run lane-new -- <id> reserves a block of 10 ports for the lane in a registry kept in the repository's common git directory, so every worktree of the clone sees it, and writes .env.lane at the lane root with HARNESS_LANE=<id>, HARNESS_PORT_BASE=<first port> and HARNESS_DB_SUFFIX=_<id with dashes replaced by underscores>. Blocks start at the port given by lanePortBase in .harness/manifest.json (default 4100) and never overlap a block held by another lane. If the main checkout has a .env, it is copied into the lane once and left for the lane to change. lane-list shows each lane's port block; lane-land and lane-drop release the block; a block whose lane branch no longer exists is released by the next lane-new. .env.lane is gitignored and the copied .env stays ignored. docs/USAGE.md, the parallel-lanes skill and their templates say how a project's dev server and database read these variables, and a decision record explains the registry location.",
+      "verification": "Runner tests in throwaway repositories: two lanes get non-overlapping port blocks starting at the default base; lanePortBase changes the start; .env.lane holds the three variables; a main-checkout .env is copied and a missing one is not created; lane-list prints the blocks; lane-drop and lane-land release a block so the next lane reuses it; a block whose branch was deleted by hand is reclaimed; .env.lane is not tracked by git. npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-058",
+      "name": "Opt-in push and commit-message hooks",
+      "behavior": "npm run hooks-install installs, next to the existing pre-commit hook, a pre-push hook that refuses a push to the repository's default branch (read from origin/HEAD, else master or main), naming the branch and saying to push a feature branch and open a pull request; setting HARNESS_ALLOW_DEFAULT_PUSH=1 for that push lets it through and the hook says so. It also installs a commit-msg hook that applies rules declared in .harness/commit-rules.json: subjectPattern (a regular expression the first line must match), maxSubjectLength, and forbid (patterns no line may contain), each failure naming the rule and the offending line. Messages that git generates for merges and reverts are accepted. The file ships disabled, so the commit-msg hook accepts everything until a project enables it, and lint validates the file's shape. hooks-uninstall removes both hooks; existing hooks are never replaced. docs/USAGE.md, docs/HARNESS.md, AGENTS.md and their templates describe the hooks, harness-upgrade ships them, and a decision record explains why the push rule has an explicit override.",
+      "verification": "Runner tests in throwaway repositories with a bare remote: a push to the default branch is refused with the branch named; a push to another branch succeeds; HARNESS_ALLOW_DEFAULT_PUSH=1 lets a default-branch push through; with commit rules enabled, a subject that misses subjectPattern, one over maxSubjectLength and a message containing a forbid pattern are each refused naming the rule, and a git merge message is accepted; with rules disabled every message is accepted; lint rejects a malformed commit-rules file; hooks-uninstall removes both hooks; an existing hook is left in place. npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
+    },
+    {
+      "id": "feat-059",
+      "name": "Skill usage report",
+      "behavior": "Session notes created by progress-new gain a Skills used section listing the names of the skills loaded in that session, or none. Lint rejects a name that is not a folder under skills/. npm run skill-usage reads every session note and prints, for each skill under skills/, how many sessions used it and the date of the last one, and lists the skills not used in the last 30 days (or --days <n>) as candidates to rewrite their description or remove. Notes written before the section existed are skipped and counted separately. npm run report includes the same table. docs/USAGE.md, docs/HARNESS.md, the session-handoff and write-skill skills and their templates describe the section and the command, and a decision record explains why usage is recorded by the agent in the note instead of read from tool logs.",
+      "verification": "Runner tests: progress-new writes a Skills used section; lint rejects an unknown skill name in it and accepts none; skill-usage counts sessions per skill and their last date across notes, lists a skill unused for longer than --days, and reports how many older notes lack the section; npm run report includes the table. npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
