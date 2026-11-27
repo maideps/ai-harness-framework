@@ -1,0 +1,36 @@
+{
+  "state": "passing",
+  "evidence": "{\"summary\":\"All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation)\",\"timestamp\":\"2026-11-27T19:07:21.105Z\",\"commit\":\"470eb03\",\"dirty\":false,\"bound\":true,\"checksHash\":\"5b6d18fc70f76085\",\"layers\":[{\"label\":\"Layer 1: Static checks\",\"cmd\":\"npm run lint\",\"result\":\"PASS\",\"skipReported\":false,\"durationMs\":1737,\"log\":\".harness/logs/feat-059/01-layer-1-static-checks.log\"},{\"label\":\"Layer 2: Runtime tests\",\"cmd\":\"npm run test\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":160129,\"log\":\".harness/logs/feat-059/02-layer-2-runtime-tests.log\"},{\"label\":\"Layer 3: System confirmation\",\"cmd\":\"npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":324788,\"log\":\".harness/logs/feat-059/03-layer-3-system-confirmation.log\"}]}",
+  "clarifications": [
+    {
+      "question": "What is the exact format of the Skills used section?",
+      "answer": "One line in the session note, '- Skills used: <name>, <name>' (comma-separated skill folder names, optionally in backticks) or '- Skills used: none'. progress-new writes it between Mistakes caught and Known risk. Like Mistakes caught, a blank value passes lint so a fresh skeleton passes.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Which notes does lint check, and against what?",
+      "answer": "Every note that has the line; each name must be a folder under skills/ that holds a SKILL.md. Notes without the line are older notes and are not checked.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "Where do skill-usage and report get the session date and today's date?",
+      "answer": "The session date is the date in the note's file name (progress/NNN-YYYY-MM-DD.md), as the progress dashboard already reads it. 'The last N days' counts back from today's local date; a skill last used exactly N days ago still counts as used.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Which skills does the report list?",
+      "answer": "Every folder under skills/ with a SKILL.md, used or not, sorted by name, with its session count and last date ('-' when never used). Names in notes that are no longer skills are ignored by the report; lint reports them.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "Where does the code live?",
+      "answer": "Parsing and the usage table live in scripts/harness-report.mjs (the report module, which reads repository history), exported; npm run skill-usage runs it as a mode of that script and npm run report adds the table. framework-check.mjs imports the parser for lint, as it already imports scripts/quality-gates.mjs. A make target mirrors the npm script.",
+      "source": "scripts/harness-report.mjs"
+    },
+    {
+      "question": "What does --days accept?",
+      "answer": "A positive integer; anything else fails with a usage line. Default 30.",
+      "source": "feature_list.json"
+    }
+  ]
+}
