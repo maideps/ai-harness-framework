@@ -1,0 +1,36 @@
+{
+  "state": "passing",
+  "evidence": "{\"summary\":\"All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation)\",\"timestamp\":\"2026-11-27T20:00:16.902Z\",\"commit\":\"4d4722e\",\"dirty\":false,\"bound\":true,\"checksHash\":\"5b6d18fc70f76085\",\"layers\":[{\"label\":\"Layer 1: Static checks\",\"cmd\":\"npm run lint\",\"result\":\"PASS\",\"skipReported\":false,\"durationMs\":969,\"log\":\".harness/logs/feat-060/01-layer-1-static-checks.log\"},{\"label\":\"Layer 2: Runtime tests\",\"cmd\":\"npm run test\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":157229,\"log\":\".harness/logs/feat-060/02-layer-2-runtime-tests.log\"},{\"label\":\"Layer 3: System confirmation\",\"cmd\":\"npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":361317,\"log\":\".harness/logs/feat-060/03-layer-3-system-confirmation.log\"}]}",
+  "clarifications": [
+    {
+      "question": "What does a log line look like, and what is a session boundary?",
+      "answer": "One JSON object per line in .harness/logs/skill-usage.jsonl. A load is {\"at\": ISO time, \"skill\": name, \"branch\": current branch or null, \"feature\": active feature id or null}. progress-new appends {\"at\": ISO time, \"note\": \"progress/NNN-YYYY-MM-DD.md\"} as the boundary for the note it creates. Unparseable lines are skipped.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "Which loads count for the note progress-new creates?",
+      "answer": "The loads after the last boundary already in the log (or from the start of the log when there is none), taken before the new boundary is appended. progress-new is the end-of-session step (AGENTS.md End of Session), so those are the session's loads. No log, or no loads, gives none.",
+      "source": "AGENTS.md"
+    },
+    {
+      "question": "Which loads does clean-check compare with the latest note?",
+      "answer": "The loads after the boundary that precedes the latest note's own boundary (found by its note path), up to now, so skills loaded after the note was created in the same session count too. If the latest note has no boundary (written by hand), the loads after the last boundary. Missing names are printed as a WARN line; clean-check's result does not change. No log means nothing to compare.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "How does the no-name listing read descriptions?",
+      "answer": "From each skill's SKILL.md frontmatter description line, the same frontmatter ensureSkills already validates; skills are listed by folder name in order.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Does printing the skill write anything besides the log line?",
+      "answer": "No: SKILL.md goes to stdout byte for byte and nothing else does, so an agent sees exactly the file; the log line is written silently. The log directory is created when missing; a failed log write prints a warning on stderr and still exits 0, so loading a skill never fails because of logging.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "What exactly must lint find in AGENTS.md?",
+      "answer": "The text npm run skill, which the Skills section uses to tell agents how to load a skill. AGENTS.md is CORE, so adopters receive the same section.",
+      "source": ".harness/manifest.json"
+    }
+  ]
+}

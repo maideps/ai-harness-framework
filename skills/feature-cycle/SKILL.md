@@ -14,6 +14,8 @@ The core workflow of this harness. Everything else serves this loop.
 
 ## Workflow
 
+Load the other skills this loop names with `npm run skill -- <name>` (for example `npm run skill -- clarify`), not by opening their files: the command prints the skill and records the load for the session note.
+
 1. Read `feature_list.json` — it is the source of truth, not chat history. To add a feature, use `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` instead of hand-writing the JSON.
 2. Pick exactly ONE unfinished feature. Leave every other feature alone.
 3. Clarify it, then activate it. Follow the `clarify` skill: `npm run clarify -- <id>`, answer its questions from the repository or the human, record them with `npm run clarify -- <id> --record <file>`. Then `npm run activate -- <id>`; the command refuses an unclarified feature, a second active feature or unmet dependencies, and writes the state shard.

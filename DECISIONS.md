@@ -1105,3 +1105,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: unused skills and weak descriptions become visible, the same way caught mistakes became checks.
 - Negative: the record is self-reported; an agent can forget a skill it used or list one it skimmed. Lint only catches names that do not exist.
+
+### D-070: Skills load through a harness command that records each use
+
+**Date:** 2026-11-27
+**Status:** accepted
+**Context:** feat-059's "Skills used" line is self-reported, and its first real use was `none` from a session that worked from memory. Recording loads automatically would need each agent's own logs or hooks: Claude Code has hooks on file reads, Codex and Gemini CLI have nothing equivalent, and other agents differ again. The harness supports any agent that reads `AGENTS.md` and runs shell commands (docs/TOOLS.md, Agent Compatibility).
+**Decision:**
+- `npm run skill -- <name>` prints `skills/<name>/SKILL.md` unchanged and appends `{at, skill, branch, feature}` to `.harness/logs/skill-usage.jsonl`, ignored like the rest of `.harness/logs/`. No name lists the skills with their descriptions; an unknown name fails with the list.
+- `progress-new` appends a boundary `{at, note}` and fills the new note's "Skills used" with the distinct skills loaded since the previous boundary, or `none`. `clean-check` warns, without failing, when the latest note leaves out a skill loaded in its session.
+- AGENTS.md, which lint now checks for `npm run skill`, the feature-cycle, session-handoff and write-skill skills and USAGE tell agents to load skills this way. `skill-usage` keeps reading the notes, which are committed and shared; the log is per clone.
+**Alternatives considered:**
+- Per-agent hooks or transcript parsing — rejected: one implementation per agent, none for most.
+- Make the log the source for `skill-usage` — rejected: it is local to one clone and lost with it; the notes are the shared record, and the log only fills them in.
+- Fail clean-check on an omitted skill — rejected: an agent may load a skill by mistake and rightly leave it out; the warning shows the gap without blocking.
+**Consequences:**
+- Positive: the record no longer depends on the agent remembering at the end of a session, and it works the same for every agent.
+- Negative: an agent that opens `SKILL.md` directly is not recorded; like every other harness rule, the command makes the right path the easy one and the shortcut visible, not impossible.

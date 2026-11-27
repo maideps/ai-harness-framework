@@ -2,38 +2,38 @@
 
 ## Current Objective
 
-- Goal: Skill usage report (feat-059), adapted from crux's per-skill usage count.
-- Current status: feat-055..059 are passing (feat-058 merged in PR #81); no active feature. feat-060 (skills load through a recording command) is drafted, to be declared next.
-- Branch / commit: `feat/feat-059-skill-usage`
+- Goal: Skills load through a harness command that records each use (feat-060).
+- Current status: all 60 declared features are passing once this PR merges; no active feature, none planned.
+- Branch / commit: `feat/feat-060-skill-command`
 
 ## Completed This Session
 
-- [x] Merged PR #81 (feat-058) after its CI passed.
-- [x] Session notes carry a Skills used line; lint checks the names against `skills/`.
-- [x] `npm run skill-usage` and the report table: sessions and last date per skill, skills unused in 30 days.
-- [x] USAGE (both copies), AGENTS.md, README, session-handoff and write-skill skills, HARNESS.md and D-069 updated.
+- [x] Merged PR #82 (feat-059) and PR #83 (agent-compatibility docs, feat-060 declaration).
+- [x] `npm run skill -- <name>` prints a skill and records the load in a local, ignored log.
+- [x] `progress-new` fills Skills used from the recorded loads; `clean-check` warns on an omitted one; lint requires AGENTS.md to name the command.
+- [x] AGENTS.md, feature-cycle, session-handoff and write-skill skills, USAGE (both copies), README, HARNESS.md and D-070 updated.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Feature tests | `node --test --test-name-pattern="feat-059|..." framework-check and report self-tests` | PASS | 17 tests |
+| Feature tests | `node --test --test-name-pattern="feat-060|..." .harness/selftest/framework-check.selftest.mjs` | PASS | 14 tests |
 | Full verification | `npm run check` | PASS | |
-| Feature gate | `npm run verify-feature -- feat-059` | PASS | Bound evidence on 470eb03; 278 self-tests |
+| Feature gate | `npm run verify-feature -- feat-060` | PASS | Bound evidence on 4d4722e; 283 self-tests |
 
 ## Files Changed
 
-- `scripts/framework-check.mjs`, `scripts/harness-report.mjs`, `.harness/selftest/`
-- `package.json`, `Makefile`, `skills/session-handoff/`, `skills/write-skill/`
+- `scripts/framework-check.mjs`, `.harness/selftest/`
+- `package.json`, `Makefile`, `skills/feature-cycle/`, `skills/session-handoff/`, `skills/write-skill/`
 - `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
 
 ## Decisions Made
 
-- D-069: skill usage is recorded by the agent in the session note; the report reads the notes.
+- D-070: skills load through `npm run skill`, which records each use; notes stay the shared record.
 
 ## Blockers / Risks
 
-- Skills used is self-reported; feat-060 is meant to make it mechanical.
+- Opening SKILL.md directly is not recorded; the log is per clone.
 
 ## Next Session Startup
 
@@ -43,4 +43,4 @@
 
 ## Recommended Next Step
 
-- Merge this PR; then the agent-compatibility docs with feat-060's declaration; then feat-060.
+- Merge this PR. Then consider measuring Codex or Gemini CLI with the evals, or ignoring `.env` in `templates/gitignore`.

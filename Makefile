@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate evidence-check check-full skill-usage backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate evidence-check check-full skill-usage skill backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -157,6 +157,11 @@ backup-restore:
 ## Observability tools (feat-007) — session reports and periodic sweep
 report:
 	@node scripts/harness-report.mjs
+
+## Load a skill: print skills/NAME/SKILL.md and record the load for the session note (feat-060).
+## Usage: make skill NAME=<name>   (no NAME lists the skills)
+skill:
+	@node scripts/framework-check.mjs skill $(NAME)
 
 ## How many sessions used each skill, and which were not used in the last DAYS days (default 30, feat-059).
 ## Usage: make skill-usage [DAYS=<n>]
