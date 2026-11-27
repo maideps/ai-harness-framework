@@ -18,6 +18,7 @@ If baseline verification is failing, repair that first before adding new scope.
 
 ## Working Rules
 
+- **Clarify before activating**: `npm run clarify -- <id>`, answer its questions from the repository or the human, record them with `--record`, then `npm run activate -- <id>` (the `clarify` skill). Never record a guess; an answer that changes what done means goes into the feature's `behavior` first
 - **One feature at a time**: Pick exactly one unfinished feature from `feature_list.json` — unless `npm run lane-suggest` found an independent, human-approved set to run in parallel lanes instead (see `parallel-lanes` skill, DECISIONS.md D-028)
 - **WIP=1**: Only one feature may be active at any time (`state: "active"` or compatibility alias `status: "in_progress"` in that feature's `.harness/state/<id>.json`). Complete and move to `passing` before activating the next. On a `lane/<feature-id>` worktree lane, this is scoped per lane — a lane may only activate the feature it is named for (see `lane-new`/`lane-list`/`lane-land`/`lane-drop`, docs/ARCHITECTURE.md, and DECISIONS.md D-017).
 - **Verification required**: Don't claim done without running verification commands
@@ -100,7 +101,7 @@ Required checks (each with its npm mirror):
 - `make e2e` / `npm run e2e` — End-to-end tests (required for cross-component changes)
 - `make quality` / `npm run quality` — Opt-in metric gates from `.harness/quality.json` (coverage, mutation score, …); SKIP while disabled
 
-Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `activate` (`npm run activate -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `lane-suggest`, `migrate-feature-state`, `add-feature` (`-- <id> <name>`), `vcr`, `harness-docs`, `create-harness`, `harness-upgrade`, `harness-audit`, `backup-list`, `backup-pin` (`-- <id>`), `backup-unpin` (`-- <id>`), `backup-restore` (`-- <id>`), `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `hooks-install`, `hooks-uninstall`, `setup`, `dev`, `help`.
+Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`), `clarify` (`npm run clarify -- <id> [--record <file>]`), `activate` (`npm run activate -- <id>`), `verify-all`, `lane-new` (`-- <id>`), `lane-list`, `lane-land` (`-- <id>`), `lane-drop` (`-- <id>`), `lane-suggest`, `migrate-feature-state`, `add-feature` (`-- <id> <name>`), `vcr`, `harness-docs`, `create-harness`, `harness-upgrade`, `harness-audit`, `backup-list`, `backup-pin` (`-- <id>`), `backup-unpin` (`-- <id>`), `backup-restore` (`-- <id>`), `report`, `sweep`, `session-start`, `session-end`, `clean-check`, `hooks-install`, `hooks-uninstall`, `setup`, `dev`, `help`.
 
 `make check` runs all layers in order (lint → check-arch → typecheck → test → build → e2e → optional verify-all → optional quality); the architecture rules run right after lint, so a rule violation fails the check before the slower layers start. The multi-repo layer reports SKIP when its markers are absent, and the quality layer while `.harness/quality.json` is disabled; other unconfigured layers also report SKIP and do not count as verified. A failing layer stops the chain. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`); `npm run check` is the make-free entrypoint.
 
@@ -131,6 +132,7 @@ Other mirrors: `check-arch`, `verify-feature` (`npm run verify-feature -- <id>`)
 Skills are reusable capability packs in `skills/` — one folder per skill, each with a `SKILL.md` (frontmatter: name and description; sections: When to Use, Workflow, Quick Reference). Load the relevant skill when starting that kind of work:
 
 - `feature-cycle` — the one-feature-at-a-time loop
+- `clarify` — before activating a feature, answer what its declaration leaves open (from the repository or the human) and record the answers
 - `verification` — running the gates honestly and reading their output
 - `session-handoff` — ending a session durably
 - `adopt` — bootstrapping the harness in a new project

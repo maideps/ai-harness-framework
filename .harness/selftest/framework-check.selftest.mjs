@@ -523,14 +523,14 @@ test("ensureManifest: fails when a file is claimed as both instance and template
 // so callers don't need to know the on-disk split.
 function splitFeatureFixture(features) {
   const root = fixture();
-  const declarations = features.map(({ state, evidence, ...decl }) => decl);
+  const declarations = features.map(({ state, evidence, clarifications, ...decl }) => decl);
   write(root, "feature_list.json", `${JSON.stringify({ features: declarations }, null, 2)}\n`);
   for (const feature of features) {
     if ("state" in feature || "evidence" in feature) {
       write(
         root,
         `.harness/state/${feature.id}.json`,
-        `${JSON.stringify({ state: feature.state ?? "planned", evidence: feature.evidence ?? "" }, null, 2)}\n`,
+        `${JSON.stringify({ state: feature.state ?? "planned", evidence: feature.evidence ?? "", ...("clarifications" in feature ? { clarifications: feature.clarifications } : {}) }, null, 2)}\n`,
       );
     }
   }
@@ -2505,7 +2505,7 @@ test("add-feature: accepts IDs when the manifest does not define a pattern", () 
 test("activate: writes active state when dependencies pass", () => {
   const root = featureListFixture([
     { id: "feat-001", state: "passing", dependencies: [] },
-    { id: "feat-002", state: "planned", dependencies: ["feat-001"] },
+    { id: "feat-002", state: "planned", dependencies: ["feat-001"], clarifications: "none" },
   ]);
   try {
     const result = run(root, "activate", ["feat-002"]);
@@ -2513,6 +2513,7 @@ test("activate: writes active state when dependencies pass", () => {
     assert.deepEqual(JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")), {
       state: "active",
       evidence: "",
+      clarifications: "none",
     });
   } finally {
     cleanup(root);
@@ -2550,6 +2551,158 @@ test("activate: refuses dependencies that are not passing", () => {
       JSON.parse(readFileSync(path.join(root, ".harness/state/feat-002.json"), "utf8")).state,
       "planned",
     );
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-054 (D-064): clarify a feature before activating it -------------
+
+function clarifyFixture(extra = {}) {
+  return featureListFixture([
+    {
+      id: "feat-001",
+      name: "Export",
+      behavior: "The export command writes a CSV file of every invoice. It handles errors properly, etc. Archived customers receive a reminder email.",
+      verification: "Manual check that the export looks right.",
+      dependencies: [],
+      layers: [{ label: "Layer 1", cmd: "node -e 0", repair: "rerun" }],
+      state: "planned",
+      ...extra,
+    },
+  ]);
+}
+
+test("clarify: prints the checklist and flags vague words, an unnamed check and an uncovered sentence (feat-054)", () => {
+  const root = clarifyFixture();
+  try {
+    const result = run(root, "clarify", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /=== Clarify feat-001 — Export \(planned\) ===/);
+    assert.match(result.stdout, /1\. Which terms does the behavior use without defining them/);
+    assert.match(result.stdout, /5\. Is every sentence of the behavior checked/);
+    assert.match(result.stdout, /vague wording in behavior: "properly"/);
+    assert.match(result.stdout, /vague wording in behavior: "etc"/);
+    assert.match(result.stdout, /verification names no test or command/);
+    assert.match(result.stdout, /no counterpart in the verification: "Archived customers receive a reminder email\."/);
+    assert.match(result.stdout, /Recorded: nothing yet/);
+    assert.match(result.stdout, /clarify -- feat-001 --record <answers\.json>/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("clarify: a precise declaration has no flags (feat-054)", () => {
+  const root = clarifyFixture({
+    behavior: "The export command writes a CSV file of every invoice.",
+    verification: "Runner tests: the export command writes one CSV row per invoice.",
+  });
+  try {
+    const result = run(root, "clarify", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /^Flags: none$/m);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("clarify --record: writes clarifications to the state shard, [] as none (feat-054)", () => {
+  const root = clarifyFixture();
+  write(root, "docs/USAGE.md", "# Usage\n");
+  try {
+    write(root, "answers.json", JSON.stringify([
+      { question: "Which errors?", answer: "A missing output folder is reported and nothing is written.", source: "human" },
+      { question: "Which columns?", answer: "Those listed in the usage doc.", source: "docs/USAGE.md:1" },
+    ]));
+    const recorded = run(root, "clarify", ["feat-001", "--record", "answers.json"]);
+    assert.equal(recorded.exit, 0, recorded.output);
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "planned");
+    assert.equal(shard.clarifications.length, 2);
+    assert.equal(shard.clarifications[1].source, "docs/USAGE.md:1");
+    assert.equal(run(root, "arch:sharded-state").exit, 0);
+    assert.match(run(root, "clarify", ["feat-001"]).stdout, /Recorded: 2 clarification\(s\)/);
+
+    write(root, "none.json", "[]");
+    assert.equal(run(root, "clarify", ["feat-001", "--record", "none.json"]).exit, 0);
+    assert.equal(JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8")).clarifications, "none");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("clarify --record: rejects entries without question, answer or source, and unknown sources (feat-054)", () => {
+  const root = clarifyFixture();
+  try {
+    for (const [entry, message] of [
+      [{ answer: "a", source: "human" }, /entry 1 is missing question/],
+      [{ question: "q", source: "human" }, /entry 1 is missing answer/],
+      [{ question: "q", answer: "a", source: "  " }, /entry 1 is missing source/],
+      [{ question: "q", answer: "a", source: "docs/NOPE.md" }, /source docs\/NOPE\.md is neither "human" nor a path/],
+    ]) {
+      write(root, "answers.json", JSON.stringify([entry]));
+      const result = run(root, "clarify", ["feat-001", "--record", "answers.json"]);
+      assert.equal(result.exit, 1, result.output);
+      assert.match(result.stderr, message);
+    }
+    write(root, "answers.json", '"skipped"');
+    assert.match(run(root, "clarify", ["feat-001", "--record", "answers.json"]).stderr, /only by activate --skip-clarify/);
+    assert.equal("clarifications" in JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8")), false);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: refuses an unclarified feature and names clarify (feat-054)", () => {
+  const root = clarifyFixture();
+  try {
+    const result = run(root, "activate", ["feat-001"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /feat-001 has no clarifications recorded — run npm run clarify -- feat-001/);
+    assert.equal(JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8")).state, "planned");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate: accepts recorded clarifications and keeps them through verify-feature's shard rewrite (feat-054)", () => {
+  const answers = [{ question: "q", answer: "a", source: "human" }];
+  const root = clarifyFixture({ clarifications: answers });
+  try {
+    assert.equal(run(root, "activate", ["feat-001"]).exit, 0);
+    assert.equal(run(root, "record-feature-pass", ["feat-001", "verified"]).exit, 0);
+    const shard = JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8"));
+    assert.equal(shard.state, "passing");
+    assert.deepEqual(shard.clarifications, answers);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("activate --skip-clarify: activates, records skipped, and the brief shows it (feat-054)", () => {
+  const root = clarifyFixture();
+  try {
+    assert.equal(run(root, "activate", ["feat-001", "--bogus"]).exit, 1);
+    const result = run(root, "activate", ["feat-001", "--skip-clarify"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.stdout, /without clarification/);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(root, ".harness/state/feat-001.json"), "utf8")), {
+      state: "active",
+      evidence: "",
+      clarifications: "skipped",
+    });
+    assert.match(run(root, "brief").stdout, /clarifications: skipped — activated with --skip-clarify/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("typecheck: rejects a malformed clarifications record in a shard (feat-054)", () => {
+  const root = clarifyFixture({ clarifications: [{ question: "q" }] });
+  try {
+    const result = run(root, "arch:sharded-state");
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /feat-001\.json clarifications entry 1 is missing answer/);
   } finally {
     cleanup(root);
   }
@@ -2635,7 +2788,7 @@ test("lifecycle commands refresh the generated PROGRESS.md, so the next lint pas
     assert.match(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), /Planned features \(1\): feat-002 — Second/);
     assert.equal(run(root, "lint:progress-log").exit, 0);
 
-    const activated = run(root, "activate", ["feat-002"]);
+    const activated = run(root, "activate", ["feat-002", "--skip-clarify"]);
     assert.equal(activated.exit, 0, activated.output);
     assert.match(readFileSync(path.join(root, "PROGRESS.md"), "utf8"), /Active feature: feat-002 — Second/);
     const lint = run(root, "lint:progress-log");
@@ -2664,7 +2817,7 @@ test("harness files are written with LF line endings on every OS", () => {
   const root = progressFixture([], [{ id: "feat-001", name: "First", state: "passing", evidence: "verified" }]);
   try {
     assert.equal(run(root, "add-feature", ["feat-002", "Second", "--depends", "feat-001"]).exit, 0);
-    assert.equal(run(root, "activate", ["feat-002"]).exit, 0);
+    assert.equal(run(root, "activate", ["feat-002", "--skip-clarify"]).exit, 0);
     for (const rel of ["feature_list.json", ".harness/state/feat-002.json", "PROGRESS.md"]) {
       assert.equal(readFileSync(path.join(root, rel), "utf8").includes("\r"), false, `${rel} contains CR`);
     }

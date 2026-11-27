@@ -16,7 +16,7 @@ The core workflow of this harness. Everything else serves this loop.
 
 1. Read `feature_list.json` — it is the source of truth, not chat history. To add a feature, use `npm run add-feature -- <id> <name> [--behavior ..] [--verification ..] [--depends a,b] [--layer label=cmd]` instead of hand-writing the JSON.
 2. Pick exactly ONE unfinished feature. Leave every other feature alone.
-3. Activate it with `npm run activate -- <id>`; the command refuses a second active feature or unmet dependencies and writes the state shard.
+3. Clarify it, then activate it. Follow the `clarify` skill: `npm run clarify -- <id>`, answer its questions from the repository or the human, record them with `npm run clarify -- <id> --record <file>`. Then `npm run activate -- <id>`; the command refuses an unclarified feature, a second active feature or unmet dependencies, and writes the state shard.
 4. Confirm the contract: at most one active feature (WIP=1), and every dependency of the active feature must already be `passing`. `npm run test` enforces both.
 5. Implement only that feature. Stay in scope — do not touch files unrelated to it. The feature's `behavior` is the spec: if an existing test contradicts it, the test is wrong — fix it in the same commit and say so. Stop and ask only if the behavior itself looks wrong.
 6. Run `npm run check` before every commit. A layer that reports SKIP does not count as verified; a FAIL stops the chain.
@@ -32,6 +32,7 @@ The core workflow of this harness. Everything else serves this loop.
 
 ## Quick Reference
 
+- [ ] Clarifications recorded (`npm run clarify -- <id> --record <file>`)
 - [ ] Exactly one feature active before starting
 - [ ] Dependencies of the active feature are passing
 - [ ] `npm run check` before each commit

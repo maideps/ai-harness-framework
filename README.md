@@ -44,6 +44,7 @@ It adds a small set of files and commands to your repository. Every agent sessio
 |---|---|
 | Forgetting | Progress lives in files, not in chat: `feature_list.json`, `PROGRESS.md`, `progress/`, `DECISIONS.md`. Each session starts with `./init.sh` and continues from the recorded state. |
 | "Done" too early | A feature becomes `passing` only through `verify-feature`, which runs its checks in order and saves the evidence. A check that didn't run is reported as SKIP, never as PASS. |
+| Guessing | Before a feature is activated, `npm run clarify` lists what its declaration leaves open. The agent answers from the repository or asks you, and the answers are kept with the feature. |
 | Sprawl | One active feature at a time, in dependency order. |
 | Collisions | Agents working in parallel each get their own git worktree and branch. |
 
@@ -103,7 +104,7 @@ cd my-project
 npm run check
 ```
 
-Then open the project in your agent and ask it to work on the next feature. It reads `AGENTS.md` (Claude Code reads `CLAUDE.md`, Gemini CLI reads `GEMINI.md`; both point to `AGENTS.md`) and follows the loop: pick one feature, `npm run activate -- <id>`, implement and commit it, `npm run verify-feature -- <id>`, write the session notes.
+Then open the project in your agent and ask it to work on the next feature. It reads `AGENTS.md` (Claude Code reads `CLAUDE.md`, Gemini CLI reads `GEMINI.md`; both point to `AGENTS.md`) and follows the loop: pick one feature, `npm run clarify -- <id>` to answer what its declaration leaves open and record the answers, `npm run activate -- <id>`, implement and commit it, `npm run verify-feature -- <id>`, write the session notes.
 
 - **Adding it to a project you already have?** `create-harness` never overwrites a file that already exists, so if your project has its own `package.json`, the harness scripts aren't added to it. Copy them from this repository's [`package.json`](package.json). Where you already have a `lint`, `typecheck`, `test` or `build` script, chain the two instead of replacing yours ([how](docs/USAGE.md#replacing-lint-typecheck-test-or-build-without-losing-the-harnesss-own-checks-25)).
 - **On Windows?** Use Git Bash for `./init.sh`.

@@ -1423,6 +1423,30 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-054",
+      "name": "Clarify a feature before activating it",
+      "behavior": "Before a feature is activated, its declaration is checked for ambiguity and every open question is answered and recorded. npm run clarify -- <id> prints the feature behavior, verification and dependencies, then a fixed checklist of questions (terms the behavior uses but does not define, inputs and edge cases it does not cover, error cases, files and docs it will touch, whether each sentence of the behavior is covered by the verification text) and flags it finds mechanically: vague words (etc, appropriately, properly, as needed, should handle, TBD, TODO), a verification that names no test or command, and a behavior sentence with no counterpart in the verification. The agent answers each question from the repository and its docs, citing the file, or asks the human; npm run clarify -- <id> --record <file> stores the answers as clarifications in .harness/state/<id>.json, each with question, answer and source (a repository path or the word human), or the single entry none when nothing was open. npm run activate -- <id> refuses a feature with no clarifications recorded and names the clarify command; --skip-clarify activates anyway and records clarifications: skipped, which the session brief shows. A clarification that changes what done means is not written into the answers: the agent stops and asks for the behavior in feature_list.json to be edited first. A shipped clarify skill describes the step, feature-cycle, AGENTS.md (startup and working rules), docs/USAGE.md and its template describe it, harness-upgrade ships the skill and the command to adopters, and a decision record explains why the step exists (adapted from the clarify step of spec-driven development) and why it records answers instead of rewriting the declaration.",
+      "verification": "Runner tests: clarify prints the checklist and flags vague words, a verification without a test or command, and an uncovered behavior sentence; clarify --record writes clarifications to the state shard and rejects entries without question, answer or source; activate refuses an unclarified feature with a message naming clarify, accepts one with clarifications or none, and with --skip-clarify records skipped; the brief shows a skipped clarification; lint validates the clarify skill and harness-upgrade ships it; npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }

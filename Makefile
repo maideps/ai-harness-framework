@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature activate backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -83,10 +83,15 @@ migrate-feature-state:
 add-feature:
 	@node scripts/framework-check.mjs add-feature $(ID) $(NAME)
 
-## Activate a feature after its dependencies pass; enforces WIP=1 immediately.
-## Usage: make activate F=<feature-id>
+## Print a feature's clarify checklist and ambiguity flags, or record the answers in its state shard.
+## Usage: make clarify F=<feature-id> [RECORD=<answers.json>]
+clarify:
+	@node scripts/framework-check.mjs clarify $(F) $(if $(RECORD),--record $(RECORD))
+
+## Activate a feature after its dependencies pass and its clarifications are recorded; enforces WIP=1 immediately.
+## Usage: make activate F=<feature-id> [SKIP_CLARIFY=1]
 activate:
-	@node scripts/framework-check.mjs activate $(F)
+	@node scripts/framework-check.mjs activate $(F) $(if $(SKIP_CLARIFY),--skip-clarify)
 
 ## Verify (check, which includes check-arch) + record (writes a verification trail to .harness/trails/)
 vcr: check

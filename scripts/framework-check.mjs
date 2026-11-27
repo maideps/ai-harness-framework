@@ -338,6 +338,7 @@ function sessionBrief() {
       lines.push(`Active: ${feature.id} — ${feature.name}`);
       lines.push(`  behavior: ${clip(feature.behavior, 300)}`);
       lines.push(`  layers: ${(feature.layers ?? []).map((layer) => layer.cmd).join(" | ")}`);
+      if (feature.clarifications === "skipped") lines.push("  clarifications: skipped — activated with --skip-clarify; its questions were never answered");
     }
 
     const ready = (feature) => (feature.dependencies ?? []).every((id) => byId.has(id) && stateOf(byId.get(id)) === "passing" && !hasStaleEvidence(byId.get(id)));
@@ -656,12 +657,17 @@ function readFeatureStateFrom(shardPath) {
   return {
     state: getFeatureState(shard) ?? "planned",
     evidence: typeof shard.evidence === "string" ? shard.evidence : "",
+    ...("clarifications" in shard ? { clarifications: shard.clarifications } : {}),
   };
 }
 
-function writeFeatureState(featureId, { state, evidence }) {
+// Writes state and evidence; the feature's recorded clarifications (feat-054) are kept unless
+// the caller passes new ones, so activate and verify-feature never drop the clarify record.
+function writeFeatureState(featureId, { state, evidence, clarifications }) {
   mkdirSync(featureStateDir, { recursive: true });
-  writeFileSync(featureStatePath(featureId), `${JSON.stringify({ state, evidence }, null, 2)}${EOL}`, "utf8");
+  const kept = clarifications !== undefined ? clarifications : readFeatureState(featureId).clarifications;
+  const shard = { state, evidence, ...(kept !== undefined ? { clarifications: kept } : {}) };
+  writeFileSync(featureStatePath(featureId), `${JSON.stringify(shard, null, 2)}${EOL}`, "utf8");
 }
 
 // The merged view every runtime consumer uses: declaration fields from
@@ -748,6 +754,12 @@ function ensureShardedStateShape(declaredIds) {
     }
     if (typeof shard.evidence !== "string") {
       fail(`${featureStateDir}/${entry} evidence must be a string`);
+    }
+    if ("clarifications" in shard) {
+      const problem = clarificationsProblem(shard.clarifications);
+      if (problem) {
+        fail(`${featureStateDir}/${entry} clarifications ${problem}`);
+      }
     }
   }
 }
@@ -885,10 +897,142 @@ function addFeature(featureId, featureArgs) {
   refreshProgressDashboard();
 }
 
-function activateFeature(featureId) {
-  if (!featureId) {
-    fail("usage: node scripts/framework-check.mjs activate <feature-id>");
+// ---- Clarify before activating (feat-054, D-064) ---------------------------
+// Adapted from the clarify step of spec-driven development: before a feature is activated its
+// declaration is read for ambiguity, every open question is answered from the repository or by
+// the human, and the answers are recorded in the feature's state shard. The declaration itself
+// is never rewritten here: an answer that changes what done means belongs in feature_list.json.
+
+const CLARIFY_QUESTIONS = [
+  "Which terms does the behavior use without defining them, and what does each one mean here?",
+  "Which inputs and edge cases does the behavior not cover (empty, missing, duplicate, very large, other platforms)?",
+  "What happens on each error case: what is reported, and what is left unchanged?",
+  "Which files and docs will the change touch, and which must stay untouched?",
+  "Is every sentence of the behavior checked by something the verification names?",
+];
+
+const VAGUE_WORDS = /\b(etc|appropriately|properly|as needed|should handle|tbd|todo)\b/gi;
+const NAMES_A_CHECK = /\btests?\b|\bnpm\b|\bpnpm\b|\byarn\b|\bmake\b|\bnode\b|\bcommand\b|`/i;
+const COMMON_WORDS = new Set(["feature", "before", "should", "which", "their", "every", "would", "there", "these", "those", "other", "where", "while", "about", "after", "without", "within", "through", "instead", "itself", "always", "never"]);
+
+// Mechanical flags on a declaration; advisory — the checklist questions still need answers.
+function clarifyFlags(feature) {
+  const behavior = String(feature.behavior ?? feature.user_visible_behavior ?? "");
+  const verification = String(feature.verification ?? "");
+  const flags = [];
+  for (const [label, text] of [["behavior", behavior], ["verification", verification]]) {
+    for (const match of text.matchAll(VAGUE_WORDS)) {
+      flags.push(`vague wording in ${label}: "${match[0]}"`);
+    }
   }
+  if (!NAMES_A_CHECK.test(verification)) {
+    flags.push("verification names no test or command");
+  }
+  const checked = verification.toLowerCase();
+  for (const sentence of behavior.split(/(?<=[.!?])\s+/).map((entry) => entry.trim()).filter(Boolean)) {
+    const words = (sentence.toLowerCase().match(/[a-z][a-z0-9-]{5,}/g) ?? []).filter((word) => !COMMON_WORDS.has(word));
+    if (words.length > 0 && !words.some((word) => checked.includes(word.slice(0, Math.max(5, word.length - 2))))) {
+      flags.push(`behavior sentence with no counterpart in the verification: "${sentence.length > 120 ? `${sentence.slice(0, 117)}...` : sentence}"`);
+    }
+  }
+  return flags;
+}
+
+// "" when the value is a valid clarifications record, else what is wrong with it.
+function clarificationsProblem(value) {
+  if (value === "none" || value === "skipped") return "";
+  if (!Array.isArray(value) || value.length === 0) {
+    return 'must be "none", "skipped" or a non-empty list of {question, answer, source}';
+  }
+  for (const [index, entry] of value.entries()) {
+    for (const key of ["question", "answer", "source"]) {
+      if (!entry || typeof entry[key] !== "string" || !entry[key].trim()) {
+        return `entry ${index + 1} is missing ${key}`;
+      }
+    }
+  }
+  return "";
+}
+
+function clarifyFeature(featureId, clarifyArgs) {
+  const usage = "usage: node scripts/framework-check.mjs clarify <feature-id> [--record <answers.json>]";
+  if (!featureId || featureId.startsWith("--")) {
+    fail(usage);
+  }
+  const { features } = loadFeaturesWithState();
+  const feature = features.find((item) => item.id === featureId);
+  if (!feature) {
+    fail(`feature ${featureId} not found in feature_list.json`);
+  }
+  if (clarifyArgs.length > 0) {
+    if (clarifyArgs[0] !== "--record" || !clarifyArgs[1] || clarifyArgs.length > 2) {
+      fail(usage);
+    }
+    recordClarifications(feature, clarifyArgs[1]);
+    return;
+  }
+  const flags = clarifyFlags(feature);
+  const recorded = feature.clarifications;
+  const lines = [
+    `=== Clarify ${feature.id} — ${feature.name ?? feature.title ?? ""} (${feature.state}) ===`,
+    "Behavior:",
+    `  ${feature.behavior ?? feature.user_visible_behavior ?? ""}`,
+    "Verification:",
+    `  ${feature.verification ?? ""}`,
+    `Dependencies: ${(feature.dependencies ?? []).join(", ") || "none"}`,
+    "Questions — answer each from the repository (cite the file) or ask the human:",
+    ...CLARIFY_QUESTIONS.map((question, index) => `  ${index + 1}. ${question}`),
+    flags.length ? "Flags:" : "Flags: none",
+    ...flags.map((flag) => `  - ${flag}`),
+    `Recorded: ${recorded === undefined ? "nothing yet" : Array.isArray(recorded) ? `${recorded.length} clarification(s)` : recorded}`,
+    `Record the answers: npm run clarify -- ${feature.id} --record <answers.json>  (a JSON list of {"question", "answer", "source"}, source a repository path or "human"; [] records none)`,
+    "If an answer changes what done means, stop: ask for the behavior in feature_list.json to be edited first, then clarify again.",
+  ];
+  console.log(lines.join(EOL));
+}
+
+function recordClarifications(feature, answersFile) {
+  if (feature.state !== "planned" && feature.state !== "active") {
+    fail(`feature ${feature.id} is ${feature.state} — only a planned or active feature takes clarifications`);
+  }
+  if (!existsSync(answersFile)) {
+    fail(`answers file ${answersFile} not found`);
+  }
+  let answers;
+  try {
+    answers = JSON.parse(readFileSync(answersFile, "utf8"));
+  } catch {
+    fail(`answers file ${answersFile} is not valid JSON`);
+  }
+  const clarifications = Array.isArray(answers) && answers.length === 0 ? "none" : answers;
+  if (clarifications === "skipped") {
+    fail('"skipped" is recorded only by activate --skip-clarify');
+  }
+  const problem = clarificationsProblem(clarifications);
+  if (problem) {
+    fail(`answers file ${answersFile}: ${problem}`);
+  }
+  if (Array.isArray(clarifications)) {
+    for (const [index, entry] of clarifications.entries()) {
+      const source = entry.source.trim();
+      if (source !== "human" && !existsSync(source.replace(/#.*$/, "").replace(/:\d+(?::\d+)?$/, ""))) {
+        fail(`answers file ${answersFile}: entry ${index + 1} source ${source} is neither "human" nor a path in this repository`);
+      }
+    }
+  }
+  writeFeatureState(feature.id, { state: feature.state, evidence: feature.evidence, clarifications });
+  pass(`Recorded ${Array.isArray(clarifications) ? `${clarifications.length} clarification(s)` : "clarifications: none"} for ${feature.id}`);
+}
+
+function activateFeature(featureId, activateArgs = []) {
+  if (!featureId || featureId.startsWith("--")) {
+    fail("usage: node scripts/framework-check.mjs activate <feature-id> [--skip-clarify]");
+  }
+  const unknown = activateArgs.filter((arg) => arg !== "--skip-clarify");
+  if (unknown.length > 0) {
+    fail(`activate: unknown option ${unknown[0]} (only --skip-clarify is accepted)`);
+  }
+  const skipClarify = activateArgs.includes("--skip-clarify");
   const { features } = loadFeaturesWithState();
   const feature = features.find((item) => item.id === featureId);
   if (!feature) {
@@ -919,8 +1063,14 @@ function activateFeature(featureId) {
   if (laneFeatureId && laneFeatureId !== featureId) {
     fail(`lane branch lane/${laneFeatureId} may only activate feature ${laneFeatureId}`);
   }
-  writeFeatureState(featureId, { state: "active", evidence: "" });
-  pass(`Activated ${featureId}`);
+  if (feature.clarifications === undefined && !skipClarify) {
+    fail(
+      `feature ${featureId} has no clarifications recorded — run npm run clarify -- ${featureId}, answer its questions and record them with npm run clarify -- ${featureId} --record <answers.json> (or activate with --skip-clarify)`,
+    );
+  }
+  const skipped = feature.clarifications === undefined;
+  writeFeatureState(featureId, { state: "active", evidence: "", ...(skipped ? { clarifications: "skipped" } : {}) });
+  pass(`Activated ${featureId}${skipped ? " without clarification (recorded clarifications: skipped)" : ""}`);
   refreshProgressDashboard();
 }
 
@@ -2899,7 +3049,8 @@ function printHelp() {
   console.log("  quality        Opt-in metric gates from .harness/quality.json (coverage, mutation, …)");
   console.log("  check-arch     Architecture constraint enforcement");
   console.log("  verify-feature F=<id>  Run all verification layers for a feature (commit its code first)");
-  console.log("  activate F=<id>        Activate a feature when dependencies allow");
+  console.log("  clarify F=<id> [RECORD=<file>]  Print a feature's clarify checklist and flags, or record the answers");
+  console.log("  activate F=<id>        Activate a feature when dependencies allow and its clarifications are recorded");
   console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
@@ -3149,7 +3300,11 @@ switch (mode) {
     break;
   }
   case "activate": {
-    activateFeature(args[0]);
+    activateFeature(args[0], args.slice(1));
+    break;
+  }
+  case "clarify": {
+    clarifyFeature(args[0], args.slice(1));
     break;
   }
   case "verify-chain": {

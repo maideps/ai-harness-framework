@@ -37,6 +37,14 @@ function sh(root, cmd) {
   assert.equal(result.status, 0, `${cmd}\n${result.stdout}${result.stderr}`);
 }
 
+// A compliant agent clarifies before activating (feat-054); these fixtures have nothing open.
+const NO_CLARIFICATIONS = path.join(mkdtempSync(path.join(os.tmpdir(), "eval-clarify-")), "none.json");
+writeFileSync(NO_CLARIFICATIONS, "[]", "utf8");
+function startFeature(root, featureId) {
+  sh(root, `node scripts/framework-check.mjs clarify ${featureId} --record "${NO_CLARIFICATIONS}"`);
+  sh(root, `node scripts/framework-check.mjs activate ${featureId}`);
+}
+
 const commit = (root, message) => sh(root, `git -c user.name=t -c user.email=t@example.com add -A && git -c user.name=t -c user.email=t@example.com commit -q -m "${message}"`);
 const write = (root, rel, content) => writeFileSync(path.join(root, rel), content, "utf8");
 
@@ -46,7 +54,7 @@ const GREET_TEST = 'import test from "node:test";\nimport assert from "node:asse
 // What a compliant agent does for implement-feature: activate, implement with a test, commit,
 // verify through the gate, write a session note.
 function compliantRun(root) {
-  sh(root, "node scripts/framework-check.mjs activate feat-002");
+  startFeature(root, "feat-002");
   write(root, "app/greet.mjs", GREET_OK);
   write(root, "app/greet.test.mjs", GREET_TEST);
   commit(root, "Implement greeting");
@@ -59,6 +67,7 @@ function compliantRun(root) {
   write(root, "README.md", `${readFileSync(path.join(root, "README.md"), "utf8").trimEnd()}\n\n- Greets with hi.\n`);
   commit(root, "Record feat-002");
   return [
+    { name: "Bash", input: { command: "npm run clarify -- feat-002" } },
     { name: "Bash", input: { command: "npm run activate -- feat-002" } },
     { name: "Edit", input: { file_path: path.join(root, "app/greet.mjs") } },
     { name: "Write", input: { file_path: path.join(root, "app/greet.test.mjs") } },
@@ -122,7 +131,7 @@ test("skipping the quality document fails clean-check (feat-034, session 062)", 
 
 test("skipping the README update fails clean-check (feat-051)", () => {
   const root = scenario();
-  sh(root, "node scripts/framework-check.mjs activate feat-002");
+  startFeature(root, "feat-002");
   write(root, "app/greet.mjs", GREET_OK);
   write(root, "app/greet.test.mjs", GREET_TEST);
   commit(root, "Implement greeting");
@@ -188,7 +197,7 @@ test("two active features fail wip-1", () => {
 
 test("evidence recorded on uncommitted code fails gate-only-passing", () => {
   const root = scenario();
-  sh(root, "node scripts/framework-check.mjs activate feat-002");
+  startFeature(root, "feat-002");
   commit(root, "Start feat-002");
   write(root, "app/greet.mjs", GREET_OK);
   write(root, "app/greet.test.mjs", GREET_TEST);
@@ -309,7 +318,7 @@ const REFERENCE = {
   "stale-dependency": (root) => {
     sh(root, "node scripts/framework-check.mjs verify-feature feat-002"); // refresh the stale evidence first
     commit(root, "Re-verify feat-002 against its current layers");
-    sh(root, "node scripts/framework-check.mjs activate feat-003");
+    startFeature(root, "feat-003");
     write(root, "app/farewell.mjs", 'export const farewell = () => "bye";\n');
     write(root, "app/farewell.test.mjs", testOf("farewell", "farewell.mjs", "bye"));
     commit(root, "Implement farewell");
@@ -395,7 +404,7 @@ const SHOUT_TEST = 'import test from "node:test";\nimport assert from "node:asse
 function declareAndBuildShout(root, { ownLayer }) {
   const layer = ownLayer ? ' --layer "Shout tests=node --test app/shout.test.mjs"' : "";
   sh(root, `node scripts/framework-check.mjs add-feature feat-003 Shout --behavior "shout(text) returns the text in upper case."${layer}`);
-  sh(root, "node scripts/framework-check.mjs activate feat-003");
+  startFeature(root, "feat-003");
   write(root, "app/shout.mjs", SHOUT);
   write(root, "app/shout.test.mjs", SHOUT_TEST);
   commit(root, "Add shout");
