@@ -35,6 +35,9 @@ function run(root, mode, args = [], env = {}, { unset = [] } = {}) {
   // `unset` drops more inherited variables for the tests that depend on their absence.
   const inheritedEnv = { ...process.env };
   delete inheritedEnv.CW_INIT_SH;
+  // verify-feature sets HARNESS_CHECK_FULL=1 for its layers (feat-056); inherited, it would
+  // make every scoped-check test see a full run when the suite runs inside the gate.
+  delete inheritedEnv.HARNESS_CHECK_FULL;
   for (const name of unset) delete inheritedEnv[name];
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
