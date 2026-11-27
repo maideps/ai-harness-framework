@@ -109,6 +109,7 @@ Then open the project in your agent and ask it to work on the next feature. It r
 ## Features
 
 - **Layered verification**: Three verification gates (static checks → runtime tests → system confirmation) that must pass in order before any feature is considered done
+- **Checks scoped to the change**: when a branch changes only documentation, `npm run check` runs lint in seconds and reports the other layers as SKIP, not verified; any other change, `npm run check-full`, `verify-feature` and CI run every layer
 - **Feature-driven development**: All work is tracked as discrete features in `feature_list.json` with explicit dependencies and verification criteria
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
 - **Concurrent multi-agent lanes**: Multiple agents can work independent features at once, each in its own sibling git worktree on branch `lane/<feature-id>` (`lane-new`/`lane-list`/`lane-land`/`lane-drop`) — git's own branch-checkout exclusivity is the coordination primitive, no lock file needed, and WIP=1 is enforced per lane. `lane-suggest` lets an agent detect which planned features are startable in parallel right now and propose the plan — advisory only, every state-changing step still needs a human's yes (see the `parallel-lanes` skill)

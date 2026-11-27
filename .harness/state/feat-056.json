@@ -1,0 +1,36 @@
+{
+  "state": "passing",
+  "evidence": "{\"summary\":\"All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation)\",\"timestamp\":\"2026-11-27T16:42:59.535Z\",\"commit\":\"c8e7bb6\",\"dirty\":false,\"bound\":true,\"checksHash\":\"5b6d18fc70f76085\",\"layers\":[{\"label\":\"Layer 1: Static checks\",\"cmd\":\"npm run lint\",\"result\":\"PASS\",\"skipReported\":false,\"durationMs\":832,\"log\":\".harness/logs/feat-056/01-layer-1-static-checks.log\"},{\"label\":\"Layer 2: Runtime tests\",\"cmd\":\"npm run test\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":93658,\"log\":\".harness/logs/feat-056/02-layer-2-runtime-tests.log\"},{\"label\":\"Layer 3: System confirmation\",\"cmd\":\"npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":282277,\"log\":\".harness/logs/feat-056/03-layer-3-system-confirmation.log\"}]}",
+  "clarifications": [
+    {
+      "question": "npm run check is a plain && chain in package.json; how can it skip layers?",
+      "answer": "check becomes a runner mode (node scripts/framework-check.mjs check) and the chain moves unchanged to a new check-full script (npm and make). The runner classifies the change, then runs npm run check-full, or npm run lint and a SKIP line for every other step of check-full. Makefile check delegates to the runner too; make check-full keeps the old prerequisite chain.",
+      "source": "package.json"
+    },
+    {
+      "question": "Which consumers of the check chain must follow it to check-full?",
+      "answer": "confirmationLayerCommand (new features' Layer 3, feat-038) reads check-full when it exists; harness-upgrade's check-arch-in-chain hint reads check-full when check is the runner; the adoption matrix's normalizeFixtureScripts writes both. verify-feature runs its layers with HARNESS_CHECK_FULL=1, so a Layer 3 of npm run check stays full.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "What is the change set, and what if it is empty?",
+      "answer": "Files changed between the merge-base with the default branch (same base resolution as evidence-check, without failing) and HEAD, plus uncommitted and untracked files, relative to the current directory. An empty set (for example a clean default branch) or no resolvable base runs every layer.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Which files are documentation?",
+      "answer": "A file under docs/ (any type, so docs/demo assets count), or a .md file anywhere except under skills/ and templates/. AGENTS.md, DECISIONS.md, README.md and progress notes are documentation; lint already validates the README, must-rules, command surfaces and progress log. SKILL.md files and templates are shipped to adopters and run every layer.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "How do CI and --full interact?",
+      "answer": "npm run check -- --full, make check FULL=1, or HARNESS_CHECK_FULL=1 run every layer. Both CI workflows run npm run check -- --full on every event (and make check FULL=1 for the Makefile surface), so CI never scopes.",
+      "source": ".github/workflows/ci.yml"
+    },
+    {
+      "question": "What does a scoped run report?",
+      "answer": "Before the first layer: the scope (docs-only, with the file count, or full with the reason). After lint: one [SKIP] line per skipped check-full step with the reason docs-only change, and a closing line saying those layers were not verified. A check-full that is not a plain && chain of npm run steps, or has no npm run lint step, always runs in full.",
+      "source": "docs/USAGE.md"
+    }
+  ]
+}
