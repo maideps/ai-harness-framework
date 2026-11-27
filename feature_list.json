@@ -1567,6 +1567,32 @@
           "repair": "Resolve cross-layer issues and rerun full verification."
         }
       ]
+    },
+    {
+      "id": "feat-060",
+      "name": "Skills load through a harness command that records each use",
+      "behavior": "npm run skill -- <name> (and make skill NAME=<name>) prints skills/<name>/SKILL.md unchanged on stdout, so any agent that can run a shell command loads a skill the same way, and appends one JSON line to .harness/logs/skill-usage.jsonl with the time, the skill, the current branch and the active feature id (or null). The log is local and never committed, like the rest of .harness/logs/. With no name it lists every skill with its description; an unknown name fails and lists the available skills. progress-new records a session boundary in the same log and fills the new note's Skills used line with the distinct skills recorded since the previous boundary, or none; the agent may still edit the line. clean-check warns, without failing, when the latest note's Skills used leaves out a skill the log recorded in that session. AGENTS.md (startup and Skills sections), the feature-cycle and write-skill skills, docs/USAGE.md and its template tell agents to load skills with npm run skill instead of opening SKILL.md, harness-upgrade reports the new script, and a decision record explains why a shell command is the one mechanism every agent shares.",
+      "verification": "Runner tests in throwaway repositories: npm run skill -- <name> prints the SKILL.md byte for byte and appends a log line with skill, branch and active feature; no name lists skills with descriptions; an unknown name fails listing them; progress-new fills Skills used with the skills recorded since the previous note and writes none when there were none; clean-check warns when the latest note omits a recorded skill and stays green otherwise; the log is ignored by git; lint validates that AGENTS.md mentions npm run skill. npm run check passes; verify-feature runs on a committed tree.",
+      "dependencies": [
+        "feat-059"
+      ],
+      "layers": [
+        {
+          "label": "Layer 1: Static checks",
+          "cmd": "npm run lint",
+          "repair": "Fix static-analysis issues and rerun the layer command."
+        },
+        {
+          "label": "Layer 2: Runtime tests",
+          "cmd": "npm run test",
+          "repair": "Fix failing tests and rerun the layer command."
+        },
+        {
+          "label": "Layer 3: System confirmation",
+          "cmd": "npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
+          "repair": "Resolve cross-layer issues and rerun full verification."
+        }
+      ]
     }
   ]
 }
