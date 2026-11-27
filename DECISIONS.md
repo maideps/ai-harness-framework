@@ -1089,3 +1089,19 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: the two most common workflow slips are refused where they happen, for every agent and person in an opted-in clone.
 - Negative: hooks stay opt-in per clone and can be bypassed with `--no-verify`; CI and branch protection remain the backstop.
+
+### D-069: Skill usage is recorded by the agent in the session note
+
+**Date:** 2026-11-27
+**Status:** accepted
+**Context:** The harness ships thirteen skills and adopters add their own, but nobody knew which ones agents actually opened. An agent sees only each skill's one-line description and decides from it, so a description that says what a skill does instead of when it is needed leaves the skill unused, silently. crux, an agent kernel described in a public article, counts how often each skill is used and rewrites or removes any skill nobody opens in a month.
+**Decision:**
+- Session notes gain a "Skills used" line (folder names, or `none`) that `progress-new` writes; lint rejects names that are not skill folders.
+- `npm run skill-usage` counts sessions and the last date per skill from the notes and lists skills unused in the last 30 days (`--days` to change); `npm run report` includes the table with the same 30-day window. Notes from before the line existed are skipped and counted.
+- The parser lives in `scripts/harness-report.mjs` and the runner imports it for lint.
+**Alternatives considered:**
+- Read usage from tool logs (Claude Code transcripts, hooks on file reads) — rejected: each agent CLI logs differently or not at all, and the harness supports three; the session note is the record every agent already writes.
+- Count `SKILL.md` reads with a git or filesystem hook — rejected: reads leave no trace in git, and file-access hooks are platform-specific.
+**Consequences:**
+- Positive: unused skills and weak descriptions become visible, the same way caught mistakes became checks.
+- Negative: the record is self-reported; an agent can forget a skill it used or list one it skimmed. Lint only catches names that do not exist.

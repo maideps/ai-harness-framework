@@ -5,7 +5,9 @@ import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { aggregate, mergedPullRequest, outcomes, revertedPullRequests } from "../../scripts/harness-report.mjs";
+import { fileURLToPath } from "node:url";
+
+import { aggregate, mergedPullRequest, outcomes, revertedPullRequests, skillsUsedIn, skillUsage } from "../../scripts/harness-report.mjs";
 
 function fixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), "cw-report-"));
@@ -135,4 +137,93 @@ test("aggregate: empty traces directory reports zero sessions", () => {
   assert.equal(report.sessions.length, 0);
   assert.equal(report.totals.sessions, 0);
   rmSync(root, { recursive: true, force: true });
+});
+
+// ---- feat-059 (D-069): skill usage report ---------------------------------------
+
+const REPORT_SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "scripts", "harness-report.mjs");
+
+function isoDaysAgo(days) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+// skills/alpha, beta and gamma; notes NNN-<date>.md with the given Skills used values.
+function skillUsageFixture(notes) {
+  const root = mkdtempSync(path.join(os.tmpdir(), "cw-skill-usage-"));
+  for (const name of ["alpha", "beta", "gamma"]) {
+    mkdirSync(path.join(root, "skills", name), { recursive: true });
+    writeFileSync(path.join(root, "skills", name, "SKILL.md"), `---\nname: ${name}\n---\n`, "utf8");
+  }
+  mkdirSync(path.join(root, "skills", "not-a-skill"), { recursive: true }); // no SKILL.md
+  mkdirSync(path.join(root, "progress"), { recursive: true });
+  notes.forEach(([date, value], index) => {
+    const line = value === null ? "" : `- Skills used: ${value}\n`;
+    writeFileSync(path.join(root, "progress", `${String(index + 1).padStart(3, "0")}-${date}.md`), `### S\n\n- Goal: g\n${line}`, "utf8");
+  });
+  return root;
+}
+
+test("skillsUsedIn: names, backticks and none; null without the line (feat-059)", () => {
+  assert.deepEqual(skillsUsedIn("- Skills used: alpha, `beta`.\n"), ["alpha", "beta"]);
+  assert.deepEqual(skillsUsedIn("- Skills used: none\n"), []);
+  assert.deepEqual(skillsUsedIn("- Skills used: \n"), []);
+  assert.equal(skillsUsedIn("- Goal: g\n"), null);
+});
+
+test("skillUsage: sessions and last date per skill, unused ones in the window, older notes counted apart (feat-059)", () => {
+  const root = skillUsageFixture([
+    [isoDaysAgo(90), null],
+    [isoDaysAgo(60), "alpha, gamma"],
+    [isoDaysAgo(10), "alpha, alpha"],
+    [isoDaysAgo(2), "none"],
+  ]);
+  try {
+    const result = skillUsage(root, 30);
+    assert.equal(result.notes_with_section, 3);
+    assert.equal(result.notes_without_section, 1);
+    assert.deepEqual(result.skills, [
+      { name: "alpha", sessions: 2, last: isoDaysAgo(10) },
+      { name: "beta", sessions: 0, last: null },
+      { name: "gamma", sessions: 1, last: isoDaysAgo(60) },
+    ]);
+    assert.deepEqual(result.unused, ["beta", "gamma"]);
+    assert.deepEqual(skillUsage(root, 60).unused, ["beta"], "a skill used exactly N days ago still counts");
+    assert.deepEqual(skillUsage(root, 5).unused, ["alpha", "beta", "gamma"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("skill-usage and report print the table; --days must be a positive integer (feat-059)", () => {
+  const root = skillUsageFixture([[isoDaysAgo(40), "alpha"], [isoDaysAgo(3), "beta"]]);
+  const runReport = (...args) => {
+    const result = spawnSync(process.execPath, [REPORT_SCRIPT, ...args], { cwd: root, encoding: "utf8" });
+    return { exit: result.status ?? 1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  };
+  try {
+    let result = runReport("skill-usage");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Skills used section: 2; older notes without it, skipped: 0/);
+    assert.match(result.output, /alpha\s+sessions:\s+1\s+last: \d{4}-\d{2}-\d{2}/);
+    assert.match(result.output, /Not used in the last 30 days .*: alpha, gamma/);
+
+    result = runReport("skill-usage", "--days", "60");
+    assert.match(result.output, /Not used in the last 60 days .*: gamma/);
+
+    for (const bad of [["--days", "0"], ["--days", "x"], ["--days"], ["--weeks", "2"]]) {
+      result = runReport("skill-usage", ...bad);
+      assert.equal(result.exit, 1, bad.join(" "));
+      assert.match(result.output, /usage: npm run skill-usage/);
+    }
+
+    result = runReport();
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /=== Skill usage/);
+    assert.match(result.output, /Not used in the last 30 days .*: alpha, gamma/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

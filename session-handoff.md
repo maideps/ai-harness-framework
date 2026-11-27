@@ -2,38 +2,38 @@
 
 ## Current Objective
 
-- Goal: Opt-in push and commit-message hooks (feat-058), adapted from crux's git hooks.
-- Current status: feat-055..058 are passing (feat-057 merged in PR #80); no active feature. feat-059 is planned.
-- Branch / commit: `feat/feat-058-push-commit-hooks`
+- Goal: Skill usage report (feat-059), adapted from crux's per-skill usage count.
+- Current status: feat-055..059 are passing (feat-058 merged in PR #81); no active feature. feat-060 (skills load through a recording command) is drafted, to be declared next.
+- Branch / commit: `feat/feat-059-skill-usage`
 
 ## Completed This Session
 
-- [x] Merged PR #80 (feat-057) after its CI passed.
-- [x] pre-push hook refuses a push to the default branch unless `HARNESS_ALLOW_DEFAULT_PUSH=1`.
-- [x] commit-msg hook applies `.harness/commit-rules.json` (shipped disabled); lint validates it; merges and reverts pass.
-- [x] USAGE (both copies), AGENTS.md, README, Makefile help, HARNESS.md and D-068 updated.
+- [x] Merged PR #81 (feat-058) after its CI passed.
+- [x] Session notes carry a Skills used line; lint checks the names against `skills/`.
+- [x] `npm run skill-usage` and the report table: sessions and last date per skill, skills unused in 30 days.
+- [x] USAGE (both copies), AGENTS.md, README, session-handoff and write-skill skills, HARNESS.md and D-069 updated.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Hook tests | `node --test --test-name-pattern="feat-058|feat-043" .harness/selftest/framework-check.selftest.mjs` | PASS | 6 tests, real bare remote |
+| Feature tests | `node --test --test-name-pattern="feat-059|..." framework-check and report self-tests` | PASS | 17 tests |
 | Full verification | `npm run check` | PASS | |
-| Feature gate | `npm run verify-feature -- feat-058` | PASS | Bound evidence on f634779; 273 self-tests |
+| Feature gate | `npm run verify-feature -- feat-059` | PASS | Bound evidence on 470eb03; 278 self-tests |
 
 ## Files Changed
 
-- `scripts/framework-check.mjs`, `scripts/hooks/pre-push`, `scripts/hooks/commit-msg`, `.harness/selftest/`
-- `templates/commit-rules.json`, `.harness/commit-rules.json`, `.harness/manifest.json`, `Makefile`
+- `scripts/framework-check.mjs`, `scripts/harness-report.mjs`, `.harness/selftest/`
+- `package.json`, `Makefile`, `skills/session-handoff/`, `skills/write-skill/`
 - `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
 
 ## Decisions Made
 
-- D-068: opt-in hooks refuse pushes to the default branch (with an explicit override) and check commit messages against pattern rules; no language detection.
+- D-069: skill usage is recorded by the agent in the session note; the report reads the notes.
 
 ## Blockers / Risks
 
-- Hooks are opt-in per clone and `--no-verify` bypasses them; CI and branch protection stay the backstop.
+- Skills used is self-reported; feat-060 is meant to make it mechanical.
 
 ## Next Session Startup
 
@@ -43,4 +43,4 @@
 
 ## Recommended Next Step
 
-- Merge this PR, then feat-059 (skill usage report).
+- Merge this PR; then the agent-compatibility docs with feat-060's declaration; then feat-060.

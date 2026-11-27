@@ -3071,7 +3071,7 @@ test("progress-new: the skeleton has a Mistakes caught section, and lint still p
   try {
     assert.equal(run(root, "progress-new", ["One"]).exit, 0);
     const note = readFileSync(path.join(root, "progress", `001-${todayLocal()}.md`), "utf8");
-    assert.match(note, /^- Files or artifacts updated: \n- Mistakes caught: \n- Known risk or unresolved issue: /m);
+    assert.match(note, /^- Files or artifacts updated: \n- Mistakes caught: \n- Skills used: \n- Known risk or unresolved issue: /m);
     const lint = run(root, "lint:progress-log");
     assert.equal(lint.exit, 0, lint.output);
   } finally {
@@ -3853,6 +3853,55 @@ test("lint:commit-rules: a missing file passes; a malformed one fails naming the
     const shipped = run(root, "lint:commit-rules");
     assert.equal(shipped.exit, 0, shipped.output);
     assert.match(shipped.output, /valid \(disabled\)/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-059 (D-069): skill usage report ---------------------------------------
+
+// Session notes with the given "Skills used" values (null leaves the line out), skills/alpha
+// and skills/beta, and a regenerated dashboard.
+function skillsUsedFixture(values) {
+  const root = progressFixture([], []);
+  for (const name of ["alpha", "beta"]) write(root, `skills/${name}/SKILL.md`, `---\nname: ${name}\n---\n`);
+  values.forEach((value, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    const line = value === null ? "" : `- Skills used:${value}\n`;
+    write(root, `progress/${number}-2026-10-01.md`, `### Session ${number} — 2026-10-01 — S\n\n- Goal: g\n${line}- Next best step: n\n`);
+  });
+  const update = run(root, "progress-update");
+  assert.equal(update.exit, 0, update.output);
+  return root;
+}
+
+test("progress-new: the skeleton has a Skills used section, and lint passes on it blank (feat-059)", () => {
+  const root = progressFixture([], []);
+  try {
+    assert.equal(run(root, "progress-new", ["Skills"]).exit, 0);
+    const note = readFileSync(path.join(root, "progress", `001-${todayLocal()}.md`), "utf8");
+    assert.match(note, /^- Mistakes caught: \n- Skills used: \n- Known risk/m);
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint: Skills used accepts skill folder names and none; rejects an unknown name; skips older notes (feat-059)", () => {
+  let root = skillsUsedFixture([null, " alpha, `beta`", " none", " "]);
+  try {
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 0, lint.output);
+    assert.match(lint.output, /Session notes name only existing skills under Skills used \(3 notes\)/);
+  } finally {
+    cleanup(root);
+  }
+  root = skillsUsedFixture([" alpha, gamma"]);
+  try {
+    const lint = run(root, "lint:progress-log");
+    assert.equal(lint.exit, 1, lint.output);
+    assert.match(lint.output, /progress\/001-2026-10-01\.md: Skills used names gamma, which is not a skill folder under skills\//);
   } finally {
     cleanup(root);
   }

@@ -39,6 +39,7 @@
 | `make backup-unpin` | `npm run backup-unpin` |
 | `make backup-restore` | `npm run backup-restore` |
 | `make report` | `npm run report` |
+| `make skill-usage` | `npm run skill-usage` |
 | `make sweep` | `npm run sweep` |
 | `make setup` | `npm run setup` |
 | `make dev` | `npm run dev` |
