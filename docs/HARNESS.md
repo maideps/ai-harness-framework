@@ -23,6 +23,7 @@
 | `make add-feature` | `npm run add-feature` |
 | `make clarify` | `npm run clarify` |
 | `make activate` | `npm run activate` |
+| `make evidence-check` | `npm run evidence-check` |
 | `make vcr` | `npm run vcr` |
 | `make session-start` | `npm run session-start` |
 | `make session-end` | `npm run session-end` |

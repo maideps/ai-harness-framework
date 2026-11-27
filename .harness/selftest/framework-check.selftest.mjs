@@ -3285,3 +3285,167 @@ test("add-feature: Layer 3 keeps npm run check whenever the check script is not 
   assert.equal(addFeatureLayer3("npm run lint && npm run build"), "npm run check", "no test step to skip");
   assert.equal(addFeatureLayer3("npm run lint && npm run test"), "npm run check", "nothing left after removing both");
 });
+
+// ---- feat-055 (D-065): pull requests carry evidence for the commit they merge ----
+
+function git(root, ...args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, `git ${args.join(" ")}: ${result.stderr}`);
+  return (result.stdout ?? "").trim();
+}
+
+function commitAll(root, message) {
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", message);
+  return git(root, "rev-parse", "--short", "HEAD");
+}
+
+function markPassing(root, featureId, commit, { bound = true } = {}) {
+  const evidence = JSON.stringify({ summary: "All verification layers passed", commit, bound, checksHash: "x", layers: [] });
+  write(root, `.harness/state/${featureId}.json`, `${JSON.stringify({ state: "passing", evidence }, null, 2)}\n`);
+}
+
+// master holds feat-001 planned; branch work adds its code, and the returned commit is the
+// one the evidence will name.
+function evidenceFixture() {
+  const root = splitFeatureFixture([{ id: "feat-001", name: "One", dependencies: [], state: "planned" }]);
+  git(root, "init", "-q", "-b", "master");
+  git(root, "config", "user.email", "test@example.com");
+  git(root, "config", "user.name", "Test");
+  commitAll(root, "base");
+  git(root, "checkout", "-q", "-b", "work");
+  write(root, "src/app.js", "export const x = 1;\n");
+  return { root, evidenceCommit: commitAll(root, "feat-001 code") };
+}
+
+test("evidence-check: passes when only bookkeeping changed after the evidence commit (feat-055)", () => {
+  const { root, evidenceCommit } = evidenceFixture();
+  try {
+    markPassing(root, "feat-001", evidenceCommit);
+    write(root, "progress/001-2026-01-01.md", "# Session 001\n");
+    write(root, "README.md", "# App\n");
+    commitAll(root, "record evidence, session note, README");
+    const result = run(root, "evidence-check");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Base: master/);
+    assert.match(result.output, /Evidence matches the merged code for feat-001/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("evidence-check: a code edit committed after the evidence commit fails, naming the feature and the file (feat-055)", () => {
+  const { root, evidenceCommit } = evidenceFixture();
+  try {
+    markPassing(root, "feat-001", evidenceCommit);
+    commitAll(root, "record evidence");
+    write(root, "src/app.js", "export const x = 2;\n");
+    commitAll(root, "late edit");
+    const result = run(root, "evidence-check");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, new RegExp(`feat-001: changed after its evidence commit ${evidenceCommit}`));
+    assert.match(result.output, /src\/app\.js/);
+    assert.match(result.output, /npm run verify-feature -- feat-001/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("evidence-check: an evidence commit that is not an ancestor of HEAD, or unbound evidence, fails (feat-055)", () => {
+  const { root } = evidenceFixture();
+  try {
+    git(root, "checkout", "-q", "-b", "elsewhere", "master");
+    write(root, "src/other.js", "1\n");
+    const foreign = commitAll(root, "unrelated");
+    git(root, "checkout", "-q", "work");
+    markPassing(root, "feat-001", foreign);
+    commitAll(root, "record foreign evidence");
+    let result = run(root, "evidence-check");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, new RegExp(`evidence commit ${foreign} is not an ancestor of HEAD`));
+
+    markPassing(root, "feat-001", git(root, "rev-parse", "--short", "HEAD"), { bound: false });
+    commitAll(root, "record unbound evidence");
+    result = run(root, "evidence-check");
+    assert.equal(result.exit, 1, result.output);
+    assert.match(result.output, /feat-001: its evidence is not bound to a commit/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("evidence-check: a branch with no newly passing feature passes; base commits merged in are not counted (feat-055)", () => {
+  const { root, evidenceCommit } = evidenceFixture();
+  try {
+    let result = run(root, "evidence-check");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /No feature became passing on this branch/);
+
+    markPassing(root, "feat-001", evidenceCommit);
+    commitAll(root, "record evidence");
+    git(root, "checkout", "-q", "master");
+    write(root, "src/master-only.js", "1\n");
+    commitAll(root, "work landed on master meanwhile");
+    git(root, "checkout", "-q", "work");
+    git(root, "merge", "-q", "--no-edit", "master");
+    result = run(root, "evidence-check");
+    assert.equal(result.exit, 0, result.output);
+    assert.doesNotMatch(result.output, /master-only/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("evidence-check: --base selects the base; an unknown base or none found fails clearly (feat-055)", () => {
+  const { root, evidenceCommit } = evidenceFixture();
+  try {
+    markPassing(root, "feat-001", evidenceCommit);
+    commitAll(root, "record evidence");
+    git(root, "branch", "release");
+    write(root, "src/app.js", "export const x = 3;\n");
+    commitAll(root, "edit after release was cut");
+    // Against release, feat-001 was already passing there: nothing new to check.
+    let result = run(root, "evidence-check", ["--base", "release"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Base: release/);
+    assert.match(result.output, /No feature became passing/);
+    // Against master (the default), the late edit is caught.
+    assert.equal(run(root, "evidence-check").exit, 1);
+
+    result = run(root, "evidence-check", ["--base", "no-such-ref"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /base no-such-ref is not a commit/);
+    git(root, "branch", "-m", "master", "trunk");
+    result = run(root, "evidence-check");
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /cannot find the base branch.*pass --base <ref>/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint:ci-evidence: the framework's workflows must run evidence-check on pull requests with full history (feat-055)", () => {
+  const root = fixture();
+  const workflow = "on:\n  pull_request:\njobs:\n  check:\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - run: npm run evidence-check\n";
+  try {
+    write(root, ".harness/manifest.json", JSON.stringify({ frameworkRepository: true }));
+    write(root, ".github/workflows/ci.yml", workflow);
+    write(root, "templates/ci.yml", workflow);
+    let result = run(root, "lint:ci-evidence");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /CI workflows run evidence-check on pull requests/);
+
+    write(root, "templates/ci.yml", workflow.replace("      - run: npm run evidence-check\n", ""));
+    result = run(root, "lint:ci-evidence");
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /templates\/ci\.yml must run npm run evidence-check/);
+    write(root, "templates/ci.yml", workflow.replace("fetch-depth: 0", "fetch-depth: 1"));
+    assert.match(run(root, "lint:ci-evidence").output, /fetch-depth: 0/);
+
+    // An adopter's ci.yml is its own: not inspected.
+    write(root, ".harness/manifest.json", JSON.stringify({ frameworkRepository: false }));
+    assert.equal(run(root, "lint:ci-evidence").exit, 0);
+  } finally {
+    cleanup(root);
+  }
+});

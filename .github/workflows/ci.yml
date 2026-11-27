@@ -13,6 +13,8 @@ jobs:
         node: [18, 24]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -30,6 +32,12 @@ jobs:
 
       - name: Install python check tools
         run: pip install ruff pytest
+
+      # A feature that became passing on this branch must have evidence for the commit being
+      # merged: only harness bookkeeping may change after it (feat-055). Needs full history.
+      - name: Evidence matches the merged code
+        if: github.event_name == 'pull_request'
+        run: npm run evidence-check -- --base origin/${{ github.base_ref }}
 
       - name: Full harness check (includes the adoption matrix)
         run: npm run check

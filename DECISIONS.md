@@ -1019,3 +1019,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 - Positive: open questions are answered before code is written, with a source, and the shard keeps them for review and later sessions.
 - Negative: one more command before every activation, and adopters' scripts or tests that call `activate` directly need `clarify --record` first or `--skip-clarify`. `harness-upgrade` reports the new `clarify` command for package.json and ships the skill.
 
+
+### D-065: Evidence is checked against the merged code at the pull request
+
+**Date:** 2026-11-27
+**Status:** accepted
+**Context:** verify-feature refuses uncommitted code and binds evidence to the commit that passed (feat-030, D-041), but nothing looked at what happened next. Code committed after the gate, such as a review fix or a last tweak, reached the default branch under evidence for an earlier commit, and every check still showed green. crux, an agent kernel described in a public article, closes this gap with a receipt sealed against the current commit that its "finish" step refuses to propose without.
+**Decision:**
+- `npm run evidence-check` finds the features that became `passing` on the branch (passing at HEAD, not at the merge-base with the base branch) and requires each one's evidence to be bound to a commit that is an ancestor of HEAD, after which the branch's own non-merge commits touched only bookkeeping: the paths verify-feature already treats as bookkeeping plus `README.md` and `docs/quality-document.md`, which AGENTS.md requires to change after the gate.
+- It runs in CI on pull requests, in this repository's workflow and in the shipped template, with `--base origin/<base branch>` and full history. Lint checks both workflows in the framework repository only; an adopter's workflow is its own.
+- Commits reachable from the base are excluded, so merging the base branch in, and the merge commit a pull request's CI checks out, do not count as changes after the evidence.
+**Alternatives considered:**
+- Check at verify time only — rejected: that is what already existed; the gap is everything committed after it.
+- Check every passing feature, not only the newly passing ones — rejected: older evidence names commits from before this rule, and a feature that passed long ago is expected to see later code change around it.
+- A pre-push hook instead of CI — rejected: hooks are opt-in per clone, and the pull request is where the merged code is fixed.
+**Consequences:**
+- Positive: a pull request whose code changed after its feature's evidence cannot go green; the fix is to rerun verify-feature on the final commit.
+- Negative: CI checkouts fetch full history, which is slower on large repositories, and a review fix after the gate means one more verify-feature run. Conflict resolutions inside a merge commit are not inspected.

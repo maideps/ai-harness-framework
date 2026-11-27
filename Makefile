@@ -1,4 +1,4 @@
-.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate backup-list backup-pin backup-unpin backup-restore
+.PHONY: check lint typecheck test build e2e quality check-arch verify-feature vcr session-start session-end clean-check hooks-install hooks-uninstall setup dev help lane-new lane-list lane-land lane-drop lane-suggest migrate-feature-state add-feature clarify activate evidence-check backup-list backup-pin backup-unpin backup-restore
 
 # Every target delegates to the Node runner (scripts/framework-check.mjs) and is
 # mirrored 1:1 by an npm script, so `make check` ≡ `npm run check`.
@@ -92,6 +92,11 @@ clarify:
 ## Usage: make activate F=<feature-id> [SKIP_CLARIFY=1]
 activate:
 	@node scripts/framework-check.mjs activate $(F) $(if $(SKIP_CLARIFY),--skip-clarify)
+
+## Fail if a feature that became passing on this branch changed code after its evidence commit (run on pull requests).
+## Usage: make evidence-check [BASE=<ref>]
+evidence-check:
+	@node scripts/framework-check.mjs evidence-check $(if $(BASE),--base $(BASE))
 
 ## Verify (check, which includes check-arch) + record (writes a verification trail to .harness/trails/)
 vcr: check
