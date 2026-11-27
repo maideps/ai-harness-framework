@@ -2,38 +2,38 @@
 
 ## Current Objective
 
-- Goal: Lanes get their own ports and environment (feat-057), adapted from crux's per-task port range.
-- Current status: feat-055..057 are passing (feat-056 merged in PR #79); no active feature. feat-058 and feat-059 are planned.
-- Branch / commit: `feat/feat-057-lane-ports`
+- Goal: Opt-in push and commit-message hooks (feat-058), adapted from crux's git hooks.
+- Current status: feat-055..058 are passing (feat-057 merged in PR #80); no active feature. feat-059 is planned.
+- Branch / commit: `feat/feat-058-push-commit-hooks`
 
 ## Completed This Session
 
-- [x] Merged PR #79 (feat-056) after its CI passed.
-- [x] Refined feat-057's declaration: copy `.env` only when git ignores it; ignore `.env.lane` through the shared `info/exclude`.
-- [x] `lane-new` reserves a 10-port block in `harness-lane-ports.json` (common git dir) and writes `.env.lane`; `lane-list` shows blocks; `lane-land`/`lane-drop` release them; stale blocks are reclaimed.
-- [x] USAGE (both copies), parallel-lanes skill, ARCHITECTURE, README and D-067 updated.
+- [x] Merged PR #80 (feat-057) after its CI passed.
+- [x] pre-push hook refuses a push to the default branch unless `HARNESS_ALLOW_DEFAULT_PUSH=1`.
+- [x] commit-msg hook applies `.harness/commit-rules.json` (shipped disabled); lint validates it; merges and reverts pass.
+- [x] USAGE (both copies), AGENTS.md, README, Makefile help, HARNESS.md and D-068 updated.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Lane tests | `node --test --test-name-pattern="feat-057|lane-" .harness/selftest/framework-check.selftest.mjs` | PASS | 20 tests |
+| Hook tests | `node --test --test-name-pattern="feat-058|feat-043" .harness/selftest/framework-check.selftest.mjs` | PASS | 6 tests, real bare remote |
 | Full verification | `npm run check` | PASS | |
-| Feature gate | `npm run verify-feature -- feat-057` | PASS | Bound evidence on 2d3421a; 270 self-tests |
+| Feature gate | `npm run verify-feature -- feat-058` | PASS | Bound evidence on f634779; 273 self-tests |
 
 ## Files Changed
 
-- `scripts/framework-check.mjs`, `.harness/selftest/framework-check.selftest.mjs`, `skills/parallel-lanes/SKILL.md`
-- `feature_list.json`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
+- `scripts/framework-check.mjs`, `scripts/hooks/pre-push`, `scripts/hooks/commit-msg`, `.harness/selftest/`
+- `templates/commit-rules.json`, `.harness/commit-rules.json`, `.harness/manifest.json`, `Makefile`
+- `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
 
 ## Decisions Made
 
-- D-067: lane port blocks live in the common git directory; `.env.lane` is ignored through `info/exclude`; `.env` is copied only when ignored.
+- D-068: opt-in hooks refuse pushes to the default branch (with an explicit override) and check commit messages against pattern rules; no language detection.
 
 ## Blockers / Risks
 
-- Projects must make their dev server and database read `HARNESS_PORT_BASE` and `HARNESS_DB_SUFFIX`.
-- The shipped `templates/gitignore` does not ignore `.env`, so new adopters' lanes copy no `.env` until they add it.
+- Hooks are opt-in per clone and `--no-verify` bypasses them; CI and branch protection stay the backstop.
 
 ## Next Session Startup
 
@@ -43,4 +43,4 @@
 
 ## Recommended Next Step
 
-- Merge this PR, then feat-058 (opt-in push and commit-message hooks).
+- Merge this PR, then feat-059 (skill usage report).

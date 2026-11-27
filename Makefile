@@ -120,11 +120,11 @@ session-end:
 clean-check:
 	@node scripts/framework-check.mjs clean-state-check
 
-## Opt-in git pre-commit hook (feat-043): lint + check-arch on every commit
+## Opt-in git hooks (feat-043, feat-058): lint + check-arch on every commit, commit-message rules, no push to the default branch
 hooks-install:
 	@node scripts/framework-check.mjs hooks-install
 
-## Remove the harness pre-commit hook (git's default hooks folder again)
+## Remove the harness git hooks (git's default hooks folder again)
 hooks-uninstall:
 	@node scripts/framework-check.mjs hooks-uninstall
 

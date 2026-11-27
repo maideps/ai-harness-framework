@@ -37,6 +37,7 @@
     { "from": "templates/session-handoff.md", "to": "session-handoff.md" },
     { "from": "templates/quality-document.md", "to": "docs/quality-document.md" },
     { "from": "templates/quality.json", "to": ".harness/quality.json" },
+    { "from": "templates/commit-rules.json", "to": ".harness/commit-rules.json" },
     { "from": "templates/docs/PRODUCT.md", "to": "docs/PRODUCT.md" },
     { "from": "templates/docs/ARCHITECTURE.md", "to": "docs/ARCHITECTURE.md" },
     { "from": "templates/docs/OBSERVABILITY.md", "to": "docs/OBSERVABILITY.md" },
@@ -88,6 +89,7 @@
     "docs/decisions/",
     ".github/workflows/ci.yml",
     ".harness/quality.json",
+    ".harness/commit-rules.json",
     ".harness/trails/",
     ".harness/traces/.gitkeep"
   ],

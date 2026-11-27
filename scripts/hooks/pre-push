@@ -1,0 +1,7 @@
+#!/bin/sh
+# Harness pre-push hook (feat-058). Opt-in: installed with the pre-commit hook by
+# `npm run hooks-install`. Refuses a push to the remote's default branch unless the push
+# runs with HARNESS_ALLOW_DEFAULT_PUSH=1. git passes the remote name as $1 and the refs
+# being pushed on stdin, which exec hands to the runner unchanged.
+cd "$(dirname "$0")/../.." || exit 1
+exec node scripts/framework-check.mjs pre-push "$1"

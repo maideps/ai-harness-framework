@@ -1072,3 +1072,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: lanes can run servers and databases side by side; `lane-list` shows who owns which ports.
 - Negative: the harness only hands out the numbers; each project still has to make its dev server and database read the variables. Lanes created by an older harness get no block until recreated.
+
+### D-068: Opt-in hooks refuse pushes to the default branch and check commit messages
+
+**Date:** 2026-11-27
+**Status:** accepted
+**Context:** AGENTS.md says to work on a branch and that a commit message explains why, but nothing stopped a push straight to the default branch or a commit message in the wrong form, from an agent or a person. crux, an agent kernel described in a public article, enforces such project rules with git hooks: one refuses a direct push to the main branch, another a commit message in the wrong language.
+**Decision:**
+- `npm run hooks-install` already points `core.hooksPath` at `scripts/hooks`; that folder now also holds `pre-push` and `commit-msg`, each delegating to a runner mode of the same name. `hooks-uninstall` removes all three; the existing refusal to replace foreign hooks covers them.
+- pre-push refuses a push whose target is the remote's default branch (from `refs/remotes/<remote>/HEAD`, else both `master` and `main`), including a deletion, unless the push runs with `HARNESS_ALLOW_DEFAULT_PUSH=1`, which it reports.
+- commit-msg applies `.harness/commit-rules.json` (`subjectPattern`, `maxSubjectLength`, `forbid`), which ships disabled with a conventional-commits pattern to start from. Merge and revert messages git writes always pass. Lint validates the file's shape.
+**Alternatives considered:**
+- Check the commit-message language, as crux does — rejected: detecting a language reliably needs a model or a large word list; a pattern rule covers the conventions projects actually write down.
+- No override for the push rule — rejected: releases, first pushes and emergencies sometimes need a direct push; an explicit variable for one push keeps that a decision someone typed, not an accident.
+- Enforce on the server with branch protection — complementary, not a replacement: it is per hosting service and not every adopter has one; the hook works in any clone.
+**Consequences:**
+- Positive: the two most common workflow slips are refused where they happen, for every agent and person in an opted-in clone.
+- Negative: hooks stay opt-in per clone and can be bypassed with `--no-verify`; CI and branch protection remain the backstop.
