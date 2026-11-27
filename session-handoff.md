@@ -2,40 +2,39 @@
 
 ## Current Objective
 
-- Goal: Pull requests carry evidence for the commit they merge (feat-055), adapted from crux's commit-sealed receipt.
-- Current status: feat-055 is passing; no active feature. feat-056..059 are declared and planned.
-- Branch / commit: `feat/feat-055-evidence-check`
+- Goal: Checks scoped to what the change touched (feat-056), adapted from crux's diff-classified quality gate.
+- Current status: feat-055 and feat-056 are passing; no active feature. feat-057..059 are planned.
+- Branch / commit: `feat/feat-056-scoped-check`
 
 ## Completed This Session
 
-- [x] Compared the harness with crux and declared feat-055..059 (PR #77, merged).
-- [x] `npm run evidence-check [-- --base <ref>]`: features that became passing on the branch need bound evidence for an ancestor of HEAD, after which only bookkeeping changed.
-- [x] This repository's CI and the shipped template run it on pull requests with full history; `lint:ci-evidence` checks both in the framework repository.
-- [x] AGENTS.md (mirrors and the MUST's enforced-by), USAGE (both copies), ARCHITECTURE, README, HARNESS.md and D-065 updated.
+- [x] `npm run check` is a runner mode: a documentation-only change runs lint and reports the other steps as SKIP; anything else runs the new `check-full` chain.
+- [x] `--full`, `make check FULL=1`, `HARNESS_CHECK_FULL=1` force the full chain; verify-feature and both CI workflows never scope.
+- [x] feat-038 Layer 3, harness-upgrade (hint and missing-script report) and the adoption matrix follow `check-full`.
+- [x] AGENTS.md, USAGE (both copies), ARCHITECTURE, README, HARNESS.md and D-066 updated.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Feature tests | `node --test --test-name-pattern=feat-055 .harness/selftest/framework-check.selftest.mjs` | PASS | 6 tests |
-| Full verification | `npm run check` | PASS | |
-| Feature gate | `npm run verify-feature -- feat-055` | PASS | Bound evidence in `.harness/state/feat-055.json`; 261 self-tests |
-| Real history | `evidence-check --base f1e3c12` at 0f58fe5 | PASS | feat-054's own PR |
+| Feature tests | `node --test --test-name-pattern=feat-056 .harness/selftest/framework-check.selftest.mjs` | PASS | 5 tests, also with `HARNESS_CHECK_FULL=1` set |
+| Full verification | `npm run check` | PASS | Scope: full (code changed) |
+| Feature gate | `npm run verify-feature -- feat-056` | PASS | Bound evidence; 266 self-tests; first run failed on the leaked variable |
 
 ## Files Changed
 
-- `scripts/framework-check.mjs`, `.harness/selftest/`
-- `.github/workflows/ci.yml`, `templates/ci.yml`
-- `Makefile`, `package.json`, `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
+- `scripts/framework-check.mjs`, `scripts/harness-upgrade.mjs`, `scripts/adoption-matrix.mjs`, `.harness/selftest/`
+- `package.json`, `Makefile`, `.github/workflows/ci.yml`, `templates/ci.yml`
+- `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
 
 ## Decisions Made
 
-- D-065: evidence is checked against the merged code at the pull request, only for newly passing features, excluding commits from the base.
+- D-066: `check` is scoped to the change; the full chain is `check-full`; documentation-only changes run lint alone.
 
 ## Blockers / Risks
 
-- Merge commits' conflict resolutions are not inspected.
-- Adopters with a customised ci.yml must add the evidence-check step themselves; harness-upgrade only reports the missing script.
+- Adopters with an older package.json keep the unscoped `check` until they move the chain to `check-full` by hand.
+- A docs-only branch's other layers are verified only by CI or verify-feature.
 
 ## Next Session Startup
 
@@ -45,4 +44,4 @@
 
 ## Recommended Next Step
 
-- Merge this PR, then feat-056 (checks scoped to what the change touched).
+- Merge this PR, then feat-057 (lanes get their own ports and environment).

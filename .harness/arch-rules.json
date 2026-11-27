@@ -79,6 +79,20 @@
       "what": "A regex uses the character class [\\/], which in a regex literal holds only \"/\".",
       "why": "It looks like it matches both path separators but never matches \"\\\". A runner test written this way failed on Windows, so every Windows adopter's npm run check failed while Linux CI stayed green (D-025).",
       "fix": "Write [\\\\/] in a regex literal (or \"[\\\\\\\\/]\" in a string passed to RegExp) to match both separators, or normalize the path to \"/\" first."
+    },
+    {
+      "id": "arch-009",
+      "kind": "forbid",
+      "description": "Shell commands never pass node -e an unquoted script with parentheses",
+      "pattern": "node -e [^\\s\"'`\\\\$]*[()]",
+      "paths": [
+        "scripts/**/*.mjs",
+        ".harness/selftest/**/*.mjs",
+        "evals/**/*.mjs"
+      ],
+      "what": "A command string runs node -e with an unquoted script, such as node -e process.exit(3).",
+      "why": "cmd.exe accepts the parentheses, but sh rejects them before running anything, so the whole command line fails. A feat-056 self-test passed on Windows and failed in Linux CI this way.",
+      "fix": "Quote the script (node -e \"process.exit(3)\", escaped as needed) or move it into a small script file the command runs."
     }
   ]
 }

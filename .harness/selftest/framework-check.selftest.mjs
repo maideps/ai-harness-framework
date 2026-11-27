@@ -35,6 +35,9 @@ function run(root, mode, args = [], env = {}, { unset = [] } = {}) {
   // `unset` drops more inherited variables for the tests that depend on their absence.
   const inheritedEnv = { ...process.env };
   delete inheritedEnv.CW_INIT_SH;
+  // verify-feature sets HARNESS_CHECK_FULL=1 for its layers (feat-056); inherited, it would
+  // make every scoped-check test see a full run when the suite runs inside the gate.
+  delete inheritedEnv.HARNESS_CHECK_FULL;
   for (const name of unset) delete inheritedEnv[name];
   const result = spawnSync(process.execPath, [RUNNER, mode, ...args], {
     cwd: root,
@@ -3238,7 +3241,7 @@ test("add-feature: Layer 3 runs the check chain without the lint and test steps 
     "npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality",
   );
   // This repository's own check script reduces the same way.
-  const own = JSON.parse(readFileSync(path.resolve(path.dirname(RUNNER), "..", "package.json"), "utf8")).scripts.check;
+  const own = JSON.parse(readFileSync(path.resolve(path.dirname(RUNNER), "..", "package.json"), "utf8")).scripts["check-full"];
   assert.doesNotMatch(addFeatureLayer3(own), /npm run (lint|test)\b/);
 });
 
@@ -3445,6 +3448,136 @@ test("lint:ci-evidence: the framework's workflows must run evidence-check on pul
     // An adopter's ci.yml is its own: not inspected.
     write(root, ".harness/manifest.json", JSON.stringify({ frameworkRepository: false }));
     assert.equal(run(root, "lint:ci-evidence").exit, 0);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-056 (D-066): checks scoped to what the change touched ----------------
+
+const SCOPE_STEPS = ["lint", "typecheck", "test", "build"];
+
+// A git repository on master whose check-full chains four steps that each print RAN-<step>,
+// and a branch `work` to change things on.
+function scopeFixture({ failingLint = false } = {}) {
+  const root = featureListFixture([{ id: "feat-001", name: "One", behavior: "b", verification: "v", dependencies: [], layers: [{ label: "L3", cmd: "npm run check", repair: "r" }], state: "active" }]);
+  const runner = RUNNER.replace(/\\/g, "/");
+  const scripts = { check: `node "${runner}" check`, "check-full": SCOPE_STEPS.map((step) => `npm run ${step}`).join(" && ") };
+  for (const step of SCOPE_STEPS) scripts[step] = `node say.js ${step}`;
+  // A script file, not an unquoted node -e one-liner: sh rejects its parentheses (arch-009).
+  if (failingLint) scripts.lint = "node say.js lint && node fail.js";
+  write(root, "package.json", `${JSON.stringify({ name: "x", private: true, scripts }, null, 2)}\n`);
+  write(root, "say.js", "console.log('RAN-' + process.argv[2]);\n");
+  write(root, "fail.js", "process.exit(3);\n");
+  write(root, "README.md", "# X\n");
+  write(root, "src/app.js", "1\n");
+  git(root, "init", "-q", "-b", "master");
+  git(root, "config", "user.email", "test@example.com");
+  git(root, "config", "user.name", "Test");
+  commitAll(root, "base");
+  git(root, "checkout", "-q", "-b", "work");
+  return root;
+}
+
+function ran(output) {
+  return SCOPE_STEPS.filter((step) => output.includes(`RAN-${step}`));
+}
+
+test("check: a docs-only change runs lint and reports the other steps as SKIP, never PASS (feat-056)", () => {
+  const root = scopeFixture();
+  try {
+    write(root, "README.md", "# X\n\nMore.\n");
+    write(root, "docs/demo/clip.gif", "binary");
+    commitAll(root, "docs");
+    write(root, "DECISIONS.md", "# Decisions\n"); // uncommitted docs count too
+    const result = run(root, "check");
+    assert.equal(result.exit, 0, result.output);
+    assert.deepEqual(ran(result.output), ["lint"]);
+    assert.match(result.output, /check scope: docs-only change \(3 file\(s\) against master\)/);
+    for (const step of ["typecheck", "test", "build"]) {
+      assert.match(result.output, new RegExp(`\\[SKIP\\] npm run ${step} — docs-only change \\(not verified\\)`));
+    }
+    assert.doesNotMatch(result.output, /\[PASS\]/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check: code, a SKILL.md or a template next to docs runs every step (feat-056)", () => {
+  for (const extra of ["src/app.js", "skills/x/SKILL.md", "templates/docs/USAGE.md"]) {
+    const root = scopeFixture();
+    try {
+      write(root, "README.md", "# X\n\nMore.\n");
+      write(root, extra, "changed\n");
+      const result = run(root, "check");
+      assert.equal(result.exit, 0, result.output);
+      assert.deepEqual(ran(result.output), SCOPE_STEPS, extra);
+      assert.match(result.output, /check scope: full \(1 non-documentation file\(s\) changed\)/, extra);
+    } finally {
+      cleanup(root);
+    }
+  }
+});
+
+test("check: --full, HARNESS_CHECK_FULL=1, no changes and no base each run every step (feat-056)", () => {
+  const root = scopeFixture();
+  try {
+    let result = run(root, "check");
+    assert.deepEqual(ran(result.output), SCOPE_STEPS);
+    assert.match(result.output, /full \(no changed files\)/);
+
+    write(root, "README.md", "# X\n\nMore.\n");
+    result = run(root, "check", ["--full"]);
+    assert.deepEqual(ran(result.output), SCOPE_STEPS);
+    assert.match(result.output, /full \(--full\)/);
+    result = run(root, "check", [], { HARNESS_CHECK_FULL: "1" });
+    assert.deepEqual(ran(result.output), SCOPE_STEPS);
+
+    git(root, "branch", "-m", "master", "trunk");
+    result = run(root, "check");
+    assert.deepEqual(ran(result.output), SCOPE_STEPS);
+    assert.match(result.output, /full \(no default-branch base to compare with\)/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("check: a failing lint fails a docs-only check; a missing check-full fails clearly (feat-056)", () => {
+  let root = scopeFixture({ failingLint: true });
+  try {
+    write(root, "README.md", "# X\n\nMore.\n");
+    const result = run(root, "check");
+    assert.notEqual(result.exit, 0);
+    assert.match(result.output, /check scope: docs-only change/);
+    assert.deepEqual(ran(result.output), ["lint"]);
+    assert.doesNotMatch(result.output, /\[SKIP\]/);
+  } finally {
+    cleanup(root);
+  }
+  root = scopeFixture();
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+    delete pkg.scripts["check-full"];
+    write(root, "package.json", JSON.stringify(pkg));
+    const result = run(root, "check");
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /check needs a "check-full" script/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("verify-feature: a Layer 3 of npm run check runs every step even on a docs-only change (feat-056)", () => {
+  const root = scopeFixture();
+  try {
+    write(root, "README.md", "# X\n\nMore.\n");
+    commitAll(root, "docs only");
+    const result = run(root, "verify-feature", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    const logDir = path.join(root, ".harness", "logs", "feat-001");
+    const log = readdirSync(logDir).map((file) => readFileSync(path.join(logDir, file), "utf8")).join("\n");
+    assert.deepEqual(ran(log), SCOPE_STEPS);
+    assert.match(log, /full \(HARNESS_CHECK_FULL=1\)/);
   } finally {
     cleanup(root);
   }

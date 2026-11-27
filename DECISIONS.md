@@ -1036,3 +1036,22 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a pull request whose code changed after its feature's evidence cannot go green; the fix is to rerun verify-feature on the final commit.
 - Negative: CI checkouts fetch full history, which is slower on large repositories, and a review fix after the gate means one more verify-feature run. Conflict resolutions inside a merge commit are not inspected.
+
+### D-066: `npm run check` is scoped to what the change touched; the full chain is `check-full`
+
+**Date:** 2026-11-27
+**Status:** accepted
+**Context:** `npm run check` ran every layer on every change, about six minutes here, including for a typo in a Markdown file. A check that costs the same for every change gets skipped exactly when it seems unnecessary, and it is longer than an agent shell's default command timeout. crux, an agent kernel described in a public article, classifies the diff with a script and runs only the checks that apply ("a docs change passes three"), because judged by eye every change looks small. `check` was a plain `&&` chain in package.json, which cannot skip a step.
+**Decision:**
+- The chain moves unchanged to a `check-full` script (npm and make). `check` becomes a runner mode that classifies the changed files (the branch's diff from its merge-base with the default branch, plus uncommitted and untracked files) and runs either `npm run check-full` or, for a documentation-only change, `npm run lint` followed by a SKIP line per other step.
+- Documentation is anything under `docs/` or a `.md` file outside `skills/` and `templates/`: lint already validates what those files can break (README contract, AGENTS.md rules, command surfaces, progress log). Skills and templates ship to adopters, so they keep the full chain.
+- The scope is printed before the first layer; skipped steps say "not verified" and never count as PASS (D-029).
+- `--full`, `make check FULL=1` and `HARNESS_CHECK_FULL=1` force the full chain. `verify-feature` sets the variable for its layers, so a gate never scopes, and both CI workflows run `npm run check -- --full`.
+- Consumers of the chain follow it: new features' Layer 3 (D-049) is built from `check-full`, harness-upgrade's check-arch hint reads it, and the adoption matrix writes both scripts.
+**Alternatives considered:**
+- Per-layer scoping inside each harness mode — rejected: `npm run test` run alone would silently skip, product steps chained after a harness mode would still run, and verify-feature calls the same scripts.
+- Scope more kinds of change (tests only, config only) — rejected for now: documentation is the only class where one existing layer demonstrably covers everything the change can break.
+- Scope in CI too — rejected: CI time is not an agent's time, and the default branch must stay fully verified.
+**Consequences:**
+- Positive: a documentation change is checked in seconds instead of minutes, honestly reported as partial.
+- Negative: adopters whose package.json predates this keep the unscoped chain until they move it to `check-full` by hand; harness-upgrade only reports the missing script. A docs-only branch's other layers are verified only by CI or verify-feature.

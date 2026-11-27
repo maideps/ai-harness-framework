@@ -5,6 +5,7 @@
 | Make target | npm script |
 |---|---|
 | `make check` | `npm run check` |
+| `make check-full` | `npm run check-full` |
 | `make lint` | `npm run lint` |
 | `make typecheck` | `npm run typecheck` |
 | `make test` | `npm run test` |

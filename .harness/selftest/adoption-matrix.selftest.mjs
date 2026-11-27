@@ -63,8 +63,9 @@ test("normalizeFixtureScripts: resets customised layer scripts to the canonical 
     for (const layer of ["lint", "typecheck", "test", "build", "e2e", "dev"]) {
       assert.equal(scripts[layer], `node scripts/framework-check.mjs ${layer}`, `${layer} is canonical`);
     }
+    assert.equal(scripts.check, "node scripts/framework-check.mjs check");
     assert.equal(
-      scripts.check,
+      scripts["check-full"],
       "npm run lint && npm run check-arch && npm run typecheck && npm run test && npm run build && npm run e2e && npm run verify-all && npm run quality",
     );
   } finally {

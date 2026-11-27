@@ -109,6 +109,7 @@ Then open the project in your agent and ask it to work on the next feature. It r
 ## Features
 
 - **Layered verification**: Three verification gates (static checks → runtime tests → system confirmation) that must pass in order before any feature is considered done
+- **Checks scoped to the change**: when a branch changes only documentation, `npm run check` runs lint in seconds and reports the other layers as SKIP, not verified; any other change, `npm run check-full`, `verify-feature` and CI run every layer
 - **Feature-driven development**: All work is tracked as discrete features in `feature_list.json` with explicit dependencies and verification criteria
 - **WIP=1 constraint**: Only one feature is active at a time—complete it before starting the next
 - **Concurrent multi-agent lanes**: Multiple agents can work independent features at once, each in its own sibling git worktree on branch `lane/<feature-id>` (`lane-new`/`lane-list`/`lane-land`/`lane-drop`) — git's own branch-checkout exclusivity is the coordination primitive, no lock file needed, and WIP=1 is enforced per lane. `lane-suggest` lets an agent detect which planned features are startable in parallel right now and propose the plan — advisory only, every state-changing step still needs a human's yes (see the `parallel-lanes` skill)
@@ -157,7 +158,7 @@ This repository has two distinct architecture concerns — don't confuse them:
    └─────────────────────────────────────────────┘
    ```
 
-   The convention: layers depend only on layers below them, the domain layer has no external dependencies, infrastructure implements interfaces the domain defines, and presentation never reaches infrastructure directly. No rule for it ships with the harness; this repository has no product code, so only its harness-architecture rules (arch-001 to arch-008) apply here.
+   The convention: layers depend only on layers below them, the domain layer has no external dependencies, infrastructure implements interfaces the domain defines, and presentation never reaches infrastructure directly. No rule for it ships with the harness; this repository has no product code, so only its harness-architecture rules (arch-001 to arch-009) apply here.
 
 ### Verification Layers
 
@@ -172,7 +173,7 @@ Every feature passes through these layers, grouped into three gates (static chec
 | 3b | End-to-End | `make e2e` / `npm run e2e` | Full system integration |
 | 4 | Quality Gates (opt-in) | `make quality` / `npm run quality` | Coverage, mutation score or any metric stays above its floor |
 
-Run all layers with `make check` (lint → check-arch → typecheck → test → build → e2e → optional verify-all → optional quality); `npm run check` is the make-free equivalent. The verify-all layer SKIPs when multi-repo markers are absent, and the quality layer while `.harness/quality.json` is disabled. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
+Run all layers with `make check` (lint → check-arch → typecheck → test → build → e2e → optional verify-all → optional quality); `npm run check` is the make-free equivalent. When a branch changes only documentation, `check` runs lint alone and reports the other layers as SKIP, not verified; `npm run check-full` (or `npm run check -- --full`) always runs every layer. The verify-all layer SKIPs when multi-repo markers are absent, and the quality layer while `.harness/quality.json` is disabled. Both surfaces delegate to the same Node runner (`scripts/framework-check.mjs`), so they cannot drift apart.
 
 Layers that are not configured report **SKIP** instead of PASS and do not count as verified. A layer reports **FAIL** by exiting non-zero, which stops the chain.
 
