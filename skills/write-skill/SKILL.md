@@ -16,7 +16,7 @@ The meta-skill: how to add a capability pack to this harness.
 
 1. Create a folder under `skills/` named after the skill (kebab-case, one word or hyphenated).
 2. Write `skills/<name>/SKILL.md` with:
-   - YAML frontmatter between `---` lines: `name` (must match the folder name) and `description` (one line). An agent sees only this line when deciding whether to open the skill, so say when the skill is needed and the words the task usually arrives in, not just what the skill does. `npm run skill-usage` lists skills no session has used in 30 days: their description is the first thing to rewrite.
+   - YAML frontmatter between `---` lines: `name` (must match the folder name) and `description` (one line). An agent sees only this line when deciding whether to open the skill, so say when the skill is needed and the words the task usually arrives in, not just what the skill does. `npm run skill` lists every skill with this line, and agents load one with `npm run skill -- <name>`, which records the load; `npm run skill-usage` lists skills no session has used in 30 days: their description is the first thing to rewrite.
    - A `## When to Use` section listing the triggering situations.
    - A `## Workflow` section — numbered, concrete steps using real commands and file names.
    - A `## Quick Reference` checklist of the must-do items.

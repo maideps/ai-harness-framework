@@ -3071,7 +3071,7 @@ test("progress-new: the skeleton has a Mistakes caught section, and lint still p
   try {
     assert.equal(run(root, "progress-new", ["One"]).exit, 0);
     const note = readFileSync(path.join(root, "progress", `001-${todayLocal()}.md`), "utf8");
-    assert.match(note, /^- Files or artifacts updated: \n- Mistakes caught: \n- Skills used: \n- Known risk or unresolved issue: /m);
+    assert.match(note, /^- Files or artifacts updated: \n- Mistakes caught: \n- Skills used: none\n- Known risk or unresolved issue: /m);
     const lint = run(root, "lint:progress-log");
     assert.equal(lint.exit, 0, lint.output);
   } finally {
@@ -3875,12 +3875,12 @@ function skillsUsedFixture(values) {
   return root;
 }
 
-test("progress-new: the skeleton has a Skills used section, and lint passes on it blank (feat-059)", () => {
+test("progress-new: the skeleton has a Skills used section (none with no recorded loads, feat-060), and lint passes (feat-059)", () => {
   const root = progressFixture([], []);
   try {
     assert.equal(run(root, "progress-new", ["Skills"]).exit, 0);
     const note = readFileSync(path.join(root, "progress", `001-${todayLocal()}.md`), "utf8");
-    assert.match(note, /^- Mistakes caught: \n- Skills used: \n- Known risk/m);
+    assert.match(note, /^- Mistakes caught: \n- Skills used: none\n- Known risk/m);
     const lint = run(root, "lint:progress-log");
     assert.equal(lint.exit, 0, lint.output);
   } finally {
@@ -3902,6 +3902,114 @@ test("lint: Skills used accepts skill folder names and none; rejects an unknown 
     const lint = run(root, "lint:progress-log");
     assert.equal(lint.exit, 1, lint.output);
     assert.match(lint.output, /progress\/001-2026-10-01\.md: Skills used names gamma, which is not a skill folder under skills\//);
+  } finally {
+    cleanup(root);
+  }
+});
+
+// ---- feat-060 (D-070): skills load through a harness command that records each use ----
+
+// A git repository with skills alpha and beta, feat-001 active, a dashboard, on branch work.
+function skillCommandFixture() {
+  const root = progressFixture([], [{ id: "feat-001", name: "One", state: "active" }]);
+  for (const name of ["alpha", "beta"]) {
+    write(root, `skills/${name}/SKILL.md`, `---\nname: ${name}\ndescription: Use ${name} when the task says ${name}.\n---\n# ${name}\n\nBody with a trailing space \n`);
+  }
+  git(root, "init", "-q", "-b", "work");
+  git(root, "config", "user.email", "test@example.com");
+  git(root, "config", "user.name", "Test");
+  commitAll(root, "base");
+  return root;
+}
+
+function skillLogOf(root) {
+  const file = path.join(root, ".harness", "logs", "skill-usage.jsonl");
+  return existsSync(file) ? readFileSync(file, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [];
+}
+
+test("skill: prints SKILL.md byte for byte and records skill, branch and active feature in an ignored log (feat-060)", () => {
+  const root = skillCommandFixture();
+  try {
+    const result = run(root, "skill", ["alpha"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(result.stdout, readFileSync(path.join(root, "skills", "alpha", "SKILL.md"), "utf8"));
+    const [entry] = skillLogOf(root);
+    assert.equal(entry.skill, "alpha");
+    assert.equal(entry.branch, "work");
+    assert.equal(entry.feature, "feat-001");
+    assert.ok(!Number.isNaN(Date.parse(entry.at)));
+    assert.equal(git(root, "status", "--porcelain"), "", "the log is ignored by git");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("skill: no name lists skills with descriptions; an unknown name fails listing them (feat-060)", () => {
+  const root = skillCommandFixture();
+  try {
+    let result = run(root, "skill");
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /alpha — Use alpha when the task says alpha\./);
+    assert.match(result.output, /beta — Use beta when the task says beta\./);
+    result = run(root, "skill", ["gamma"]);
+    assert.equal(result.exit, 1);
+    assert.match(result.stderr, /no skill named gamma\. Available skills:/);
+    assert.match(result.stderr, /alpha — /);
+    assert.deepEqual(skillLogOf(root), [], "neither a listing nor a failure is recorded");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("progress-new: Skills used comes from the loads since the previous note, or none (feat-060)", () => {
+  const root = skillCommandFixture();
+  try {
+    run(root, "skill", ["beta"]);
+    run(root, "skill", ["alpha"]);
+    run(root, "skill", ["beta"]);
+    assert.equal(run(root, "progress-new", ["First"]).exit, 0);
+    const date = todayLocal();
+    assert.match(readFileSync(path.join(root, "progress", `001-${date}.md`), "utf8"), /^- Skills used: beta, alpha$/m);
+
+    assert.equal(run(root, "progress-new", ["Second"]).exit, 0);
+    assert.match(readFileSync(path.join(root, "progress", `002-${date}.md`), "utf8"), /^- Skills used: none$/m, "no loads since the previous note");
+    const boundaries = skillLogOf(root).filter((entry) => entry.note);
+    assert.deepEqual(boundaries.map((entry) => entry.note), [`progress/001-${date}.md`, `progress/002-${date}.md`]);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("clean-check: warns, without failing, when the latest note leaves out a skill loaded in its session (feat-060)", () => {
+  const root = skillCommandFixture();
+  try {
+    run(root, "skill", ["alpha"]);
+    assert.equal(run(root, "progress-new", ["One"]).exit, 0);
+    run(root, "skill", ["beta"]); // loaded after the note was created, same session
+    let result = run(root, "clean-state-check");
+    assert.match(result.output, /\[WARN\] progress\/001-\d{4}-\d{2}-\d{2}\.md Skills used leaves out skills loaded this session: beta/);
+    assert.doesNotMatch(result.output, /leaves out skills loaded this session: .*alpha/);
+
+    const note = path.join(root, "progress", `001-${todayLocal()}.md`);
+    write(root, path.relative(root, note), readFileSync(note, "utf8").replace("- Skills used: alpha", "- Skills used: alpha, beta"));
+    result = run(root, "clean-state-check");
+    assert.doesNotMatch(result.output, /leaves out skills loaded this session/);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("lint: AGENTS.md must tell agents to load skills with npm run skill (feat-060)", () => {
+  const root = fixture();
+  try {
+    write(root, "skills/alpha/SKILL.md", "---\nname: alpha\ndescription: d\n---\n");
+    write(root, "AGENTS.md", "# Agents\n\nRead skills/alpha/SKILL.md.\n");
+    let result = run(root, "lint:agents-skill-command");
+    assert.equal(result.exit, 1);
+    assert.match(result.output, /AGENTS\.md must tell agents to load skills with npm run skill/);
+    write(root, "AGENTS.md", "# Agents\n\nLoad a skill with `npm run skill -- <name>`.\n");
+    result = run(root, "lint:agents-skill-command");
+    assert.equal(result.exit, 0, result.output);
   } finally {
     cleanup(root);
   }

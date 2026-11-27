@@ -299,7 +299,14 @@ function newProgressNote(title) {
   if (existsSync(file)) {
     fail(`${file} already exists; edit it instead`);
   }
-  const lines = [`### Session ${number} — ${date} — ${title.trim()}`, "", ...SESSION_NOTE_SECTIONS.map((section) => `- ${section}: `), ""];
+  // Skills used comes from the skill loads recorded since the previous note (feat-060).
+  const skillsUsed = sessionSkillsForNewNote(`progress/${number}-${date}.md`);
+  const lines = [
+    `### Session ${number} — ${date} — ${title.trim()}`,
+    "",
+    ...SESSION_NOTE_SECTIONS.map((section) => `- ${section}: ${section === "Skills used" ? skillsUsed : ""}`),
+    "",
+  ];
   writeFileSync(file, lines.join(EOL), "utf8");
   pass(`Created ${file.split(path.sep).join("/")} — fill in each section before the session ends`);
   if (["PROGRESS.md", "progress.md", "claude-progress.md"].some(existsSync)) {
@@ -505,6 +512,120 @@ function ensureSkillsUsed(sessions) {
   }
   if (problems.length > 0) fail(problems.join("\n       "));
   if (checked > 0) pass(`Session notes name only existing skills under Skills used (${checked} note${checked === 1 ? "" : "s"})`);
+}
+
+// AGENTS.md is how agents learn to load skills through the recording command (feat-060).
+function ensureAgentsLoadSkillsByCommand() {
+  if (!existsSync("AGENTS.md") || !existsSync("skills")) return;
+  if (!readText("AGENTS.md").includes("npm run skill")) {
+    fail("AGENTS.md must tell agents to load skills with npm run skill -- <name> (feat-060)");
+  }
+  pass("AGENTS.md tells agents to load skills with npm run skill");
+}
+
+// ---- Skills load through a harness command that records each use (feat-060, D-070) ----
+// Running a shell command is the one behavior every agent the harness supports shares, so
+// `npm run skill -- <name>` is how a skill is loaded: it prints SKILL.md unchanged and appends a
+// line to a local, uncommitted log. progress-new turns the session's loads into the note's
+// Skills used line, and clean-check warns when the latest note leaves one out.
+
+const SKILL_LOG = ".harness/logs/skill-usage.jsonl";
+
+function skillDescription(name) {
+  const text = readText(path.join("skills", name, "SKILL.md"));
+  const frontmatter = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const description = frontmatter?.[1].match(/^description:\s*(.+)$/m);
+  return description ? description[1].trim() : "";
+}
+
+function printSkillList(stream) {
+  for (const name of skillNames(".")) stream(`  ${name} — ${skillDescription(name)}`);
+}
+
+function readSkillLog() {
+  if (!existsSync(SKILL_LOG)) return [];
+  return readText(SKILL_LOG)
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        const entry = JSON.parse(line);
+        return entry && typeof entry === "object" ? [entry] : [];
+      } catch {
+        return [];
+      }
+    });
+}
+
+function appendSkillLog(entry) {
+  try {
+    mkdirSync(path.dirname(SKILL_LOG), { recursive: true });
+    // The folder ignores itself, as verificationLogDir makes it, so the log is never committed
+    // even in a clone where no gate has run yet.
+    if (!existsSync(".harness/logs/.gitignore")) writeFileSync(".harness/logs/.gitignore", `*${EOL}`, "utf8");
+    writeFileSync(SKILL_LOG, `${JSON.stringify(entry)}${EOL}`, { encoding: "utf8", flag: "a" });
+  } catch (error) {
+    console.error(`WARN: could not record in ${SKILL_LOG}: ${error.message}`);
+  }
+}
+
+function loadSkill(name) {
+  const known = skillNames(".");
+  if (!name) {
+    console.log("Skills (load one with npm run skill -- <name>):");
+    printSkillList((line) => console.log(line));
+    return;
+  }
+  if (!known.includes(name)) {
+    console.error(`FAIL: no skill named ${name}. Available skills:`);
+    printSkillList((line) => console.error(line));
+    process.exit(1);
+  }
+  process.stdout.write(readFileSync(path.join("skills", name, "SKILL.md")));
+  let feature = null;
+  if (existsSync("feature_list.json")) {
+    try {
+      feature = loadFeaturesWithState().features.find((item) => getFeatureState(item) === "active")?.id ?? null;
+    } catch {
+      feature = null;
+    }
+  }
+  appendSkillLog({ at: new Date().toISOString(), skill: name, branch: getCurrentBranch() || null, feature });
+}
+
+// Distinct skills loaded after the boundary entry at index `after` (-1: from the start).
+function skillsLoadedAfter(log, after) {
+  return [...new Set(log.slice(after + 1).filter((entry) => typeof entry.skill === "string").map((entry) => entry.skill))];
+}
+
+function lastBoundaryIndex(log, before = log.length) {
+  for (let index = before - 1; index >= 0; index -= 1) {
+    if (typeof log[index].note === "string") return index;
+  }
+  return -1;
+}
+
+// The Skills used value for a note progress-new is creating, and its boundary in the log.
+function sessionSkillsForNewNote(notePath) {
+  const log = readSkillLog();
+  const loaded = skillsLoadedAfter(log, lastBoundaryIndex(log));
+  appendSkillLog({ at: new Date().toISOString(), note: notePath });
+  return loaded.length > 0 ? loaded.join(", ") : "none";
+}
+
+// clean-check: skills the log recorded in the latest note's session that its Skills used omits.
+function warnUnlistedSkills(latest) {
+  if (!latest) return;
+  const used = skillsUsedIn(readText(path.join("progress", latest.filename)));
+  if (used === null) return;
+  const log = readSkillLog();
+  if (log.length === 0) return;
+  const own = log.findIndex((entry) => entry.note === `progress/${latest.filename}`);
+  const start = own === -1 ? lastBoundaryIndex(log) : lastBoundaryIndex(log, own);
+  const missing = skillsLoadedAfter(log, start).filter((name) => !used.includes(name));
+  if (missing.length > 0) {
+    console.log(`  [WARN] progress/${latest.filename} Skills used leaves out skills loaded this session: ${missing.join(", ")}`);
+  }
 }
 
 // Every mistake caught in a session must become a check, or say why it cannot (feat-042,
@@ -3363,6 +3484,13 @@ function cleanStateCheck() {
       `progress/${latest.filename} leaves "- Mistakes caught:" blank. Write "none", or one entry per mistake ending in → ${MISTAKE_FORMS}.`,
     );
   }
+  // A warning only: the log is local, and a note may be right to leave out a skill opened by
+  // mistake (feat-060).
+  if (latest && skillsUsedIn(readText(path.join("progress", latest.filename))) !== null && readSkillLog().length > 0) {
+    console.log("");
+    console.log("--- Skills Used ---");
+    warnUnlistedSkills(latest);
+  }
 
   console.log("");
   console.log("--- OS Artifacts ---");
@@ -3498,6 +3626,7 @@ function printHelp() {
   console.log("  session-start  Record session start");
   console.log("  session-end    Record session end");
   console.log("  selftest       Harness self-tests (the runner's unit tests); ./init.sh runs them in adopters");
+  console.log("  skill [NAME=<name>]  Print a skill's SKILL.md and record the load (no name lists the skills)");
   console.log("  brief            Start-of-session summary: active feature, what can start, stale evidence, last session's risks and next step");
   console.log("  progress-new \"<title>\"  Start this session's note in progress/ (number, date, heading, sections)");
   console.log("  progress-update  Regenerate the progress state and session index");
@@ -3541,6 +3670,7 @@ switch (mode) {
     ensureProgressLog();
     ensureCiRunsEvidenceCheck();
     ensureCommitRules();
+    ensureAgentsLoadSkillsByCommand();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
   }
@@ -3610,6 +3740,14 @@ switch (mode) {
   }
   case "progress-new": {
     newProgressNote(args.join(" "));
+    break;
+  }
+  case "skill": {
+    loadSkill(args[0]);
+    break;
+  }
+  case "lint:agents-skill-command": {
+    ensureAgentsLoadSkillsByCommand();
     break;
   }
   case "brief": {

@@ -66,6 +66,7 @@
     "backup-restore": "node scripts/harness-backup.mjs restore",
     "report": "node scripts/harness-report.mjs",
     "skill-usage": "node scripts/harness-report.mjs skill-usage",
+    "skill": "node scripts/framework-check.mjs skill",
     "sweep": "node scripts/harness-sweep.mjs",
     "setup": "node scripts/framework-check.mjs setup",
     "help": "node scripts/framework-check.mjs help",
