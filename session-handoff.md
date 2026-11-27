@@ -2,40 +2,40 @@
 
 ## Current Objective
 
-- Goal: Clarify a feature before activating it (feat-054), adapted from the clarify step of spec-driven development.
-- Current status: feat-054 is passing; no active feature.
-- Branch / commit: `feat/clarify-declaration` (PR #75)
+- Goal: Pull requests carry evidence for the commit they merge (feat-055), adapted from crux's commit-sealed receipt.
+- Current status: feat-055 is passing; no active feature. feat-056..059 are declared and planned.
+- Branch / commit: `feat/feat-055-evidence-check`
 
 ## Completed This Session
 
-- [x] Declared feat-054 in `feature_list.json`.
-- [x] `npm run clarify -- <id>` (checklist and ambiguity flags) and `--record <file>` (answers stored in the state shard).
-- [x] `npm run activate` refuses an unclarified feature unless `--skip-clarify`, which the session brief shows.
-- [x] Shipped `clarify` skill; AGENTS.md, USAGE (both copies), ARCHITECTURE, feature-cycle, README and D-064 updated; eval fixtures record none before activating.
+- [x] Compared the harness with crux and declared feat-055..059 (PR #77, merged).
+- [x] `npm run evidence-check [-- --base <ref>]`: features that became passing on the branch need bound evidence for an ancestor of HEAD, after which only bookkeeping changed.
+- [x] This repository's CI and the shipped template run it on pull requests with full history; `lint:ci-evidence` checks both in the framework repository.
+- [x] AGENTS.md (mirrors and the MUST's enforced-by), USAGE (both copies), ARCHITECTURE, README, HARNESS.md and D-065 updated.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Self-tests | `node --test .harness/selftest/*.selftest.mjs` | PASS | 255 tests |
-| Eval graders | `node --test evals/graders.test.mjs` | PASS | 25 tests |
-| Eval fixtures | `node evals/run.mjs --fixtures-only --trials 1` | PASS | Every fixture built |
+| Feature tests | `node --test --test-name-pattern=feat-055 .harness/selftest/framework-check.selftest.mjs` | PASS | 6 tests |
 | Full verification | `npm run check` | PASS | |
-| Feature gate | `npm run verify-feature -- feat-054` | PASS | Bound evidence in `.harness/state/feat-054.json` |
+| Feature gate | `npm run verify-feature -- feat-055` | PASS | Bound evidence in `.harness/state/feat-055.json`; 261 self-tests |
+| Real history | `evidence-check --base f1e3c12` at 0f58fe5 | PASS | feat-054's own PR |
 
 ## Files Changed
 
-- `scripts/framework-check.mjs`, `skills/clarify/`, `skills/feature-cycle/SKILL.md`, `.harness/manifest.json`
-- `.harness/selftest/`, `evals/graders.test.mjs`, `evals/lib/fixture.mjs`
+- `scripts/framework-check.mjs`, `.harness/selftest/`
+- `.github/workflows/ci.yml`, `templates/ci.yml`
 - `Makefile`, `package.json`, `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
 
 ## Decisions Made
 
-- D-064: clarifications are recorded in the state shard, never merged into `feature_list.json`; activate requires them.
+- D-065: evidence is checked against the merged code at the pull request, only for newly passing features, excluding commits from the base.
 
 ## Blockers / Risks
 
-- Adopters' own scripts that call `activate` directly need `clarify --record` or `--skip-clarify` after upgrading.
+- Merge commits' conflict resolutions are not inspected.
+- Adopters with a customised ci.yml must add the evidence-check step themselves; harness-upgrade only reports the missing script.
 
 ## Next Session Startup
 
@@ -45,4 +45,4 @@
 
 ## Recommended Next Step
 
-- Merge PR #75. Consider exempting quoted words from the vague-wording flag.
+- Merge this PR, then feat-056 (checks scoped to what the change touched).

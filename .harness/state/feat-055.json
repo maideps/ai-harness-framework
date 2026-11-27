@@ -1,0 +1,36 @@
+{
+  "state": "passing",
+  "evidence": "{\"summary\":\"All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation)\",\"timestamp\":\"2026-11-27T15:35:26.936Z\",\"commit\":\"a830d70\",\"dirty\":false,\"bound\":true,\"checksHash\":\"5b6d18fc70f76085\",\"layers\":[{\"label\":\"Layer 1: Static checks\",\"cmd\":\"npm run lint\",\"result\":\"PASS\",\"skipReported\":false,\"durationMs\":608,\"log\":\".harness/logs/feat-055/01-layer-1-static-checks.log\"},{\"label\":\"Layer 2: Runtime tests\",\"cmd\":\"npm run test\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":63824,\"log\":\".harness/logs/feat-055/02-layer-2-runtime-tests.log\"},{\"label\":\"Layer 3: System confirmation\",\"cmd\":\"npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":212304,\"log\":\".harness/logs/feat-055/03-layer-3-system-confirmation.log\"}]}",
+  "clarifications": [
+    {
+      "question": "What does 'became passing on the branch' mean?",
+      "answer": "The feature is declared at HEAD, its shard at HEAD has state passing, and its shard at the base commit is absent or has any other state. A feature already passing at the base is not checked again.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Which files count as harness bookkeeping?",
+      "answer": "The runner's existing BOOKKEEPING_PATHS (.harness/state/, .harness/logs/, .harness/traces/, .harness/trails/, progress/, PROGRESS.md, progress.md, claude-progress.md, session-handoff.md), plus README.md and docs/quality-document.md, which AGENTS.md requires to change after a feature passes the gate. Paths are relative to the current directory, as verify-feature judges them.",
+      "source": "AGENTS.md"
+    },
+    {
+      "question": "Which commits count as 'changed between the evidence commit and HEAD'?",
+      "answer": "Non-merge commits reachable from HEAD but not from the evidence commit nor from the base. Commits that reach the branch by merging the base in, and the synthetic merge commit a pull request CI checks out, are not the feature's changes and are not counted.",
+      "source": ".github/workflows/ci.yml"
+    },
+    {
+      "question": "How is the base found, and what if it cannot be?",
+      "answer": "--base <ref> when given; otherwise the first ref that exists among origin/HEAD, origin/master, origin/main, master, main. The base commit is the merge-base of that ref and HEAD. If none resolves, evidence-check fails and says to pass --base. CI checkouts need full history (fetch-depth: 0) for the merge-base.",
+      "source": ".github/workflows/ci.yml"
+    },
+    {
+      "question": "What about a newly passing feature whose evidence names no commit or was recorded unbound (--allow-dirty)?",
+      "answer": "It fails: evidence-check cannot tie the evidence to committed code, which is the point of the check (D-041). The message says to rerun verify-feature on a committed tree.",
+      "source": "DECISIONS.md"
+    },
+    {
+      "question": "How does lint confirm the CI workflows without breaking adopters who customised theirs?",
+      "answer": "In the framework repository only (manifest frameworkRepository true), lint requires that .github/workflows/ci.yml and templates/ci.yml both trigger on pull_request and run npm run evidence-check. An adopter's ci.yml is theirs and is never rewritten, so lint does not inspect it.",
+      "source": "scripts/create-harness.mjs"
+    }
+  ]
+}
