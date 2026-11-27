@@ -1055,3 +1055,20 @@ That last point is why the fix can't be "any SKIP fails": a layer or sub-repo th
 **Consequences:**
 - Positive: a documentation change is checked in seconds instead of minutes, honestly reported as partial.
 - Negative: adopters whose package.json predates this keep the unscoped chain until they move it to `check-full` by hand; harness-upgrade only reports the missing script. A docs-only branch's other layers are verified only by CI or verify-feature.
+
+### D-067: Lane port blocks live in the repository's common git directory
+
+**Date:** 2026-11-27
+**Status:** accepted
+**Context:** Lanes gave each feature its own worktree and branch, but not its own ports, database or environment: two lanes starting a dev server fought over the same port, and two test databases collided. crux, an agent kernel described in a public article, reserves a port range per task and separates its database and environment file. A reservation must be visible from every worktree of a clone, survive between commands, and never be committed.
+**Decision:**
+- `lane-new` reserves the lowest free block of 10 ports from 4100 (or the manifest's `lanePortBase`) in `harness-lane-ports.json` in `git rev-parse --git-common-dir`, and writes `.env.lane` with `HARNESS_LANE`, `HARNESS_PORT_BASE` and `HARNESS_DB_SUFFIX`. Blocks never overlap; `lane-land` and `lane-drop` release them, and the next `lane-new` reclaims blocks whose branch is gone.
+- `.env.lane` is ignored through the common `info/exclude` file, which applies to every worktree without editing the project's `.gitignore` (an instance file the harness does not own).
+- A main-checkout `.env` is copied into a new lane only when git ignores it there; otherwise `lane-new` explains why it did not copy it.
+**Alternatives considered:**
+- A registry file in the working tree, committed or gitignored — rejected: committed, it would conflict between lanes; gitignored, each worktree would have its own copy and could not see the others' blocks.
+- Pick free ports by probing the OS — rejected: a port free now may be taken by the time the server starts, and a probe cannot tell which lane owns which port.
+- Copy `.env` whether or not it is ignored — rejected: the lane would hold secrets as an untracked file, and the harness refuses or commits untracked files in other steps.
+**Consequences:**
+- Positive: lanes can run servers and databases side by side; `lane-list` shows who owns which ports.
+- Negative: the harness only hands out the numbers; each project still has to make its dev server and database read the variables. Lanes created by an older harness get no block until recreated.
