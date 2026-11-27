@@ -134,7 +134,7 @@ Bootstrap-time rules currently verify:
 - framework docs do not drift back to template placeholders
 - the manifest classifies every tracked file (reusability seam)
 - feature declarations carry no leftover inline state — mutable fields live only in `.harness/state/<id>.json` shards
-- the harness's own code avoids two patterns behind past Windows bugs (D-025): `os.EOL` in scripts (arch-007) and the `[\/]` separator class in regexes (arch-008)
+- the harness's own code avoids two patterns behind past Windows bugs (D-025): `os.EOL` in scripts (arch-007) and the `[\/]` separator class in regexes (arch-008); command strings never give `node -e` an unquoted script with parentheses, which cmd.exe accepts and sh rejects (arch-009, feat-056)
 
 Adopting projects should add language- and framework-specific checks as the codebase grows.
 

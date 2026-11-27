@@ -3464,9 +3464,11 @@ function scopeFixture({ failingLint = false } = {}) {
   const runner = RUNNER.replace(/\\/g, "/");
   const scripts = { check: `node "${runner}" check`, "check-full": SCOPE_STEPS.map((step) => `npm run ${step}`).join(" && ") };
   for (const step of SCOPE_STEPS) scripts[step] = `node say.js ${step}`;
-  if (failingLint) scripts.lint = "node say.js lint && node -e process.exit(3)";
+  // A script file, not an unquoted node -e one-liner: sh rejects its parentheses (arch-009).
+  if (failingLint) scripts.lint = "node say.js lint && node fail.js";
   write(root, "package.json", `${JSON.stringify({ name: "x", private: true, scripts }, null, 2)}\n`);
   write(root, "say.js", "console.log('RAN-' + process.argv[2]);\n");
+  write(root, "fail.js", "process.exit(3);\n");
   write(root, "README.md", "# X\n");
   write(root, "src/app.js", "1\n");
   git(root, "init", "-q", "-b", "master");

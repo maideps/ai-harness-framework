@@ -158,7 +158,7 @@ This repository has two distinct architecture concerns — don't confuse them:
    └─────────────────────────────────────────────┘
    ```
 
-   The convention: layers depend only on layers below them, the domain layer has no external dependencies, infrastructure implements interfaces the domain defines, and presentation never reaches infrastructure directly. No rule for it ships with the harness; this repository has no product code, so only its harness-architecture rules (arch-001 to arch-008) apply here.
+   The convention: layers depend only on layers below them, the domain layer has no external dependencies, infrastructure implements interfaces the domain defines, and presentation never reaches infrastructure directly. No rule for it ships with the harness; this repository has no product code, so only its harness-architecture rules (arch-001 to arch-009) apply here.
 
 ### Verification Layers
 
