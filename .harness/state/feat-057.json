@@ -1,0 +1,36 @@
+{
+  "state": "passing",
+  "evidence": "{\"summary\":\"All verification layers passed via node scripts/framework-check.mjs verify-feature (SKIP reported in: Layer 2: Runtime tests, Layer 3: System confirmation)\",\"timestamp\":\"2026-11-27T17:34:20.268Z\",\"commit\":\"2d3421a\",\"dirty\":false,\"bound\":true,\"checksHash\":\"5b6d18fc70f76085\",\"layers\":[{\"label\":\"Layer 1: Static checks\",\"cmd\":\"npm run lint\",\"result\":\"PASS\",\"skipReported\":false,\"durationMs\":712,\"log\":\".harness/logs/feat-057/01-layer-1-static-checks.log\"},{\"label\":\"Layer 2: Runtime tests\",\"cmd\":\"npm run test\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":109869,\"log\":\".harness/logs/feat-057/02-layer-2-runtime-tests.log\"},{\"label\":\"Layer 3: System confirmation\",\"cmd\":\"npm run check-arch && npm run typecheck && npm run build && npm run e2e && npm run verify-all && npm run quality\",\"result\":\"PASS\",\"skipReported\":true,\"durationMs\":284914,\"log\":\".harness/logs/feat-057/03-layer-3-system-confirmation.log\"}]}",
+  "clarifications": [
+    {
+      "question": "Where exactly is the registry, and what does it hold?",
+      "answer": "A JSON file harness-lane-ports.json in the directory git rev-parse --git-common-dir prints, so the main checkout and every lane worktree read the same file. It maps each lane's feature id to its first port. It is outside the working tree, so it is never committed.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "Which block does a new lane get?",
+      "answer": "The lowest base + 10*k (k = 0, 1, ...) not held by another lane, after releasing entries whose lane/<id> branch no longer exists. A lane that already holds a block (lane-new rerun on an existing branch) keeps it.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "What values are valid for lanePortBase?",
+      "answer": "An integer from 1024 to 65526, so a 10-port block stays within 1024..65535; manifest validation fails on anything else. The key is optional and adopter-owned, like featureIdPattern, so harness-upgrade keeps it.",
+      "source": "scripts/harness-upgrade.mjs"
+    },
+    {
+      "question": "What happens to .env.lane and the registry entry when lane-new reports that the lane already exists?",
+      "answer": "Nothing is rewritten: an existing worktree is left as it is, as lane-new already does for the state shard. A worktree created by an older harness gets no block until it is dropped and recreated.",
+      "source": "scripts/framework-check.mjs"
+    },
+    {
+      "question": "How is 'a .env that git ignores' decided?",
+      "answer": "git check-ignore -q .env in the main checkout (the repository root lane-new runs from) exits 0 and .env is not tracked (git ls-files --error-unmatch fails). Otherwise lane-new prints why it did not copy the file.",
+      "source": "feature_list.json"
+    },
+    {
+      "question": "How do lane-land and lane-drop release a block when they fail partway?",
+      "answer": "lane-land releases after a successful merge, even if removing the worktree or branch then warns; lane-drop releases after the worktree is removed. A failed merge or a refused worktree removal keeps the block.",
+      "source": "scripts/framework-check.mjs"
+    }
+  ]
+}

@@ -2,39 +2,38 @@
 
 ## Current Objective
 
-- Goal: Checks scoped to what the change touched (feat-056), adapted from crux's diff-classified quality gate.
-- Current status: feat-055 and feat-056 are passing; no active feature. feat-057..059 are planned.
-- Branch / commit: `feat/feat-056-scoped-check`
+- Goal: Lanes get their own ports and environment (feat-057), adapted from crux's per-task port range.
+- Current status: feat-055..057 are passing (feat-056 merged in PR #79); no active feature. feat-058 and feat-059 are planned.
+- Branch / commit: `feat/feat-057-lane-ports`
 
 ## Completed This Session
 
-- [x] `npm run check` is a runner mode: a documentation-only change runs lint and reports the other steps as SKIP; anything else runs the new `check-full` chain.
-- [x] `--full`, `make check FULL=1`, `HARNESS_CHECK_FULL=1` force the full chain; verify-feature and both CI workflows never scope.
-- [x] feat-038 Layer 3, harness-upgrade (hint and missing-script report) and the adoption matrix follow `check-full`.
-- [x] AGENTS.md, USAGE (both copies), ARCHITECTURE, README, HARNESS.md and D-066 updated.
+- [x] Merged PR #79 (feat-056) after its CI passed.
+- [x] Refined feat-057's declaration: copy `.env` only when git ignores it; ignore `.env.lane` through the shared `info/exclude`.
+- [x] `lane-new` reserves a 10-port block in `harness-lane-ports.json` (common git dir) and writes `.env.lane`; `lane-list` shows blocks; `lane-land`/`lane-drop` release them; stale blocks are reclaimed.
+- [x] USAGE (both copies), parallel-lanes skill, ARCHITECTURE, README and D-067 updated.
 
 ## Verification Evidence
 
 | Check | Command | Result | Notes |
 |---|---|---|---|
-| Feature tests | `node --test --test-name-pattern=feat-056 .harness/selftest/framework-check.selftest.mjs` | PASS | 5 tests, also with `HARNESS_CHECK_FULL=1` set |
-| Full verification | `npm run check` | PASS | Scope: full (code changed) |
-| Feature gate | `npm run verify-feature -- feat-056` | PASS | Bound evidence; 266 self-tests; first run failed on the leaked variable |
+| Lane tests | `node --test --test-name-pattern="feat-057|lane-" .harness/selftest/framework-check.selftest.mjs` | PASS | 20 tests |
+| Full verification | `npm run check` | PASS | |
+| Feature gate | `npm run verify-feature -- feat-057` | PASS | Bound evidence on 2d3421a; 270 self-tests |
 
 ## Files Changed
 
-- `scripts/framework-check.mjs`, `scripts/harness-upgrade.mjs`, `scripts/adoption-matrix.mjs`, `.harness/selftest/`
-- `package.json`, `Makefile`, `.github/workflows/ci.yml`, `templates/ci.yml`
-- `AGENTS.md`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
+- `scripts/framework-check.mjs`, `.harness/selftest/framework-check.selftest.mjs`, `skills/parallel-lanes/SKILL.md`
+- `feature_list.json`, `DECISIONS.md`, `README.md`, `docs/`, `templates/docs/USAGE.md`
 
 ## Decisions Made
 
-- D-066: `check` is scoped to the change; the full chain is `check-full`; documentation-only changes run lint alone.
+- D-067: lane port blocks live in the common git directory; `.env.lane` is ignored through `info/exclude`; `.env` is copied only when ignored.
 
 ## Blockers / Risks
 
-- Adopters with an older package.json keep the unscoped `check` until they move the chain to `check-full` by hand.
-- A docs-only branch's other layers are verified only by CI or verify-feature.
+- Projects must make their dev server and database read `HARNESS_PORT_BASE` and `HARNESS_DB_SUFFIX`.
+- The shipped `templates/gitignore` does not ignore `.env`, so new adopters' lanes copy no `.env` until they add it.
 
 ## Next Session Startup
 
@@ -44,4 +43,4 @@
 
 ## Recommended Next Step
 
-- Merge this PR, then feat-057 (lanes get their own ports and environment).
+- Merge this PR, then feat-058 (opt-in push and commit-message hooks).

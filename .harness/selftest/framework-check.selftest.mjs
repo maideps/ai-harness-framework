@@ -3582,3 +3582,145 @@ test("verify-feature: a Layer 3 of npm run check runs every step even on a docs-
     cleanup(root);
   }
 });
+
+// ---- feat-057 (D-067): lanes get their own ports and environment ---------------
+
+function laneEnv(worktreePath) {
+  return Object.fromEntries(
+    readFileSync(path.join(worktreePath, ".env.lane"), "utf8")
+      .split(/\r?\n/)
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => line.split("=")),
+  );
+}
+
+function laneRegistryOf(root) {
+  const commonDir = path.resolve(root, git(root, "rev-parse", "--git-common-dir"));
+  const file = path.join(commonDir, "harness-lane-ports.json");
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+}
+
+function twoFeatureLaneFixture() {
+  return gitFeatureFixture([
+    { id: "feat-001", state: "planned", dependencies: [], layers: [] },
+    { id: "feat-002", state: "planned", dependencies: [], layers: [] },
+    { id: "feat-003", state: "planned", dependencies: [], layers: [] },
+  ]);
+}
+
+test("lane-new: two lanes get non-overlapping port blocks from 4100 and a .env.lane git ignores (feat-057)", () => {
+  const root = twoFeatureLaneFixture();
+  const one = laneWorktreePathFor(root, "feat-001");
+  const two = laneWorktreePathFor(root, "feat-002");
+  try {
+    let result = run(root, "lane-new", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Ports: 4100-4109/);
+    result = run(root, "lane-new", ["feat-002"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Ports: 4110-4119/);
+    assert.deepEqual(laneEnv(one), { HARNESS_LANE: "feat-001", HARNESS_PORT_BASE: "4100", HARNESS_DB_SUFFIX: "_feat_001" });
+    assert.equal(laneEnv(two).HARNESS_PORT_BASE, "4110");
+    assert.deepEqual(laneRegistryOf(root), { "feat-001": 4100, "feat-002": 4110 });
+    // Ignored in the lane through info/exclude, not tracked, and .gitignore untouched.
+    assert.equal(spawnSync("git", ["check-ignore", "-q", ".env.lane"], { cwd: one }).status, 0);
+    assert.doesNotMatch(git(one, "status", "--porcelain"), /\.env\.lane/);
+    assert.ok(!existsSync(path.join(root, ".gitignore")));
+
+    result = run(root, "lane-list");
+    assert.match(result.output, /lane\/feat-001 .*ports=4100-4109/);
+    assert.match(result.output, /lane\/feat-002 .*ports=4110-4119/);
+  } finally {
+    cleanupLane(root, one, two);
+  }
+});
+
+test("lane-new: lanePortBase in the manifest moves the first block; an invalid one fails manifest validation (feat-057)", () => {
+  const root = twoFeatureLaneFixture();
+  const one = laneWorktreePathFor(root, "feat-001");
+  try {
+    write(root, ".harness/manifest.json", JSON.stringify({ lanePortBase: 5200 }));
+    commitAll(root, "manifest");
+    const result = run(root, "lane-new", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(laneEnv(one).HARNESS_PORT_BASE, "5200");
+  } finally {
+    cleanupLane(root, one);
+  }
+  const bad = fixture();
+  try {
+    for (const value of [80, 65530, "4100", 4100.5]) {
+      write(bad, ".harness/manifest.json", JSON.stringify(baseManifest({ lanePortBase: value })));
+      const result = run(bad, "manifest");
+      assert.equal(result.exit, 1, `lanePortBase ${JSON.stringify(value)}`);
+      assert.match(result.output, /lanePortBase must be an integer from 1024 to 65526/);
+    }
+  } finally {
+    cleanup(bad);
+  }
+});
+
+test("lane-new: copies an ignored .env, refuses an unignored one with a reason, creates none when absent (feat-057)", () => {
+  const root = twoFeatureLaneFixture();
+  const one = laneWorktreePathFor(root, "feat-001");
+  const two = laneWorktreePathFor(root, "feat-002");
+  const three = laneWorktreePathFor(root, "feat-003");
+  try {
+    let result = run(root, "lane-new", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.ok(!existsSync(path.join(one, ".env")), "no .env in main, none in the lane");
+
+    write(root, ".env", "SECRET=1\n");
+    result = run(root, "lane-new", ["feat-002"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /\.env was not copied into the lane — git does not ignore it here/);
+    assert.ok(!existsSync(path.join(two, ".env")));
+
+    write(root, ".gitignore", ".env\n");
+    commitAll(root, "ignore .env");
+    result = run(root, "lane-new", ["feat-003"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Copied \.env from the main checkout/);
+    assert.equal(readFileSync(path.join(three, ".env"), "utf8"), "SECRET=1\n");
+    assert.doesNotMatch(git(three, "status", "--porcelain"), /\.env/);
+  } finally {
+    cleanupLane(root, one, two, three);
+  }
+});
+
+test("lane-drop and lane-land release a block for reuse; a hand-deleted branch's block is reclaimed (feat-057)", () => {
+  const root = twoFeatureLaneFixture();
+  const one = laneWorktreePathFor(root, "feat-001");
+  const two = laneWorktreePathFor(root, "feat-002");
+  const three = laneWorktreePathFor(root, "feat-003");
+  try {
+    run(root, "lane-new", ["feat-001"]);
+    run(root, "lane-new", ["feat-002"]);
+    commitAll(one, "lane state"); // lane-drop refuses a worktree with uncommitted changes
+    let result = run(root, "lane-drop", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Released lane ports 4100-4109/);
+    assert.deepEqual(laneRegistryOf(root), { "feat-002": 4110 });
+
+    // lane-land: commit a passing shard in feat-002's lane, then land it.
+    write(two, ".harness/state/feat-002.json", `${JSON.stringify({ state: "passing", evidence: "" }, null, 2)}\n`);
+    commitAll(two, "feat-002 passing");
+    result = run(root, "lane-land", ["feat-002"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Released lane ports 4110-4119/);
+    assert.deepEqual(laneRegistryOf(root), {});
+
+    // A lane whose branch was deleted by hand: its block is reclaimed by the next lane-new.
+    git(root, "branch", "-D", "lane/feat-001");
+    run(root, "lane-new", ["feat-003"]);
+    git(root, "worktree", "remove", "--force", three);
+    git(root, "branch", "-D", "lane/feat-003");
+    assert.deepEqual(laneRegistryOf(root), { "feat-003": 4100 });
+    result = run(root, "lane-new", ["feat-001"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /Ports: 4100-4109/);
+    assert.deepEqual(laneRegistryOf(root), { "feat-001": 4100 });
+  } finally {
+    cleanupLane(root, one, two, three);
+  }
+});

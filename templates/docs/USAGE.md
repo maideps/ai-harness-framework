@@ -176,6 +176,16 @@ npm run lane-drop -- feat-020   # abandon the lane's worktree without merging (b
 
 A git branch can only be checked out in one worktree at a time, so branch-checkout exclusivity is the coordination primitive — no lock file or lease. WIP=1 applies per lane: a `lane/<feature-id>` branch may only activate the feature it is named for (`arch-002` enforces this). Feature state is sharded — one file per feature under `.harness/state/<id>.json` (feat-011, D-017) — so two lanes landing two different features touch two different files and merge conflict-free by construction; `feature_list.json` itself only changes when features are declared, so lane landings rarely touch it at all.
 
+Each lane also gets its own ports and environment, so two lanes can run their dev servers and databases at once (feat-057, D-067). `lane-new` reserves a block of 10 ports in a registry in the repository's common git directory (`harness-lane-ports.json`, shared by every worktree, never committed) and writes `.env.lane` at the lane root:
+
+```text
+HARNESS_LANE=feat-020
+HARNESS_PORT_BASE=4110      # this lane owns 4110-4119
+HARNESS_DB_SUFFIX=_feat_020
+```
+
+Blocks start at 4100, or at `lanePortBase` in `.harness/manifest.json` (an integer from 1024 to 65526), and never overlap. `lane-list` shows each lane's block; `lane-land` and `lane-drop` release it, and the next `lane-new` reclaims any block whose lane branch was deleted by hand. `.env.lane` is ignored in every worktree through git's shared `info/exclude` file, so your `.gitignore` is never edited. Have your dev server and database read the variables, for example `PORT=${HARNESS_PORT_BASE:-3000}` and a database name ending in `${HARNESS_DB_SUFFIX}`; how they are read is up to your stack. If the main checkout has a `.env` that git ignores, `lane-new` copies it into the new lane once; a `.env` git does not ignore is not copied (it would be an untracked file a lane commit could pick up), and `lane-new` says so.
+
 ## Sharded Feature State
 
 `feature_list.json` declares what each feature is (id, name, behavior, verification, dependencies, layers) and rarely changes. Each feature's mutable state — `state` and `evidence` — lives in its own file, `.harness/state/<feature-id>.json`:

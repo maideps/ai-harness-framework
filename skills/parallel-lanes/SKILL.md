@@ -34,7 +34,10 @@ every state-changing step still needs an explicit human yes.
    ```
    Repeat for each feature the human approved — skip any they didn't. Each lane is an
    independent sibling worktree (`../<repo>-lane-<feature-id>`) on branch
-   `lane/<feature-id>`.
+   `lane/<feature-id>`, with its own block of 10 ports and a `.env.lane` (`HARNESS_LANE`,
+   `HARNESS_PORT_BASE`, `HARNESS_DB_SUFFIX`) so lanes can run dev servers and databases
+   side by side. Tell each lane's session to start its server on `HARNESS_PORT_BASE` and use
+   the suffixed database, never the main checkout's.
 4. **Hand each lane to its own session.** Open a separate agent session (or terminal)
    rooted at each lane's worktree directory, scoped to that one feature only. Tell it
    explicitly: work only `<feature-id>` in this directory; do not touch the other lanes.

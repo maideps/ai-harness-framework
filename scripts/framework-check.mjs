@@ -1383,6 +1383,10 @@ function ensureManifest() {
   if ("frameworkRepository" in manifest && typeof manifest.frameworkRepository !== "boolean") {
     fail("manifest frameworkRepository must be true or false");
   }
+  // A lane's 10-port block must fit below 65536 (feat-057).
+  if ("lanePortBase" in manifest && !(Number.isInteger(manifest.lanePortBase) && manifest.lanePortBase >= 1024 && manifest.lanePortBase <= 65526)) {
+    fail("manifest lanePortBase must be an integer from 1024 to 65526");
+  }
   const templates = templateEntries(manifest.templates);
   if (templates.some((entry) => entry === null)) {
     fail("manifest template entries must be paths or { from, to | keep } objects");
@@ -2610,6 +2614,111 @@ function laneWorktreePath(featureId) {
   return path.join(path.dirname(root), `${path.basename(root)}-lane-${featureId}`);
 }
 
+// ---- Lanes get their own ports and environment (feat-057, D-067) ----------------------
+// Each lane reserves a block of ports in a registry in the repository's common git directory,
+// which every worktree of the clone shares and which is never committed. The lane's .env.lane
+// tells its dev server and database which ports and suffix are its own.
+
+const LANE_PORT_BLOCK = 10;
+const DEFAULT_LANE_PORT_BASE = 4100;
+const LANE_ENV_FILE = ".env.lane";
+
+function laneCommonDir() {
+  const dir = gitCapture(["rev-parse", "--git-common-dir"]);
+  if (!dir) fail("not a git repository — worktree lanes require git");
+  return path.resolve(dir);
+}
+
+function lanePortBase() {
+  if (!existsSync(".harness/manifest.json")) return DEFAULT_LANE_PORT_BASE;
+  const base = readJson(".harness/manifest.json").lanePortBase;
+  return base === undefined ? DEFAULT_LANE_PORT_BASE : base;
+}
+
+function laneRegistryPath() {
+  return path.join(laneCommonDir(), "harness-lane-ports.json");
+}
+
+// { "<feature-id>": <first port> }; a missing or unreadable file is an empty registry.
+function readLaneRegistry() {
+  try {
+    const registry = JSON.parse(readFileSync(laneRegistryPath(), "utf8"));
+    return registry && typeof registry === "object" && !Array.isArray(registry) ? registry : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLaneRegistry(registry) {
+  writeFileSync(laneRegistryPath(), `${JSON.stringify(registry, null, 2)}${EOL}`, "utf8");
+}
+
+// Reserves (or returns the held) port block for a lane, first releasing blocks whose lane
+// branch no longer exists. A block never overlaps another lane's.
+function reserveLanePorts(featureId) {
+  const registry = readLaneRegistry();
+  for (const id of Object.keys(registry)) {
+    if (id !== featureId && !branchExists(laneBranchName(id))) delete registry[id];
+  }
+  if (!Number.isInteger(registry[featureId])) {
+    const held = Object.entries(registry).filter(([id]) => id !== featureId).map(([, port]) => port);
+    let candidate = lanePortBase();
+    while (held.some((port) => Math.abs(port - candidate) < LANE_PORT_BLOCK)) candidate += LANE_PORT_BLOCK;
+    if (candidate + LANE_PORT_BLOCK - 1 > 65535) fail("no free lane port block left below 65535 — drop or land a lane first");
+    registry[featureId] = candidate;
+  }
+  writeLaneRegistry(registry);
+  return registry[featureId];
+}
+
+function releaseLanePorts(featureId) {
+  const registry = readLaneRegistry();
+  if (!(featureId in registry)) return;
+  const port = registry[featureId];
+  delete registry[featureId];
+  writeLaneRegistry(registry);
+  console.log(`Released lane ports ${port}-${port + LANE_PORT_BLOCK - 1}`);
+}
+
+// Ignores .env.lane in every worktree through the shared info/exclude file, so the project's
+// own .gitignore is never edited.
+function excludeLaneEnvFile() {
+  const excludePath = path.join(laneCommonDir(), "info", "exclude");
+  const current = existsSync(excludePath) ? readFileSync(excludePath, "utf8") : "";
+  if (current.split(/\r?\n/).includes(LANE_ENV_FILE)) return;
+  mkdirSync(path.dirname(excludePath), { recursive: true });
+  const prefix = current && !current.endsWith("\n") ? "\n" : "";
+  writeFileSync(excludePath, `${current}${prefix}# Harness lane environment (feat-057)${EOL}${LANE_ENV_FILE}${EOL}`, "utf8");
+}
+
+function writeLaneEnvironment(featureId, worktreeDir, port) {
+  const lines = [
+    "# Written by lane-new (feat-057): this lane's own ports and database suffix.",
+    `HARNESS_LANE=${featureId}`,
+    `HARNESS_PORT_BASE=${port}`,
+    `HARNESS_DB_SUFFIX=_${featureId.replace(/-/g, "_")}`,
+  ];
+  writeFileSync(path.join(worktreeDir, LANE_ENV_FILE), `${lines.join(EOL)}${EOL}`, "utf8");
+  excludeLaneEnvFile();
+}
+
+// Copies the main checkout's .env into a new lane only when git ignores it there, so secrets
+// never become an untracked file in the lane that a commit could pick up.
+function copyMainEnvToLane(mainRoot, worktreeDir) {
+  const source = path.join(mainRoot, ".env");
+  if (!existsSync(source)) return;
+  const destination = path.join(worktreeDir, ".env");
+  if (existsSync(destination)) return;
+  const ignored = spawnSync("git", ["check-ignore", "-q", ".env"], { cwd: mainRoot }).status === 0;
+  const tracked = spawnSync("git", ["ls-files", "--error-unmatch", ".env"], { cwd: mainRoot, stdio: "ignore" }).status === 0;
+  if (!ignored || tracked) {
+    console.log("NOTE: .env was not copied into the lane — git does not ignore it here, so a lane commit could pick up its secrets. Add .env to .gitignore to have lanes copy it.");
+    return;
+  }
+  writeFileSync(destination, readFileSync(source));
+  console.log("Copied .env from the main checkout into the lane (yours to change there).");
+}
+
 function laneNew(featureId) {
   if (!featureId) {
     fail("usage: node scripts/framework-check.mjs lane-new <feature-id>");
@@ -2661,9 +2770,14 @@ function laneNew(featureId) {
     );
   }
 
+  const port = reserveLanePorts(featureId);
+  writeLaneEnvironment(featureId, worktreeDir, port);
+  copyMainEnvToLane(repoRoot(), worktreeDir);
+
   console.log("");
   console.log(`Lane ready: ${worktreeDir}`);
   console.log(`Branch: ${branch}`);
+  console.log(`Ports: ${port}-${port + LANE_PORT_BLOCK - 1} (HARNESS_PORT_BASE in the lane's ${LANE_ENV_FILE})`);
   console.log(`Feature ${featureId} marked active in the lane's ${featureStateDir}/${featureId}.json (uncommitted).`);
   console.log("Next: work the feature inside that worktree, verify, commit, then run lane-land from the branch you want to merge into.");
 }
@@ -2698,13 +2812,16 @@ function laneList() {
   }
   console.log("=== Lanes ===");
   console.log("");
+  const registry = readLaneRegistry();
   for (const branch of laneRefs) {
     const featureId = laneFeatureIdFromBranch(branch);
     const worktreePath = findWorktreeForBranch(branch);
     const { state } = worktreePath
       ? readFeatureStateAt(worktreePath, featureId)
       : readFeatureStateAtRef(branch, featureId);
-    console.log(`  ${branch}  feature=${featureId}  state=${state}  worktree=${worktreePath ?? "(none)"}`);
+    const port = registry[featureId];
+    const ports = Number.isInteger(port) ? `${port}-${port + LANE_PORT_BLOCK - 1}` : "(none)";
+    console.log(`  ${branch}  feature=${featureId}  state=${state}  ports=${ports}  worktree=${worktreePath ?? "(none)"}`);
   }
 }
 
@@ -2733,6 +2850,7 @@ function laneLand(featureId) {
   if ((merge.status ?? 1) !== 0) {
     fail(`merge of ${branch} failed — resolve conflicts, then finish the merge manually`);
   }
+  releaseLanePorts(featureId);
 
   const worktreePath = findWorktreeForBranch(branch);
   if (worktreePath) {
@@ -2766,6 +2884,7 @@ function laneDrop(featureId) {
       `could not remove worktree ${worktreePath} — commit, stash, or discard its changes first (git worktree remove --force will discard them, run it yourself if that is what you intend)`,
     );
   }
+  releaseLanePorts(featureId);
   console.log("");
   console.log(`Worktree removed. Branch ${branch} still exists — delete it manually (git branch -D ${branch}) if it's no longer needed.`);
 }
