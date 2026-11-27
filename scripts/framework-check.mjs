@@ -1879,6 +1879,102 @@ function preCommit() {
   console.log("[pre-commit] lint and architecture rules pass (the full npm run check is still yours to run)");
 }
 
+// ---- Opt-in push and commit-message hooks (feat-058, D-068) ------------------------
+// Installed with pre-commit (they live in the same core.hooksPath folder). pre-push refuses a
+// push to the default branch unless HARNESS_ALLOW_DEFAULT_PUSH=1; commit-msg applies the rules
+// in .harness/commit-rules.json, which ship disabled.
+
+const HOOK_FILES = ["pre-commit", "pre-push", "commit-msg"];
+const COMMIT_RULES_PATH = ".harness/commit-rules.json";
+const COMMIT_RULE_KEYS = new Set(["$comment", "enabled", "subjectPattern", "maxSubjectLength", "forbid"]);
+const ZERO_SHA = /^0+$/;
+
+function prePush(remote) {
+  const remoteHead = gitCapture(["symbolic-ref", "--short", `refs/remotes/${remote}/HEAD`]);
+  const defaults = remoteHead ? [remoteHead.slice(remote.length + 1)] : ["master", "main"];
+  const lines = readFileSync(0, "utf8").split(/\r?\n/).filter(Boolean);
+  const hits = [];
+  for (const line of lines) {
+    const [, , remoteRef] = line.split(" ");
+    const branch = remoteRef?.startsWith("refs/heads/") ? remoteRef.slice("refs/heads/".length) : null;
+    if (branch && defaults.includes(branch)) hits.push(branch);
+  }
+  if (hits.length === 0) return;
+  if (process.env.HARNESS_ALLOW_DEFAULT_PUSH === "1") {
+    console.log(`[pre-push] Pushing to ${hits.join(", ")} on ${remote}: allowed by HARNESS_ALLOW_DEFAULT_PUSH=1`);
+    return;
+  }
+  console.error(`[pre-push] Push blocked: ${[...new Set(hits)].join(", ")} is the default branch of ${remote}.`);
+  console.error("[pre-push] Push a feature branch and open a pull request instead. To push anyway, run the push with HARNESS_ALLOW_DEFAULT_PUSH=1.");
+  process.exit(1);
+}
+
+// The rules file, validated; null when it is absent. Lint calls this too.
+function loadCommitRules() {
+  if (!existsSync(COMMIT_RULES_PATH)) return null;
+  let rules;
+  try {
+    rules = readJson(COMMIT_RULES_PATH);
+  } catch (error) {
+    fail(`${COMMIT_RULES_PATH} is not valid JSON: ${error.message}`);
+  }
+  if (!rules || typeof rules !== "object" || Array.isArray(rules)) fail(`${COMMIT_RULES_PATH} must be a JSON object`);
+  const unknown = Object.keys(rules).filter((key) => !COMMIT_RULE_KEYS.has(key));
+  if (unknown.length > 0) fail(`${COMMIT_RULES_PATH} has unknown key(s): ${unknown.join(", ")}`);
+  if (typeof rules.enabled !== "boolean") fail(`${COMMIT_RULES_PATH} enabled must be true or false`);
+  const asRegExp = (source, label) => {
+    if (typeof source !== "string") fail(`${COMMIT_RULES_PATH} ${label} must be a regular expression string`);
+    try {
+      return new RegExp(source);
+    } catch {
+      fail(`${COMMIT_RULES_PATH} ${label} is not a valid regular expression: ${source}`);
+    }
+  };
+  if ("subjectPattern" in rules) asRegExp(rules.subjectPattern, "subjectPattern");
+  if ("maxSubjectLength" in rules && !(Number.isInteger(rules.maxSubjectLength) && rules.maxSubjectLength > 0)) {
+    fail(`${COMMIT_RULES_PATH} maxSubjectLength must be a positive integer`);
+  }
+  if ("forbid" in rules) {
+    if (!Array.isArray(rules.forbid)) fail(`${COMMIT_RULES_PATH} forbid must be an array of regular expression strings`);
+    rules.forbid.forEach((source, index) => asRegExp(source, `forbid[${index}]`));
+  }
+  return rules;
+}
+
+function ensureCommitRules() {
+  const rules = loadCommitRules();
+  if (rules) pass(`${COMMIT_RULES_PATH} is valid (${rules.enabled ? "enabled" : "disabled"})`);
+}
+
+const GIT_GENERATED_SUBJECT = /^(Merge (branch|branches|pull request|remote-tracking branch|tag|commit|lane) |Revert ")/;
+
+function commitMsg(messageFile) {
+  if (!messageFile) fail("usage: node scripts/framework-check.mjs commit-msg <message-file>");
+  const rules = loadCommitRules();
+  if (!rules || !rules.enabled) return;
+  const lines = readFileSync(messageFile, "utf8").split(/\r?\n/).filter((line) => !line.startsWith("#"));
+  while (lines.length > 0 && lines[0].trim() === "") lines.shift();
+  const subject = lines[0] ?? "";
+  if (GIT_GENERATED_SUBJECT.test(subject)) return;
+  const problems = [];
+  if (rules.subjectPattern !== undefined && !new RegExp(rules.subjectPattern).test(subject)) {
+    problems.push(`subjectPattern ${rules.subjectPattern} does not match the first line: "${subject}"`);
+  }
+  if (rules.maxSubjectLength !== undefined && subject.length > rules.maxSubjectLength) {
+    problems.push(`maxSubjectLength ${rules.maxSubjectLength}: the first line has ${subject.length} characters: "${subject}"`);
+  }
+  for (const source of rules.forbid ?? []) {
+    const pattern = new RegExp(source);
+    const line = lines.find((entry) => pattern.test(entry));
+    if (line !== undefined) problems.push(`forbid ${source} matches the line: "${line}"`);
+  }
+  if (problems.length === 0) return;
+  console.error(`[commit-msg] Commit blocked by ${COMMIT_RULES_PATH}:`);
+  for (const problem of problems) console.error(`[commit-msg]   ${problem}`);
+  console.error("[commit-msg] Your message is kept in .git/COMMIT_EDITMSG: fix it and commit again.");
+  process.exit(1);
+}
+
 // core.hooksPath relative to the top of the working tree, where git runs hooks from.
 function harnessHooksPath() {
   const prefix = gitCapture(["rev-parse", "--show-prefix"]);
@@ -1888,8 +1984,9 @@ function harnessHooksPath() {
 
 function hooksInstall() {
   const target = harnessHooksPath();
-  const hook = `${HOOKS_DIR}/pre-commit`;
-  if (!existsSync(hook)) fail(`hooks-install: ${hook} is missing — restore it with harness-upgrade`);
+  const hooks = HOOK_FILES.map((name) => `${HOOKS_DIR}/${name}`);
+  const missing = hooks.filter((hook) => !existsSync(hook));
+  if (missing.length > 0) fail(`hooks-install: ${missing.join(", ")} missing — restore with harness-upgrade`);
   const chain = `call the harness hook from yours instead: add the line  "${target}/pre-commit" || exit 1  to your pre-commit hook`;
   const current = gitCapture(["config", "--get", "core.hooksPath"]);
   if (current === target) {
@@ -1906,10 +2003,10 @@ function hooksInstall() {
   if (own.length > 0) {
     fail(`hooks-install: ${defaultDir} has hooks of your own (${own.join(", ")}) that core.hooksPath would switch off. To keep them, ${chain}`);
   }
-  chmodSync(hook, 0o755); // git skips a hook that is not executable on Linux and macOS
+  for (const hook of hooks) chmodSync(hook, 0o755); // git skips a hook that is not executable on Linux and macOS
   const set = spawnSync("git", ["config", "--local", "core.hooksPath", target], { encoding: "utf8" });
   if (set.error || (set.status ?? 1) !== 0) fail(`hooks-install: git config failed: ${set.stderr ?? set.error}`);
-  pass(`Installed the pre-commit hook: core.hooksPath = ${target}; every commit now runs npm run lint and npm run check-arch. Remove it with npm run hooks-uninstall`);
+  pass(`Installed the harness hooks: core.hooksPath = ${target}; every commit now runs npm run lint and npm run check-arch and the rules in ${COMMIT_RULES_PATH} (when enabled), and a push to the default branch is refused. Remove them with npm run hooks-uninstall`);
 }
 
 function hooksUninstall() {
@@ -3384,8 +3481,8 @@ function printHelp() {
   console.log("  progress-update  Regenerate the progress state and session index");
   console.log("  progress-migrate  Move a single-file PROGRESS.md into progress/ and generate the dashboard");
   console.log("  clean-check    Pre-commit clean state verification");
-  console.log("  hooks-install  Opt in to the git pre-commit hook (lint + check-arch on every commit)");
-  console.log("  hooks-uninstall  Remove the harness pre-commit hook (git's default hooks folder again)");
+  console.log("  hooks-install  Opt in to the harness git hooks (lint + check-arch on commit, commit-message rules, no push to the default branch)");
+  console.log("  hooks-uninstall  Remove the harness git hooks (git's default hooks folder again)");
   console.log("  help           Show this help");
   console.log("");
   console.log("Make form:  make <target>            npm form:  npm run <target>");
@@ -3421,6 +3518,7 @@ switch (mode) {
     ensureMustRulesEnforced();
     ensureProgressLog();
     ensureCiRunsEvidenceCheck();
+    ensureCommitRules();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
   }
@@ -3571,6 +3669,18 @@ switch (mode) {
   }
   case "pre-commit": {
     preCommit();
+    break;
+  }
+  case "pre-push": {
+    prePush(args[0] ?? "origin");
+    break;
+  }
+  case "commit-msg": {
+    commitMsg(args[0]);
+    break;
+  }
+  case "lint:commit-rules": {
+    ensureCommitRules();
     break;
   }
   case "hooks-install": {

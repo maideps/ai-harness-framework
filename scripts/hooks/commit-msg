@@ -1,0 +1,8 @@
+#!/bin/sh
+# Harness commit-msg hook (feat-058). Opt-in: installed with the pre-commit hook by
+# `npm run hooks-install`. Applies the rules in .harness/commit-rules.json, which ship
+# disabled. git passes the message file as $1, relative to the top of the working tree;
+# resolve it before changing to the harness root.
+message="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+cd "$(dirname "$0")/../.." || exit 1
+exec node scripts/framework-check.mjs commit-msg "$message"

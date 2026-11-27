@@ -217,7 +217,7 @@ Projects that span multiple repositories can activate the multi-repo component:
 
 Single-repo projects never need the component: `check` passes without it, and `verify-all` reports `[SKIP] Multi-repo component not activated` when its files are absent. Once activated but still only holding the untouched `example` scaffold (no real repositories added yet), `verify-all` honestly reports `[SKIP] verify-all ran but nothing was verified yet` rather than a silent pass — it only reports success once at least one real repository's verify script actually runs and passes. Repositories without any supported verify script are SKIPped, not passed.
 
-## Pre-commit Hook (opt-in)
+## Git Hooks (opt-in)
 
 `npm run hooks-install` (or `make hooks-install`) makes git run the fast static checks, `npm run lint` and then `npm run check-arch`, before every commit, and block the commit when either fails, naming the failed step and how to rerun it. Because it is a git hook, it applies to every agent (Claude Code, Codex, Gemini) and every human committing in that clone.
 
@@ -226,6 +226,8 @@ Single-repo projects never need the component: `check` passes without it, and `v
 - **Never replaces your hooks.** If `core.hooksPath` already points elsewhere, or the default hooks folder holds hooks of your own, `hooks-install` stops and prints the line to add to your own pre-commit hook instead: `"scripts/hooks/pre-commit" || exit 1`.
 - **Upgrades include it.** The hook lives in `scripts/hooks/`, so `harness-upgrade` refreshes it with the other CORE scripts.
 - It checks the working tree, not only the staged changes, so an unstaged violation also blocks the commit.
+- **Pushes to the default branch are refused.** The same install adds a pre-push hook: a push whose target is the remote's default branch (the branch its `HEAD` names; `master` and `main` when the remote has none) is refused, naming the branch and saying to push a feature branch and open a pull request. Run that one push with `HARNESS_ALLOW_DEFAULT_PUSH=1` to let it through; the hook says it did (feat-058, D-068).
+- **Commit-message rules, off until you enable them.** It also adds a commit-msg hook that applies `.harness/commit-rules.json`: `subjectPattern` (a regular expression the first line must match), `maxSubjectLength`, and `forbid` (patterns no line may contain). A refused commit names each rule it broke and the line. Messages git writes for merges and reverts always pass. The file ships with `"enabled": false` and a conventional-commits `subjectPattern` to start from; `npm run lint` rejects a malformed file.
 
 ## Quality Gates (opt-in)
 

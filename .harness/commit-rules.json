@@ -1,0 +1,7 @@
+{
+  "$comment": "Commit-message rules for the opt-in commit-msg hook (npm run hooks-install). Disabled until enabled is true. See the Git Hooks section of docs/USAGE.md.",
+  "enabled": false,
+  "subjectPattern": "^(feat|fix|docs|test|refactor|chore|ci|build|perf)(\\([\\w-]+\\))?: .+",
+  "maxSubjectLength": 72,
+  "forbid": []
+}

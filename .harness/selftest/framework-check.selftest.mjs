@@ -3724,3 +3724,136 @@ test("lane-drop and lane-land release a block for reuse; a hand-deleted branch's
     cleanupLane(root, one, two, three);
   }
 });
+
+// ---- feat-058 (D-068): opt-in push and commit-message hooks --------------------
+
+// hookFixture plus a bare remote named origin, with the harness hooks installed.
+function pushFixture() {
+  const repo = hookFixture();
+  const remote = `${repo.root}-remote.git`;
+  spawnSync("git", ["init", "-q", "--bare", remote]);
+  repo.git("init", "-q", "-b", "master");
+  repo.git("remote", "add", "origin", remote);
+  const install = run(repo.root, "hooks-install", [], repo.env);
+  assert.equal(install.exit, 0, install.output);
+  const first = repo.commit("feat: first");
+  assert.equal(first.exit, 0, first.output);
+  const push = (args, env = {}) => {
+    const result = spawnSync("git", ["push", ...args], { cwd: repo.root, encoding: "utf8", env: { ...process.env, ...repo.env, ...env } });
+    return { exit: result.status ?? 1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  };
+  return { ...repo, push, done: () => { repo.done(); rmSync(remote, { recursive: true, force: true }); } };
+}
+
+test("pre-push: a push to the default branch is refused naming it; a feature branch pushes; the override lets it through (feat-058)", () => {
+  const repo = pushFixture();
+  try {
+    let result = repo.push(["-q", "origin", "master"], { HARNESS_ALLOW_DEFAULT_PUSH: "" });
+    assert.notEqual(result.exit, 0, result.output);
+    assert.match(result.output, /Push blocked: master is the default branch of origin/);
+    assert.match(result.output, /HARNESS_ALLOW_DEFAULT_PUSH=1/);
+    assert.equal(spawnSync("git", ["ls-remote", "--heads", "origin"], { cwd: repo.root, encoding: "utf8" }).stdout.trim(), "", "nothing reached the remote");
+
+    repo.git("checkout", "-q", "-b", "feat/x");
+    result = repo.push(["-q", "origin", "feat/x"]);
+    assert.equal(result.exit, 0, result.output);
+
+    result = repo.push(["-q", "origin", "feat/x:main"]);
+    assert.notEqual(result.exit, 0, "main is default too while the remote has no HEAD ref");
+    assert.match(result.output, /Push blocked: main is the default branch/);
+
+    result = repo.push(["-q", "origin", "master"], { HARNESS_ALLOW_DEFAULT_PUSH: "1" });
+    assert.equal(result.exit, 0, result.output);
+    assert.match(result.output, /allowed by HARNESS_ALLOW_DEFAULT_PUSH=1/);
+
+    // A remote whose HEAD names trunk: only trunk is the default.
+    repo.push(["-q", "origin", "feat/x:trunk"]);
+    repo.git("fetch", "-q", "origin");
+    repo.git("remote", "set-head", "origin", "trunk");
+    assert.equal(repo.push(["-q", "origin", "feat/x:master"]).exit, 0, "master is not the default once origin/HEAD names trunk");
+    write(repo.root, "next.txt", "1\n");
+    assert.equal(repo.commit("feat: next").exit, 0); // git skips pre-push when nothing is new
+    assert.notEqual(repo.push(["-q", "origin", "feat/x:trunk"]).exit, 0);
+
+    // hooks-uninstall removes the push hook along with the others.
+    assert.equal(run(repo.root, "hooks-uninstall", [], repo.env).exit, 0);
+    result = repo.push(["-q", "origin", "feat/x:trunk"]);
+    assert.equal(result.exit, 0, result.output);
+    assert.equal(
+      spawnSync("git", ["rev-parse", "origin/trunk"], { cwd: repo.root, encoding: "utf8" }).stdout.trim(),
+      repo.git("rev-parse", "HEAD").output.trim(),
+      "the new commit reached trunk once the hook was gone",
+    );
+  } finally {
+    repo.done();
+  }
+});
+
+test("commit-msg: enabled rules refuse a subject, a long subject and a forbidden line by name; merges and disabled rules pass (feat-058)", () => {
+  const repo = pushFixture();
+  try {
+    // Disabled (the shipped default): anything goes.
+    write(repo.root, ".harness/commit-rules.json", `${JSON.stringify({ enabled: false, subjectPattern: "^feat: ", maxSubjectLength: 20, forbid: ["WIP"] })}\n`);
+    let result = repo.commit("whatever WIP message that is long");
+    assert.equal(result.exit, 0, result.output);
+
+    write(repo.root, ".harness/commit-rules.json", `${JSON.stringify({ enabled: true, subjectPattern: "^(feat|fix): ", maxSubjectLength: 30, forbid: ["WIP"] })}\n`);
+    result = repo.commit("feat: enable the rules");
+    assert.equal(result.exit, 0, result.output);
+
+    write(repo.root, "a.txt", "1\n");
+    result = repo.commit("update a");
+    assert.notEqual(result.exit, 0, result.output);
+    assert.match(result.output, /Commit blocked by \.harness\/commit-rules\.json/);
+    assert.match(result.output, /subjectPattern .* does not match the first line: "update a"/);
+
+    result = repo.commit("feat: a subject that is far too long for the rule");
+    assert.notEqual(result.exit, 0);
+    assert.match(result.output, /maxSubjectLength 30: the first line has 49 characters/);
+
+    result = spawnSync("git", ["commit", "-q", "-m", "fix: short", "-m", "still WIP here"], { cwd: repo.root, encoding: "utf8", env: { ...process.env, ...repo.env } });
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}${result.stderr}`, /forbid WIP matches the line: "still WIP here"/);
+
+    result = repo.commit("fix: a");
+    assert.equal(result.exit, 0, result.output);
+
+    // A merge git writes the message for is accepted.
+    repo.git("checkout", "-q", "-b", "side", "HEAD~1");
+    write(repo.root, "b.txt", "1\n");
+    assert.equal(repo.commit("feat: side").exit, 0);
+    repo.git("checkout", "-q", "master");
+    const merge = spawnSync("git", ["merge", "--no-ff", "--no-edit", "side"], { cwd: repo.root, encoding: "utf8", env: { ...process.env, ...repo.env } });
+    assert.equal(merge.status, 0, `${merge.stdout}${merge.stderr}`);
+    assert.match(repo.git("log", "-1", "--format=%s").output, /^Merge branch 'side'/);
+  } finally {
+    repo.done();
+  }
+});
+
+test("lint:commit-rules: a missing file passes; a malformed one fails naming the problem (feat-058)", () => {
+  const root = fixture();
+  try {
+    assert.equal(run(root, "lint:commit-rules").exit, 0);
+    const cases = [
+      [{ subjectPattern: "x" }, /enabled must be true or false/],
+      [{ enabled: true, subjectPattern: "(" }, /subjectPattern is not a valid regular expression/],
+      [{ enabled: true, maxSubjectLength: 0 }, /maxSubjectLength must be a positive integer/],
+      [{ enabled: true, forbid: "WIP" }, /forbid must be an array/],
+      [{ enabled: true, forbid: ["ok", "["] }, /forbid\[1\] is not a valid regular expression/],
+      [{ enabled: true, subject: "x" }, /unknown key\(s\): subject/],
+    ];
+    for (const [rules, message] of cases) {
+      write(root, ".harness/commit-rules.json", JSON.stringify(rules));
+      const result = run(root, "lint:commit-rules");
+      assert.equal(result.exit, 1, JSON.stringify(rules));
+      assert.match(result.output, message);
+    }
+    write(root, ".harness/commit-rules.json", readFileSync(path.resolve(path.dirname(RUNNER), "..", "templates", "commit-rules.json"), "utf8"));
+    const shipped = run(root, "lint:commit-rules");
+    assert.equal(shipped.exit, 0, shipped.output);
+    assert.match(shipped.output, /valid \(disabled\)/);
+  } finally {
+    cleanup(root);
+  }
+});

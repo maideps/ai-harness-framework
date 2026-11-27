@@ -36,7 +36,7 @@ If baseline verification is failing, repair that first before adding new scope.
 <!-- source: harness-engineering-template L03 — consistent-state predicate must be verifiable -->
 <!-- why: without explicit MUST/MUST NOT rules, agents drift from the prescribed workflow -->
 
-- **MUST** run `make check` (or equivalent verification) before every commit. `npm run hooks-install` (opt-in) makes git block a commit whose lint or architecture rules fail; it runs only those fast checks, so the full check stays this step
+- **MUST** run `make check` (or equivalent verification) before every commit. `npm run hooks-install` (opt-in) makes git block a commit whose lint or architecture rules fail, or whose message breaks the enabled rules in `.harness/commit-rules.json`, and refuses a push to the default branch; it runs only those fast checks, so the full check stays this step
   <!-- enforced-by: pre-commit hook (opt-in; lint and check-arch only) and CI after push — nothing enforces the full check before each commit -->
   <!-- source: harness-engineering-template L03 — repo must have a verifiable consistent-state predicate -->
 - **MUST NOT** mark a feature as `passing` manually — use `make verify-feature F=<id>` or the documented verification path
