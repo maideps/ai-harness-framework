@@ -56,6 +56,26 @@ The harness ships no Codex permission file. Codex reads a project `.codex/config
 
 The harness ships no Gemini permission rules (`create-harness --with mcp` places `.gemini/settings.json` for MCP servers only). Project `.gemini/settings.json` supports `tools.exclude` and `tools.core` (an allowlist of built-in tools) and sandbox settings; check the [Gemini CLI configuration reference](https://geminicli.com/docs/reference/configuration) for the version you run. As with Codex, keep secrets out of the workspace.
 
+## Agent Compatibility
+
+The harness does not depend on which agent runs it. Its contract is `AGENTS.md` plus commands run in a shell (`./init.sh`, `npm run clarify`, `npm run verify-feature`, `npm run check`, …), and no script changes its behavior by agent: `verify-feature` does the same whether Claude Code, another agent or a person runs it. What differs between agents is how much has been checked.
+
+| Level | Agents | What backs it |
+|---|---|---|
+| Measured | Claude Code | The harness framework's compliance evals run it on real tasks and grade what it did; the framework is developed with it. |
+| Wired up, not measured | Codex, Gemini CLI | Codex reads `AGENTS.md` itself (a `codex.md` pointer also exists for tools that look for one) and Gemini CLI reads `GEMINI.md`, which points to it; the optional dev container installs them, the optional MCP component configures them, and the permission notes above cover them. No graded run is recorded. |
+| Any other agent | — | Works when the requirements below hold. Not measured. |
+
+**Requirements for any agent:**
+
+1. **It reads `AGENTS.md`**, an open convention many agents follow. If yours reads another file at startup, add a one-line file of that name pointing to `AGENTS.md`, as `CLAUDE.md` and `GEMINI.md` do.
+2. **It can run shell commands** with Node.js 18+ and git on the path. An agent that cannot (a chat with no terminal, an editor assistant in read-only mode) can still follow the loop, but a person has to run the gates.
+3. **Secrets are protected its own way.** `.claude/settings.json` is read only by Claude Code; for another agent, use its own permission or sandbox settings, or keep secrets out of the workspace.
+
+Whatever the agent, the checks that do not rely on it following instructions still apply: `typecheck` rejects a feature marked `passing` without gate evidence, the opt-in git hooks refuse commits and pushes that break their rules, and CI's `evidence-check` fails a pull request whose code changed after verification.
+
+The framework's compliance evals live in its own repository and today only launch Claude Code.
+
 ## Skills
 
 Reusable capability packs are documented in `skills/` (one `SKILL.md` per skill folder). Load the relevant skill when its "When to Use" conditions match; add project skills with the format described in the `write-skill` skill.

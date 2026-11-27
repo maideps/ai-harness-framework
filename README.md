@@ -5,7 +5,7 @@
 
 **Make your AI coding agent finish features properly: one at a time, verified before it says "done", and able to pick up where the last session stopped.**
 
-Works with Claude Code, Codex and Gemini CLI. It detects node, python, go and rust projects and runs their own checks; for jvm and dotnet projects it runs the tests. Any other tool can be chained into a layer.
+Works with any coding agent that reads `AGENTS.md` and can run shell commands. Its behavior is measured with Claude Code; Codex and Gemini CLI are wired up but not measured ([Agent Compatibility](docs/TOOLS.md#agent-compatibility)). It detects node, python, go and rust projects and runs their own checks; for jvm and dotnet projects it runs the tests. Any other tool can be chained into a layer.
 
 ![An agent's feature is refused by the verification gate, fixed, then recorded as passing](docs/demo/demo.gif)
 
