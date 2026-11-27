@@ -48,6 +48,7 @@
     "add-feature": "node scripts/framework-check.mjs add-feature",
     "clarify": "node scripts/framework-check.mjs clarify",
     "activate": "node scripts/framework-check.mjs activate",
+    "evidence-check": "node scripts/framework-check.mjs evidence-check",
     "vcr": "npm run check && node scripts/framework-check.mjs record-trail vcr",
     "session-start": "node scripts/framework-check.mjs session-trace start",
     "session-end": "node scripts/framework-check.mjs session-trace end",

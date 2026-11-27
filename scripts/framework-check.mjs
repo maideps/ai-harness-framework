@@ -2060,6 +2060,114 @@ function warnStaleEvidence() {
   }
 }
 
+// ---- Evidence matches the commit a pull request merges (feat-055, D-065) ---------------
+// verify-feature binds evidence to a commit, but nothing stopped code from changing after it.
+// evidence-check runs at the pull request: every feature that became passing on the branch must
+// have evidence for a commit after which the branch changed only bookkeeping.
+
+// After the gate, AGENTS.md requires README.md and the quality document to change too.
+const POST_GATE_PATHS = ["README.md", "docs/quality-document.md"];
+
+function isEvidenceBookkeeping(file) {
+  return isBookkeepingPath(file) || POST_GATE_PATHS.includes(file);
+}
+
+function resolveEvidenceBase(explicitBase) {
+  const candidates = explicitBase ? [explicitBase] : ["origin/HEAD", "origin/master", "origin/main", "master", "main"];
+  for (const ref of candidates) {
+    if (gitCapture(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]) === null) continue;
+    const base = gitCapture(["merge-base", ref, "HEAD"]);
+    if (base) return { ref, base };
+    if (explicitBase) fail(`evidence-check: ${ref} shares no history with HEAD — fetch full history (fetch-depth: 0 in CI)`);
+  }
+  if (explicitBase) fail(`evidence-check: base ${explicitBase} is not a commit in this repository`);
+  fail("evidence-check: cannot find the base branch (tried origin/HEAD, origin/master, origin/main, master, main) — pass --base <ref>");
+}
+
+// A feature's state at a commit, read from its shard there; no shard means planned.
+function featureStateAtCommit(commit, featureId) {
+  const content = gitCapture(["show", `${commit}:./${featureStateDir}/${featureId}.json`]);
+  if (content === null) return "planned";
+  try {
+    return getFeatureState(JSON.parse(content)) ?? "planned";
+  } catch {
+    return "planned";
+  }
+}
+
+// Files touched by the branch's own commits after `commit`: non-merge commits reachable from
+// HEAD but not from `commit` nor the base. Merging the base in, and the merge commit a pull
+// request's CI checks out, bring no change of the branch's own.
+function filesChangedAfter(commit, base) {
+  const output = gitCapture(["log", "--no-merges", "--name-only", "--relative", "--format=", `${commit}..HEAD`, `^${base}`]);
+  if (output === null) return null;
+  return [...new Set(output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))].sort();
+}
+
+function evidenceCheck(args) {
+  let explicitBase = null;
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "--base") {
+      explicitBase = args[index + 1];
+      if (!explicitBase) fail("evidence-check --base requires a ref");
+      index += 1;
+    } else {
+      fail(`unknown evidence-check option ${args[index]} (expected --base <ref>)`);
+    }
+  }
+  if (gitCapture(["rev-parse", "--show-prefix"]) === null) fail("evidence-check needs a git repository");
+  const { ref, base } = resolveEvidenceBase(explicitBase);
+  const { features } = loadFeaturesWithState();
+  const newlyPassing = features.filter(
+    (feature) => getFeatureState(feature) === "passing" && featureStateAtCommit(base, feature.id) !== "passing",
+  );
+  console.log(`Base: ${ref} (merge-base ${base.slice(0, 7)})`);
+  if (newlyPassing.length === 0) {
+    pass("No feature became passing on this branch — nothing to check");
+    return;
+  }
+  const problems = [];
+  for (const feature of newlyPassing) {
+    const evidence = parseEvidence(feature);
+    const rerun = `rerun npm run verify-feature -- ${feature.id} on a committed tree`;
+    if (!evidence || typeof evidence.commit !== "string" || evidence.bound !== true) {
+      problems.push(`${feature.id}: its evidence is not bound to a commit (recorded outside git or with --allow-dirty) — ${rerun}`);
+      continue;
+    }
+    const known = gitCapture(["rev-parse", "--verify", "--quiet", `${evidence.commit}^{commit}`]);
+    if (known === null || spawnSync("git", ["merge-base", "--is-ancestor", known, "HEAD"]).status !== 0) {
+      problems.push(`${feature.id}: evidence commit ${evidence.commit} is not an ancestor of HEAD — ${rerun}`);
+      continue;
+    }
+    const changed = filesChangedAfter(known, base);
+    if (changed === null) fail(`evidence-check: git log failed for ${feature.id}`);
+    const code = changed.filter((file) => !isEvidenceBookkeeping(file));
+    if (code.length > 0) {
+      problems.push(
+        `${feature.id}: changed after its evidence commit ${evidence.commit} — ${rerun}:\n${code.map((file) => `         ${file}`).join("\n")}`,
+      );
+    }
+  }
+  if (problems.length > 0) {
+    fail(`evidence does not match the code this branch merges:\n       ${problems.join("\n       ")}`);
+  }
+  pass(`Evidence matches the merged code for ${newlyPassing.map((feature) => feature.id).join(", ")}`);
+}
+
+// The framework's own workflow and the one it ships run evidence-check on pull requests
+// (feat-055). Only checked here: an adopter's ci.yml is theirs and never rewritten.
+function ensureCiRunsEvidenceCheck() {
+  if (!isFrameworkRepository()) return;
+  for (const file of [".github/workflows/ci.yml", "templates/ci.yml"]) {
+    if (!existsSync(file)) fail(`${file} is missing`);
+    const text = readText(file);
+    if (!/^\s*pull_request\s*:/m.test(text)) fail(`${file} must run on pull_request`);
+    if (!/npm run evidence-check\b/.test(text)) fail(`${file} must run npm run evidence-check on pull requests`);
+    if (!/fetch-depth:\s*0\b/.test(text)) fail(`${file} must check out full history (fetch-depth: 0) for evidence-check`);
+  }
+  pass("CI workflows run evidence-check on pull requests");
+}
+
 function verifyFeature(featureId, { allowDirty = false } = {}) {
   if (!featureId) {
     fail("usage: node scripts/framework-check.mjs verify-feature <feature-id> [--allow-dirty]");
@@ -3051,6 +3159,7 @@ function printHelp() {
   console.log("  verify-feature F=<id>  Run all verification layers for a feature (commit its code first)");
   console.log("  clarify F=<id> [RECORD=<file>]  Print a feature's clarify checklist and flags, or record the answers");
   console.log("  activate F=<id>        Activate a feature when dependencies allow and its clarifications are recorded");
+  console.log("  evidence-check [BASE=<ref>]  Fail if a feature passing on this branch changed code after its evidence commit");
   console.log("  lane-new F=<id>   Create a sibling git worktree lane on branch lane/<id>");
   console.log("  lane-list         List local lane/* branches, their feature, state, worktree");
   console.log("  lane-land F=<id>  Merge a passing lane back and clean up its worktree/branch");
@@ -3103,6 +3212,7 @@ switch (mode) {
     ensureReadmeContract();
     ensureMustRulesEnforced();
     ensureProgressLog();
+    ensureCiRunsEvidenceCheck();
     pass("Harness files, JSON manifests, and framework docs are present");
     break;
   }
@@ -3192,6 +3302,10 @@ switch (mode) {
   }
   case "lint:readme": {
     ensureReadmeContract();
+    break;
+  }
+  case "lint:ci-evidence": {
+    ensureCiRunsEvidenceCheck();
     break;
   }
   case "arch:sharded-state": {
@@ -3305,6 +3419,10 @@ switch (mode) {
   }
   case "clarify": {
     clarifyFeature(args[0], args.slice(1));
+    break;
+  }
+  case "evidence-check": {
+    evidenceCheck(args);
     break;
   }
   case "verify-chain": {
