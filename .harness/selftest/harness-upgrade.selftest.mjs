@@ -405,6 +405,7 @@ test("harness-upgrade: refreshes the shipped skills and never touches a project 
     assert.ok(report.missingScripts.some(({ name }) => name === "clarify"), "an adopter without the clarify command is told to add it (feat-054)");
     assert.ok(report.missingScripts.some(({ name }) => name === "evidence-check"), "an adopter without the evidence-check command is told to add it (feat-055)");
     assert.ok(report.missingScripts.some(({ name }) => name === "check-full"), "an adopter without check-full is told to add it (feat-056)");
+    assert.ok(report.missingScripts.some(({ name }) => name === "skill-usage"), "an adopter without skill-usage is told to add it (feat-059)");
     for (const name of shipped) {
       assert.equal(readFileSync(path.join(root, "skills", name, "SKILL.md"), "utf8"), harnessFile(`skills/${name}/SKILL.md`));
     }

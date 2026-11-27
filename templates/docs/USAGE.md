@@ -161,6 +161,8 @@ Shipped skills: `feature-cycle` (one feature at a time), `verification` (honest 
 
 Project skills may be added under `skills/` — see the `write-skill` skill for the format.
 
+Each session note says which skills that session loaded: `- Skills used: verification, commit`, or `none`. `progress-new` writes the line, and `npm run lint` rejects a name that is not a skill folder under `skills/`. `npm run skill-usage` (`make skill-usage DAYS=<n>`) reads every note and prints, for each skill, how many sessions used it and when it was last used, then lists the skills not used in the last 30 days (`-- --days <n>` to change). An agent only sees each skill's one-line description and opens the skill when the description matches the task in front of it, so a skill nobody opens for a month usually has a description that says what the skill does rather than when it is needed: rewrite the description, or remove the skill. Notes written before the line existed are skipped and counted separately. `npm run report` ends with the same table (feat-059, D-069).
+
 ## Worktree Lanes
 
 Multiple agents can work on independent features at the same time, each in its own sibling git worktree:

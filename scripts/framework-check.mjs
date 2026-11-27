@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderHarnessDocs } from "./harness-docs.mjs";
 import { QUALITY_CONFIG, runQualityGates, validateQualityConfig } from "./quality-gates.mjs";
+import { skillNames, skillsUsedIn } from "./harness-report.mjs";
 
 import {
   LAYERS,
@@ -276,6 +277,7 @@ const SESSION_NOTE_SECTIONS = [
   "Verification run",
   "Files or artifacts updated",
   "Mistakes caught",
+  "Skills used",
   "Known risk or unresolved issue",
   "Next best step",
 ];
@@ -483,6 +485,26 @@ function ensureProgressLog() {
   }
   pass(`Progress dashboard is current (${sessions.length} session${sessions.length === 1 ? "" : "s"})`);
   ensureMistakesCaught(sessions);
+  ensureSkillsUsed(sessions);
+}
+
+// Every skill a session note says it used must be a skill folder under skills/ (feat-059,
+// D-069), so npm run skill-usage counts real skills. Notes without the line are older notes;
+// a blank value is a note still being written.
+function ensureSkillsUsed(sessions) {
+  const known = new Set(skillNames("."));
+  const problems = [];
+  let checked = 0;
+  for (const session of sessions) {
+    const used = skillsUsedIn(readText(path.join("progress", session.filename)));
+    if (used === null) continue;
+    checked += 1;
+    for (const name of used) {
+      if (!known.has(name)) problems.push(`progress/${session.filename}: Skills used names ${name}, which is not a skill folder under skills/ (write the folder name, or none)`);
+    }
+  }
+  if (problems.length > 0) fail(problems.join("\n       "));
+  if (checked > 0) pass(`Session notes name only existing skills under Skills used (${checked} note${checked === 1 ? "" : "s"})`);
 }
 
 // Every mistake caught in a session must become a check, or say why it cannot (feat-042,
